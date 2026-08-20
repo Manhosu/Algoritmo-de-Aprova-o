@@ -303,10 +303,10 @@ describe("generateDailyTask — ordenação e diversidade", () => {
 describe("chooseTechnique — rotação", () => {
   it("prescreve uma técnica que tem material disponível", () => {
     const escolhida = chooseTechnique(
-      topic({ availableTechniques: ["video"] }),
+      topic({ availableTechniques: ["summary"] }),
       DEFAULT_STUDY_TECHNIQUES,
     );
-    expect(escolhida).toBe("video");
+    expect(escolhida).toBe("summary");
   });
 
   it("NÃO REPETE a técnica usada nas últimas sessões", () => {
@@ -314,10 +314,33 @@ describe("chooseTechnique — rotação", () => {
     // tempo. Sem isso, comparar técnicas seria comparar assuntos.
     const escolhida = chooseTechnique(
       topic({
-        availableTechniques: ["mind_map", "flashcard", "video"],
+        availableTechniques: ["mind_map", "flashcard", "summary"],
         recentTechniques: ["mind_map", "flashcard"],
       }),
       DEFAULT_STUDY_TECHNIQUES,
+    );
+    expect(escolhida).toBe("summary");
+  });
+
+  it("VIDEOAULA ESTÁ DESLIGADA enquanto não houver acervo de vídeo", () => {
+    // Decisão da cliente em 20/08/2026. Prescrever "Estude: Videoaula — Crase"
+    // sem ter o vídeo seria prometer o que não existe.
+    expect(DEFAULT_STUDY_TECHNIQUES.enabled).not.toContain("video");
+    expect(DEFAULT_STUDY_TECHNIQUES.enabled).toContain("summary");
+
+    // Mesmo que exista material de vídeo cadastrado, a técnica não é
+    // prescrita enquanto estiver fora da configuração.
+    const escolhida = chooseTechnique(
+      topic({ availableTechniques: ["video"] }),
+      DEFAULT_STUDY_TECHNIQUES,
+    );
+    expect(escolhida).toBeNull();
+  });
+
+  it("religar videoaula é só mudar a configuração, sem tocar em código", () => {
+    const escolhida = chooseTechnique(
+      topic({ availableTechniques: ["video"] }),
+      { ...DEFAULT_STUDY_TECHNIQUES, enabled: ["video", "reading"] },
     );
     expect(escolhida).toBe("video");
   });
@@ -359,7 +382,7 @@ describe("chooseTechnique — rotação", () => {
     for (let sessao = 0; sessao < 6; sessao++) {
       const escolhida = chooseTechnique(
         topic({
-          availableTechniques: ["mind_map", "flashcard", "video"],
+          availableTechniques: ["mind_map", "flashcard", "summary"],
           recentTechniques: recentes as never,
         }),
         DEFAULT_STUDY_TECHNIQUES,

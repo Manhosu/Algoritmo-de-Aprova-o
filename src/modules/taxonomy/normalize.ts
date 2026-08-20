@@ -100,6 +100,93 @@ function trigrams(value: string): Set<string> {
   return grams;
 }
 
+/* ========================================================================== *
+ * QUALIFICADORES GENÉRICOS
+ * ========================================================================== */
+
+/**
+ * Palavras que embrulham um assunto sem mudar QUAL assunto é.
+ *
+ * Edital raramente escreve "Crase". Escreve "Conceitos de Crase", "Noções de
+ * crase", "Emprego da crase", "Crase: regras gerais". O assunto é o mesmo; o
+ * resto é andaime.
+ *
+ * ⚠️ NÃO acrescente aqui palavra que seja assunto de verdade em alguma
+ * disciplina. "Princípios" parece genérico e é um assunto real em Direito
+ * Administrativo e em Constitucional — colocá-lo nesta lista faria
+ * "Princípios da Administração Pública" virar "administracao publica" e
+ * quebrar o casamento onde ele hoje funciona.
+ */
+const GENERIC_QUALIFIERS = new Set([
+  // "o que é"
+  "conceito", "conceitos", "nocao", "nocoes", "definicao", "definicoes",
+  "introducao", "fundamento", "fundamentos", "generalidades", "teoria",
+  // "como se usa"
+  "emprego", "uso", "utilizacao", "aplicacao", "aplicacoes",
+  "regra", "regras", "estudo", "analise",
+  // "de que tipo"
+  "aspecto", "aspectos", "caracteristica", "caracteristicas",
+  "tipo", "tipos", "forma", "formas", "classificacao", "elemento", "elementos",
+  "geral", "gerais", "especial", "especiais", "basico", "basicos",
+  "principal", "principais", "diverso", "diversos", "demais", "outros",
+  "caso", "casos", "gramatical", "gramaticais",
+  // adjetivos de norma que aparecem em Português
+  "norma", "padrao", "oficial", "vigente", "atual", "atualizada",
+  "brasileira", "brasileiro", "portuguesa", "moderna", "contemporanea",
+  "culta", "escrita",
+]);
+
+/** Palavras significativas de uma chave, já sem os qualificadores genéricos. */
+export function meaningfulTokens(key: string): string[] {
+  return key.split(" ").filter((token) => token.length > 0 && !GENERIC_QUALIFIERS.has(token));
+}
+
+/**
+ * Similaridade ASSIMÉTRICA: o quanto o assunto canônico explica o texto do
+ * edital.
+ *
+ * POR QUE ELA EXISTE, ALÉM DA SIMILARIDADE POR TRIGRAMAS
+ * ----------------------------------------------------------------------------
+ * A comparação por trigramas é simétrica (Jaccard), e isso é proposital: impede
+ * que um nome curto como "Crase" case com qualquer texto que apenas o contenha.
+ *
+ * Só que essa mesma simetria derruba o caso mais comum de edital real:
+ * "Conceitos de Crase" tem muitos trigramas que "Crase" não tem, e a
+ * similaridade cai para 0,38 — abaixo de qualquer limiar razoável.
+ *
+ * Esta função resolve pelo outro lado: se TODAS as palavras do assunto canônico
+ * aparecem no texto do edital, ele é candidato forte. O que decide a confiança
+ * é o que SOBRA:
+ *
+ *   "Conceitos de Crase"     → sobra {conceitos}          → tudo genérico → 0,95
+ *   "Casos proibidos de crase" → sobra {casos, proibidos} → 1 significativa → 0,80
+ *   "Crase, regência, concordância" → sobra 2 assuntos    → baixo
+ *
+ * O último caso é uma LISTA de assuntos, não uma especialização de um. O
+ * matcher detecta isso porque mais de um canônico fica contido no mesmo texto,
+ * e nesse caso manda para a fila em vez de escolher um.
+ */
+export function containmentSimilarity(rawKey: string, canonicalKey: string): number {
+  const canonicalTokens = meaningfulTokens(canonicalKey);
+  if (canonicalTokens.length === 0) return 0;
+
+  const rawTokens = new Set(rawKey.split(" ").filter(Boolean));
+  if (rawTokens.size === 0) return 0;
+
+  const allContained = canonicalTokens.every((token) => rawTokens.has(token));
+  if (!allContained) return 0;
+
+  const extras = [...rawTokens].filter((token) => !canonicalTokens.includes(token));
+  const meaningfulExtras = extras.filter((token) => !GENERIC_QUALIFIERS.has(token));
+
+  // Tudo que sobrou é andaime: é o mesmo assunto, só embrulhado.
+  if (meaningfulExtras.length === 0) return 0.95;
+
+  // Cada palavra significativa a mais é um indício de que o texto fala de
+  // outra coisa também — pode ser especialização ou pode ser uma lista.
+  return Math.max(0, 0.95 - 0.15 * meaningfulExtras.length);
+}
+
 /**
  * Limiares do casamento automático.
  *

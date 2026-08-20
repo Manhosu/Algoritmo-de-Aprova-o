@@ -1,4 +1,9 @@
-import { MATCH_THRESHOLDS, taxonomyKey, trigramSimilarity } from "./normalize";
+import {
+  containmentSimilarity,
+  MATCH_THRESHOLDS,
+  taxonomyKey,
+  trigramSimilarity,
+} from "./normalize";
 
 /**
  * A PONTE — casamento entre o edital do aluno e o catálogo canônico.
@@ -147,11 +152,29 @@ export function matchToCanonical(input: MatchInput): MatchResult {
   }
 
   /* --- camada 2: similaridade --------------------------------------------- */
+  /**
+   * Duas medidas, e vale a maior das duas:
+   *
+   *   • TRIGRAMAS (simétrica) pega variação de flexão e erro de digitação:
+   *     "Regência verbal" ↔ "Regencia verbais".
+   *
+   *   • CONTENÇÃO (assimétrica) pega o embrulho, que é o caso mais comum de
+   *     edital real: "Conceitos de Crase" contém "Crase" inteiro.
+   *
+   * Sozinha, a de trigramas reprova "Conceitos de Crase" com 0,38. Sozinha, a
+   * de contenção aprovaria "Crase, regência e concordância" — resolvido logo
+   * abaixo pela regra da lista.
+   */
   const ranked = pool
-    .map((candidate) => ({
-      candidate,
-      confidence: trigramSimilarity(key, candidate.normalizedName),
-    }))
+    .map((candidate) => {
+      const trigram = trigramSimilarity(key, candidate.normalizedName);
+      const containment = containmentSimilarity(key, candidate.normalizedName);
+      return {
+        candidate,
+        confidence: Math.max(trigram, containment),
+        isContained: containment > 0,
+      };
+    })
     .filter((entry) => entry.confidence > 0)
     .sort((a, b) => {
       if (b.confidence !== a.confidence) return b.confidence - a.confidence;
@@ -161,6 +184,32 @@ export function matchToCanonical(input: MatchInput): MatchResult {
     });
 
   if (ranked.length === 0) return empty;
+
+  /**
+   * REGRA DA LISTA: se DOIS OU MAIS assuntos canônicos couberem inteiros dentro
+   * do mesmo texto, não é uma especialização — é uma enumeração.
+   *
+   *   "Crase, regência, concordância e pontuação"
+   *
+   * Escolher um deles esconderia os outros três do aluno para sempre. O certo é
+   * mandar para a fila, onde um administrador vai perceber que o item precisa
+   * ser DESMEMBRADO, não mapeado.
+   */
+  const contained = ranked.filter((entry) => entry.isContained);
+  if (contained.length > 1) {
+    return {
+      status: "ambiguous",
+      canonicalId: null,
+      confidence: round(contained[0].confidence),
+      matchedBy: null,
+      alternatives: contained.slice(0, MAX_ALTERNATIVES).map((entry) => ({
+        topicId: entry.candidate.id,
+        name: entry.candidate.name,
+        confidence: round(entry.confidence),
+      })),
+      key,
+    };
+  }
 
   const best = ranked[0];
   const alternatives = ranked.slice(0, MAX_ALTERNATIVES).map((entry) => ({

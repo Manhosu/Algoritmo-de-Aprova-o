@@ -27,6 +27,7 @@ const CATALOGO: CanonicalCandidate[] = [
   candidate("concordancia", "Concordância verbal e nominal", PORT),
   candidate("regencia", "Regência verbal e nominal", PORT),
   candidate("acentuacao", "Acentuação gráfica", PORT),
+  candidate("pont", "Pontuação", PORT),
   candidate("princ-adm", "Princípios da Administração Pública", DIR_ADM),
   candidate("atos-adm", "Atos administrativos", DIR_ADM),
   candidate("princ-const", "Princípios fundamentais", DIR_CONST),
@@ -191,6 +192,90 @@ describe("matchToCanonical — camada 2: similaridade e escopo", () => {
       candidates: CATALOGO,
     };
     expect(matchToCanonical(entrada)).toEqual(matchToCanonical(entrada));
+  });
+});
+
+describe("matchToCanonical — o EMBRULHO do edital real", () => {
+  /**
+   * Pergunta da cliente em 20/08/2026: "se o conteúdo do edital entrar com
+   * algum texto a mais, por exemplo 'Conceitos de Crase', o sistema não vai
+   * entender que é o mesmo conteúdo nomeado só como 'Crase'?"
+   *
+   * Na primeira versão, NÃO entendia — todas estas variações caíam na fila.
+   * A similaridade por trigramas é simétrica, e um nome curto como "Crase"
+   * perde para qualquer texto mais longo. A camada de contenção resolve.
+   */
+  const embrulhos = [
+    "Conceitos de Crase",
+    "Noções de crase",
+    "Emprego da crase",
+    "Uso da crase",
+    "Regras de crase",
+    "Estudo da crase",
+    "Crase: regras gerais e casos especiais",
+    "Aspectos gramaticais da crase",
+  ];
+
+  it.each(embrulhos)("casa '%s' com o assunto Crase", (texto) => {
+    const resultado = matchToCanonical({
+      rawName: texto,
+      scopeSubjectId: PORT,
+      aliases: [],
+      candidates: CATALOGO,
+    });
+    expect(resultado.canonicalId).toBe("crase");
+  });
+
+  it("funciona com assunto de nome composto", () => {
+    const resultado = matchToCanonical({
+      rawName: "Noções de acentuação gráfica",
+      scopeSubjectId: PORT,
+      aliases: [],
+      candidates: CATALOGO,
+    });
+    expect(resultado.canonicalId).toBe("acentuacao");
+  });
+
+  it("A REGRA DA LISTA: enumeração de assuntos vai para a fila, não escolhe um", () => {
+    // "Crase, regência e concordância" contém TRÊS assuntos canônicos inteiros.
+    // Escolher um esconderia os outros dois do aluno para sempre. O certo é o
+    // administrador desmembrar o item.
+    const resultado = matchToCanonical({
+      rawName: "Crase, regência verbal e nominal, concordância verbal e nominal",
+      scopeSubjectId: PORT,
+      aliases: [],
+      candidates: CATALOGO,
+    });
+
+    expect(resultado.status).toBe("ambiguous");
+    expect(resultado.canonicalId).toBeNull();
+    expect(resultado.alternatives.length).toBeGreaterThan(1);
+  });
+
+  it("texto muito específico ainda vai para a fila, com a sugestão certa", () => {
+    // "Emprego do sinal indicativo de crase" tem palavras significativas
+    // demais para casar sozinho — mas a fila recebe "Crase" como sugestão, e
+    // resolver uma vez cria o sinônimo que conserta todos os próximos.
+    const resultado = matchToCanonical({
+      rawName: "Emprego do sinal indicativo de crase",
+      scopeSubjectId: PORT,
+      aliases: [],
+      candidates: CATALOGO,
+    });
+    expect(resultado.status).toBe("ambiguous");
+    expect(resultado.alternatives[0]?.topicId).toBe("crase");
+  });
+
+  it("o embrulho NÃO faz assuntos diferentes se confundirem", () => {
+    // O ganho não pode vir às custas de precisão: "Conceitos de pontuação"
+    // tem que casar com Pontuação, nunca com Crase.
+    const resultado = matchToCanonical({
+      rawName: "Conceitos de pontuação",
+      scopeSubjectId: PORT,
+      aliases: [],
+      candidates: CATALOGO,
+    });
+    expect(resultado.canonicalId).toBe("pont");
   });
 });
 

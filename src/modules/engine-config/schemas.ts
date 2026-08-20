@@ -314,9 +314,16 @@ export const studyTechniquesSchema = z
 export type StudyTechniquesConfig = z.infer<typeof studyTechniquesSchema>;
 
 export const DEFAULT_STUDY_TECHNIQUES: StudyTechniquesConfig = {
-  // "questions" fica de fora da rotação de ESTUDO: ela é o par de prática de
-  // todo bloco, não uma das técnicas comparadas.
-  enabled: ["mind_map", "flashcard", "video", "reading", "summary"],
+  /**
+   * "questions" fica de fora da rotação de ESTUDO: ela é o par de prática de
+   * todo bloco, não uma das técnicas comparadas.
+   *
+   * "video" está DESLIGADA por decisão da cliente em 20/08/2026, enquanto o
+   * acervo de videoaulas não existir. Prescrever "Estude: Videoaula — Crase"
+   * sem ter o vídeo seria prometer o que não há. Reativar é um clique no
+   * painel; não precisa de deploy.
+   */
+  enabled: ["mind_map", "flashcard", "summary", "reading"],
   fallback: "reading",
   minSessionsBeforeRepeat: 2,
   alwaysPairWithQuestions: true,

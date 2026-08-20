@@ -105,6 +105,7 @@ async function main() {
         (activeConfigs.length === 0 ? "  ⚠ os motores não geram tarefa sem isso" : ""),
     );
 
+
     const orphanQuestions = await sql<Array<{ n: number }>>`
       select count(*)::int as n from questions q
       where q.status = 'published'
@@ -125,6 +126,25 @@ async function main() {
       `  ${"política de privacidade no ar".padEnd(28)} ${publishedPolicy[0].n === 0 ? "não" : "sim"}` +
         (publishedPolicy[0].n === 0 ? "  ⚠ obrigatória antes do lançamento" : ""),
     );
+
+    /**
+     * Versão ativa e quantas já existiram de cada tipo.
+     *
+     * Mais de uma versão significa que a configuração já foi alterada — e é
+     * exatamente esse histórico que permite explicar uma tarefa antiga com os
+     * pesos que valiam no dia dela.
+     */
+    const versions = await sql<Array<{ kind: string; active: number; total: number }>>`
+      select kind,
+             max(version) filter (where is_active) as active,
+             count(*)::int as total
+      from engine_configs group by kind order by kind
+    `;
+    console.log("\nCONFIGURAÇÃO DOS MOTORES");
+    for (const row of versions) {
+      const historico = row.total > 1 ? `  (${row.total} versões no histórico)` : "";
+      console.log(`  ${row.kind.padEnd(28)} v${row.active}${historico}`);
+    }
   } finally {
     await sql.end({ timeout: 5 });
   }
