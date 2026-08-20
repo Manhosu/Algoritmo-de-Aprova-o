@@ -15,6 +15,13 @@
       "when": 1787246913494,
       "tag": "0001_engine_config_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787251001096,
+      "tag": "0002_worthless_sauron",
+      "breakpoints": true
     }
   ]
 }

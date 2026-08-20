@@ -101,6 +101,48 @@ o intervalo seguinte conta de `completed_date` e não da data prevista, e
 desempenho ruim não reinicia o ciclo — mas fica registrado em
 `performance_rating` para a calibração futura ter dado com que trabalhar.
 
+### 2b. A Tarefa do Dia é uma sequência de blocos
+
+Proposta da cliente em 20/08/2026, aplicada na migration `0002`.
+
+A tarefa não é uma lista solta de itens. É uma sequência de **blocos**, e cada
+bloco é um par sobre o **mesmo assunto**:
+
+```
+🧠 Estude: Mapa Mental — Crase
+🎯 Pratique: Questões — Crase
+
+🧠 Estude: Flash Cards — Colocação Pronominal
+🎯 Pratique: Questões — Colocação Pronominal
+```
+
+Itens com o mesmo `daily_task_id` e o mesmo `block_index` formam um bloco.
+
+**O emparelhamento é o que torna a métrica possível.** "Melhor técnica de estudo"
+(README 2.1) exige atribuir desempenho a uma técnica. Com o par, a prática vem
+logo depois do estudo, sobre o mesmo assunto — o resultado é imputável à técnica
+que acabou de ser usada. Sem o par, técnica e resultado ficam separados no tempo
+e a atribuição vira chute.
+
+**E a técnica passou a ser prescrita, não apenas registrada.** Antes, `technique`
+existia só em `study_logs`, guardando o que o aluno escolheu fazer. Uma métrica
+montada sobre isso seria enviesada: o aluno usa flashcard no que é fácil e
+videoaula no que é difícil, e a técnica pareceria causar o desempenho que na
+verdade veio da dificuldade do assunto. Com o sistema prescrevendo e alternando
+(`daily_task_items.technique` + `study_techniques.minSessionsBeforeRepeat`), o
+mesmo assunto passa por técnicas diferentes ao longo do tempo e a comparação
+passa a ser feita **dentro** do assunto.
+
+**A quantidade de questões existe no banco e não aparece na tela.**
+`target_question_count` dimensiona o dia e define a conclusão do item, mas
+`study_techniques.showQuestionCount` é `false`: no plano Free o teto é 10 por
+dia, e anunciar um número maior seria prometer o que o plano não entrega.
+
+**Bater no limite do plano fecha o item como cumprido**, não como pendência.
+`closed_by_plan_limit` existe para o aluno que estudou tudo que o plano permitia
+não ver tarefa incompleta em vermelho — é o momento de maior intenção de
+upgrade do produto, e tratá-lo como falha desperdiça o momento.
+
 ### 3. Data e hora gravadas já convertidas
 
 `question_attempts` tem **três** colunas de tempo, e não é redundância:

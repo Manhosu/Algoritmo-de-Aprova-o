@@ -258,7 +258,7 @@ async function main() {
     ["limites de plano", "plan_limits", 3],
     ["preços", "plan_prices", 4],
     ["níveis", "levels", 5],
-    ["configurações de motor", "engine_configs", 5],
+    ["configurações de motor", "engine_configs", 6],
     ["bancas", "exam_boards", 9],
     ["disciplinas canônicas", "canonical_subjects", 7],
     ["missões", "missions", 5],

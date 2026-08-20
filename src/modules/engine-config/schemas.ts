@@ -235,6 +235,96 @@ export const DEFAULT_SCHEDULE_PARAMS: ScheduleParams = {
 };
 
 /* ========================================================================== *
+ * TÉCNICAS DE ESTUDO PRESCRITAS (decisão da cliente, 20/08/2026)
+ * ========================================================================== */
+
+export const STUDY_TECHNIQUES = [
+  "reading",
+  "video",
+  "flashcard",
+  "mind_map",
+  "summary",
+  "audio",
+  "questions",
+  "other",
+] as const;
+
+const studyTechnique = z.enum(STUDY_TECHNIQUES);
+
+/**
+ * A Tarefa do Dia é apresentada em BLOCOS, e cada bloco prescreve uma técnica:
+ *
+ *     🧠 Estude: Mapa Mental — Crase
+ *     🎯 Pratique: Questões — Crase
+ *
+ * Esta configuração define quais técnicas entram na rotação e com que política.
+ * Fica no banco, e não em código, porque é exatamente o tipo de coisa que a
+ * operação vai querer ajustar sem deploy — desligar videoaula enquanto o acervo
+ * de vídeo está vazio, por exemplo.
+ */
+export const studyTechniquesSchema = z
+  .object({
+    /** Técnicas na rotação, em ordem de preferência. */
+    enabled: z.array(studyTechnique).min(1),
+
+    /**
+     * Usada quando não existe material da técnica prescrita para o assunto.
+     * No começo da operação o acervo está vazio, então este é o caso comum.
+     */
+    fallback: studyTechnique,
+
+    /**
+     * Quantas sessões precisam passar antes de o mesmo assunto repetir a mesma
+     * técnica. É o que garante que cada assunto seja estudado por técnicas
+     * diferentes ao longo do tempo — sem isso a comparação entre técnicas
+     * mediria a dificuldade dos assuntos, não a eficácia das técnicas.
+     */
+    minSessionsBeforeRepeat: z.number().int().min(0).max(10),
+
+    /**
+     * Todo bloco de estudo vem com prática de questões junto.
+     * Palavras da cliente: "sempre tem prática de questões junto no bloco de
+     * estudo, para que o sistema possa medir a melhor técnica de estudo".
+     */
+    alwaysPairWithQuestions: z.boolean(),
+
+    /**
+     * ⚠️ NÃO exibir a quantidade de questões no bloco.
+     * No Free o teto é 10 por dia; anunciar um número maior seria prometer o
+     * que o plano não entrega.
+     */
+    showQuestionCount: z.boolean(),
+
+    /**
+     * Mínimo de questões respondidas depois de um estudo para que aquela
+     * técnica entre na conta da métrica. Abaixo disso a amostra é ruído.
+     */
+    minAttemptsForTechniqueStats: z.number().int().min(1).max(100),
+  })
+  .refine((v) => v.enabled.includes(v.fallback), {
+    message: "A técnica de fallback precisa estar entre as técnicas habilitadas.",
+  })
+  .refine((v) => !v.showQuestionCount, {
+    message:
+      "Exibir a quantidade de questões no bloco contraria a decisão da cliente: " +
+      "no plano Free o teto diário é menor que a meta interna e o aluno veria " +
+      "uma promessa que o plano não cumpre. Para reverter, é decisão de produto.",
+  });
+
+export type StudyTechniquesConfig = z.infer<typeof studyTechniquesSchema>;
+
+export const DEFAULT_STUDY_TECHNIQUES: StudyTechniquesConfig = {
+  // "questions" fica de fora da rotação de ESTUDO: ela é o par de prática de
+  // todo bloco, não uma das técnicas comparadas.
+  enabled: ["mind_map", "flashcard", "video", "reading", "summary"],
+  fallback: "reading",
+  minSessionsBeforeRepeat: 2,
+  alwaysPairWithQuestions: true,
+  showQuestionCount: false,
+  minAttemptsForTechniqueStats: 20,
+};
+
+/* ========================================================================== *
  * DESPACHO POR TIPO
  * ========================================================================== */
 
@@ -244,6 +334,7 @@ export const ENGINE_CONFIG_SCHEMAS = {
   review_intervals: reviewIntervalsSchema,
   preparation_index: preparationIndexSchema,
   schedule_params: scheduleParamsSchema,
+  study_techniques: studyTechniquesSchema,
 } as const;
 
 export type EngineConfigKind = keyof typeof ENGINE_CONFIG_SCHEMAS;
@@ -256,6 +347,7 @@ export const ENGINE_CONFIG_DEFAULTS: {
   review_intervals: DEFAULT_REVIEW_INTERVALS,
   preparation_index: DEFAULT_PREPARATION_INDEX,
   schedule_params: DEFAULT_SCHEDULE_PARAMS,
+  study_techniques: DEFAULT_STUDY_TECHNIQUES,
 };
 
 /**

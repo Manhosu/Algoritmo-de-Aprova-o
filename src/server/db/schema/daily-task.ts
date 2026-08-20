@@ -1,11 +1,13 @@
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   date,
   index,
   integer,
   jsonb,
   pgTable,
   real,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -13,7 +15,13 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { primaryId, timestamps } from "./_shared";
-import { dailyTaskItemKindEnum, dailyTaskStatusEnum, taskItemStatusEnum } from "./enums";
+import { contentItems } from "./content";
+import {
+  dailyTaskItemKindEnum,
+  dailyTaskStatusEnum,
+  studyTechniqueEnum,
+  taskItemStatusEnum,
+} from "./enums";
 import { engineConfigs } from "./engine";
 import { users } from "./identity";
 import { preparations, studyPlanTopics } from "./preparation";
@@ -137,9 +145,69 @@ export const dailyTaskItems = pgTable(
     kind: dailyTaskItemKindEnum().notNull(),
     status: taskItemStatusEnum().notNull().default("pending"),
 
+    /**
+     * BLOCO a que este item pertence (decisão da cliente em 20/08/2026).
+     *
+     * A Tarefa do Dia não é uma lista solta de itens: é uma sequência de blocos,
+     * e cada bloco é um par sobre o MESMO assunto:
+     *
+     *     🧠 Estude: Mapa Mental — Crase
+     *     🎯 Pratique: Questões — Crase
+     *
+     * Itens com o mesmo `dailyTaskId` e o mesmo `blockIndex` formam um bloco.
+     *
+     * O emparelhamento não é estético. É o que torna a métrica "Melhor técnica
+     * de estudo" (README 2.1) mensurável: a prática vem logo depois do estudo,
+     * sobre o mesmo assunto, então o desempenho nas questões é atribuível à
+     * técnica que acabou de ser usada. Sem o par, a técnica e o resultado ficam
+     * separados no tempo e a atribuição vira chute.
+     */
+    blockIndex: smallint().notNull().default(0),
+
+    /**
+     * Técnica PRESCRITA para este item de estudo (nulo nos itens de questões).
+     *
+     * Note a inversão: antes desta decisão, a técnica era só um registro do que
+     * o aluno tinha feito (`study_logs.technique`) — e uma métrica montada em
+     * cima disso seria enviesada, porque o aluno escolhe flashcard para o que é
+     * fácil e videoaula para o que é difícil; a técnica pareceria causar o
+     * desempenho que na verdade veio da dificuldade do assunto.
+     *
+     * Com o sistema prescrevendo e alternando a técnica, o mesmo assunto passa
+     * por técnicas diferentes ao longo do tempo, e a comparação passa a ser
+     * feita DENTRO do assunto. É a diferença entre observar e medir.
+     */
+    technique: studyTechniqueEnum(),
+
+    /**
+     * O material específico prescrito (o mapa mental, o baralho, a videoaula).
+     *
+     * Nulo quando ainda não existe material daquele assunto no acervo — que é a
+     * regra, não a exceção, no início da operação. Nesse caso o bloco vira um
+     * item de estudo neutro em vez de prometer um material inexistente.
+     */
+    contentItemId: uuid().references(() => contentItems.id, { onDelete: "set null" }),
+
+    /**
+     * Meta interna de questões. Dimensiona o dia e define a conclusão do item.
+     *
+     * ⚠️ NÃO É EXIBIDA AO ALUNO (decisão da cliente). No plano Free o teto é de
+     * 10 questões por dia; anunciar "responda 15 questões" seria prometer o que
+     * o plano não entrega. O bloco mostra "Pratique: Questões — Crase" e a barra
+     * de progresso, sem número.
+     */
     targetQuestionCount: integer(),
     targetMinutes: integer(),
     answeredQuestionCount: integer().notNull().default(0),
+
+    /**
+     * O item foi encerrado porque o aluno bateu no limite diário do plano.
+     *
+     * Existe para o produto NÃO mostrar tarefa incompleta a quem estudou tudo
+     * que o plano permitia. Um item fechado por limite conta como cumprido e é
+     * o gancho natural de upgrade — não uma pendência vermelha na tela.
+     */
+    closedByPlanLimit: boolean().notNull().default(false),
 
     priorityScore: real().notNull(),
 
@@ -194,9 +262,16 @@ export const dailyTaskItems = pgTable(
     ...timestamps,
   },
   (table) => [
-    index("daily_task_items_task_idx").on(table.dailyTaskId, table.sortOrder),
+    /** A consulta da tela: os itens de uma tarefa, agrupados em blocos. */
+    index("daily_task_items_block_idx").on(
+      table.dailyTaskId,
+      table.blockIndex,
+      table.sortOrder,
+    ),
     index("daily_task_items_topic_idx").on(table.planTopicId),
     index("daily_task_items_status_idx").on(table.status),
+    /** Base da métrica "Melhor técnica de estudo". */
+    index("daily_task_items_technique_idx").on(table.technique, table.completedAt),
   ],
 );
 

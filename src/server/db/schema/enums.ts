@@ -231,6 +231,8 @@ export const engineConfigKindEnum = pgEnum("engine_config_kind", [
   "preparation_index",
   /** Parâmetros de montagem do cronograma adaptativo. */
   "schedule_params",
+  /** Técnicas de estudo prescritas nos blocos da Tarefa do Dia e sua rotação. */
+  "study_techniques",
 ]);
 
 export const dailyTaskStatusEnum = pgEnum("daily_task_status", [

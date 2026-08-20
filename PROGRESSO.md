@@ -229,6 +229,18 @@ migration:
 | 39 | **Política de Privacidade entra como rascunho não publicado** | O texto descreve com precisão o que o sistema faz — inclusive as duas exceções à "exclusão total" (métrica anonimizada e guarda fiscal). Mas é rascunho técnico, não parecer jurídico: `is_current = false` impede publicação por acidente. |
 | 40 | **Disponibilidade por preparação, não implementada como divisão manual** | Com múltiplas preparações, o orçamento diário do aluno é dividido pelo motor com peso para a prova mais próxima (`schedule_params.urgencyAllocationExponent`), em vez de pedir ao aluno que reparta percentuais. |
 
+### Sessão 5 — 20/08/2026 (Tarefa do Dia em blocos)
+
+Proposta da cliente, aplicada no schema (migration `0002`).
+
+| # | Decisão | Por quê |
+|---|---|---|
+| 41 | **Tarefa do Dia em BLOCOS de estudo + prática, sobre o mesmo assunto** (`daily_task_items.block_index`) | Emparelhar não é estético: é o que torna "Melhor técnica de estudo" atribuível. A prática vem logo depois do estudo, no mesmo assunto, então o desempenho é imputável à técnica recém-usada. |
+| 42 | **A técnica passa a ser PRESCRITA pelo sistema** (`daily_task_items.technique`), não só registrada | Quando o aluno escolhe, a métrica mede a dificuldade do assunto, não a eficácia da técnica: flashcard vai para o que é fácil, videoaula para o que é difícil. Com prescrição rotativa, a comparação passa a ser feita dentro do mesmo assunto. É a diferença entre observar e medir. |
+| 43 | **Quantidade de questões não é exibida no bloco** (`study_techniques.showQuestionCount = false`) | No Free o teto é 10/dia. Anunciar "responda 15 questões" seria prometer o que o plano não entrega. A meta continua existindo internamente para dimensionar o dia. |
+| 44 | **Item fechado por limite de plano conta como CUMPRIDO** (`closed_by_plan_limit`) | Quem estudou tudo que o plano permitia não pode ver tarefa incompleta em vermelho. Vira o gancho natural de upgrade, no momento de maior intenção. |
+| 45 | **Nova configuração versionada `study_techniques`** | Quais técnicas entram na rotação, com que política de repetição e qual o fallback quando não há material. Editável pelo painel — desligar videoaula enquanto o acervo de vídeo está vazio não pode exigir deploy. |
+
 ### Decisões que dependem de terceiros
 
 | Item | Situação | Bloqueia |
