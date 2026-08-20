@@ -124,13 +124,17 @@ Apresentado para aprovação em **`docs/schema.md`**.
 - [ ] Aviso obrigatório com o texto exato do README
 
 ### 1.6 Motor 1 — Tarefa do Dia
-- [ ] Módulo puro com os 5 sinais ponderados
-- [ ] Suíte de testes do motor
-- [ ] Geração e recálculo da tarefa
+- [x] **Módulo puro com os 5 sinais ponderados** — `src/modules/daily-task/signals.ts`
+- [x] **Montagem em blocos, rotação de técnica, corte por tempo** — `generate.ts`
+- [x] **Suíte de testes** — 75 testes
+- [ ] Serviço que persiste a tarefa gerada (precisa de banco)
+- [ ] Tela da Tarefa do Dia
 
 ### 1.7 Motor 2 — Revisão
-- [ ] Módulo puro da curva do esquecimento (24h/7/30/60/90)
-- [ ] Suíte de testes do motor
+- [x] **Módulo puro da curva do esquecimento (24h/7/30/60/90)** — `src/modules/review/engine.ts`
+- [x] **Regra de atraso: acumula, próximo intervalo da execução real**
+- [x] **Suíte de testes** — 25 testes
+- [ ] Serviço que persiste as ocorrências (precisa de banco)
 - [ ] Tela "Revisões para Hoje" com botão REVISAR
 
 ### 1.8 Cronograma adaptativo
