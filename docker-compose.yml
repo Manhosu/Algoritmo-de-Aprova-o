@@ -1,0 +1,40 @@
+# Postgres de desenvolvimento.
+#
+# Existe para o desenvolvimento não ficar bloqueado esperando o projeto Supabase
+# da cliente. As migrations do Drizzle rodam iguais nos dois — quando a
+# DATABASE_URL de produção chegar, é só trocar a variável.
+#
+# Subir:    docker compose up -d
+# Derrubar: docker compose down
+# Zerar:    docker compose down -v     (⚠️ apaga o volume e todos os dados)
+
+services:
+  postgres:
+    # Mesma família de versão do Supabase, para não descobrir divergência
+    # de comportamento só no dia do deploy.
+    image: postgres:17-alpine
+    container_name: algoritmo-aprovacao-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: algoritmo
+      POSTGRES_PASSWORD: algoritmo
+      POSTGRES_DB: algoritmo_aprovacao
+      # pt_BR para ordenação e comparação de texto se comportarem como em
+      # produção — nomes de disciplina com acento ordenam diferente sob C.
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=pt-BR --encoding=UTF8"
+    ports:
+      # 5433 e não 5432: evita conflito com um Postgres já instalado na máquina.
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # `npm run db:migrate` logo depois de `up -d` falha se o banco ainda está
+      # subindo. Com healthcheck, `docker compose up -d --wait` só retorna
+      # quando o banco aceita conexão.
+      test: ["CMD-SHELL", "pg_isready -U algoritmo -d algoritmo_aprovacao"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

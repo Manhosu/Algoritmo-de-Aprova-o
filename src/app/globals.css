@@ -1,0 +1,382 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * ============================================================================
+ * O ALGORITMO DA APROVAÇÃO — DESIGN TOKENS
+ * ============================================================================
+ *
+ * Arquitetura em 3 camadas:
+ *
+ *   1. PRIMITIVAS  (--brand-*)  cores cruas da marca, iguais nos dois temas.
+ *   2. SEMÂNTICAS  (--background, --card, --primary, ...) papel na interface;
+ *                                é a única camada que muda entre claro/escuro.
+ *   3. DE DOMÍNIO  (--mastery-*, --level-*) significado de negócio.
+ *
+ * Regra: componentes NUNCA usam a camada 1 diretamente. Sempre a 2 ou a 3.
+ * Trocar a paleta = editar apenas os blocos `:root` e `.dark` abaixo.
+ *
+ * O tema ESCURO é o padrão do produto (ver README > IDENTIDADE VISUAL).
+ * Os valores do escuro são exatamente os hex acordados com a cliente.
+ * ============================================================================
+ */
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+ * CAMADA 1 — PRIMITIVAS DA MARCA (não mudam entre temas)
+ * ------------------------------------------------------------------------- */
+:root {
+  /* Escala "ink" — o azul-noite tecnológico da identidade */
+  --brand-ink-950: #06090f;
+  --brand-ink-900: #0a0e17; /* README: fundo principal */
+  --brand-ink-850: #0c1220;
+  --brand-ink-800: #0f1826; /* README: fundo de cards */
+  --brand-ink-700: #152134;
+  --brand-ink-600: #1c2b40; /* README: bordas */
+  --brand-ink-500: #2a3d58;
+  --brand-ink-400: #3d5477;
+
+  /* Escala ciano — cor de destaque */
+  --brand-cyan-200: #a5f3fc;
+  --brand-cyan-300: #67e8f9;
+  --brand-cyan-400: #22d3ee; /* README: cor de destaque */
+  --brand-cyan-500: #06b6d4;
+  --brand-cyan-600: #0891b2;
+  --brand-cyan-700: #0e7490;
+  --brand-cyan-900: #164e63;
+
+  /* Escala de texto */
+  --brand-slate-100: #dbe4f3; /* README: texto principal */
+  --brand-slate-300: #8ea0bd; /* README: texto secundário */
+  --brand-slate-500: #56698a;
+  --brand-slate-700: #2b3a52;
+
+  /* Neutros claros (usados só no tema claro) */
+  --brand-paper-50: #ffffff;
+  --brand-paper-100: #f5f8fd;
+  --brand-paper-200: #eaf0f9;
+  --brand-paper-300: #d8e2f0;
+
+  /* Cores de estado */
+  --brand-emerald: #34d399;
+  --brand-emerald-dark: #047857;
+  --brand-amber: #fbbf24;
+  --brand-amber-dark: #b45309;
+  --brand-rose: #fb7185;
+  --brand-rose-dark: #be123c;
+  --brand-indigo: #818cf8;
+  --brand-indigo-dark: #4338ca;
+  --brand-orange: #fb923c;
+  --brand-orange-dark: #c2410c;
+  --brand-gold: #facc15;
+  --brand-gold-dark: #a16207;
+}
+
+/* ---------------------------------------------------------------------------
+ * CAMADA 2 — SEMÂNTICAS / TEMA CLARO
+ * Espelha a estrutura do escuro com a paleta invertida (README).
+ * O ciano puro (#22d3ee) não tem contraste suficiente sobre branco, então no
+ * tema claro o papel `primary` usa o ciano escurecido — a identidade continua
+ * sendo o mesmo matiz.
+ * ------------------------------------------------------------------------- */
+:root {
+  --background: var(--brand-paper-100);
+  --foreground: var(--brand-ink-800);
+
+  --surface: var(--brand-paper-50);
+  --surface-2: var(--brand-paper-200);
+
+  --card: var(--brand-paper-50);
+  --card-foreground: var(--brand-ink-800);
+
+  --popover: var(--brand-paper-50);
+  --popover-foreground: var(--brand-ink-800);
+
+  --primary: var(--brand-cyan-700);
+  --primary-foreground: #ffffff;
+  --primary-soft: #cffafe;
+
+  --secondary: var(--brand-paper-200);
+  --secondary-foreground: var(--brand-ink-700);
+
+  --muted: var(--brand-paper-200);
+  --muted-foreground: var(--brand-slate-500);
+
+  --accent: var(--brand-paper-200);
+  --accent-foreground: var(--brand-ink-800);
+
+  --destructive: #e11d48;
+  --destructive-foreground: #ffffff;
+
+  --border: var(--brand-paper-300);
+  --input: var(--brand-paper-300);
+  --ring: var(--brand-cyan-600);
+
+  /* Camada 3 — domínio: níveis de domínio do diagnóstico (🟢 🟡 🔴) */
+  --mastery-high: var(--brand-emerald-dark);
+  --mastery-medium: var(--brand-amber-dark);
+  --mastery-low: var(--brand-rose-dark);
+
+  /* Camada 3 — domínio: níveis de gamificação (Marco 2) */
+  --level-1: var(--brand-emerald-dark); /* Iniciante   */
+  --level-2: var(--brand-cyan-700); /* Competitivo */
+  --level-3: var(--brand-indigo-dark); /* Estrategista */
+  --level-4: var(--brand-orange-dark); /* Elite       */
+  --level-5: var(--brand-gold-dark); /* Implacável  */
+
+  --success: var(--brand-emerald-dark);
+  --warning: var(--brand-amber-dark);
+  --info: var(--brand-cyan-700);
+
+  --chart-1: var(--brand-cyan-700);
+  --chart-2: var(--brand-indigo-dark);
+  --chart-3: var(--brand-emerald-dark);
+  --chart-4: var(--brand-amber-dark);
+  --chart-5: var(--brand-rose-dark);
+
+  --sidebar: var(--brand-paper-50);
+  --sidebar-foreground: var(--brand-ink-800);
+  --sidebar-primary: var(--brand-cyan-700);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--brand-paper-200);
+  --sidebar-accent-foreground: var(--brand-ink-800);
+  --sidebar-border: var(--brand-paper-300);
+  --sidebar-ring: var(--brand-cyan-600);
+
+  /* Brilho (glow) — no tema claro é discreto, quase uma sombra colorida */
+  --glow-soft: 0 0 0 1px color-mix(in oklab, var(--primary) 12%, transparent),
+    0 6px 20px -8px color-mix(in oklab, var(--primary) 30%, transparent);
+  --glow-strong: 0 0 0 1px color-mix(in oklab, var(--primary) 22%, transparent),
+    0 10px 32px -10px color-mix(in oklab, var(--primary) 45%, transparent);
+
+  --radius: 0.875rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * CAMADA 2 — SEMÂNTICAS / TEMA ESCURO  ← PADRÃO DO PRODUTO
+ * Os valores aqui são literalmente os hex do README.
+ * ------------------------------------------------------------------------- */
+.dark {
+  --background: var(--brand-ink-900); /* #0a0e17 */
+  --foreground: var(--brand-slate-100); /* #dbe4f3 */
+
+  --surface: var(--brand-ink-800); /* #0f1826 */
+  --surface-2: var(--brand-ink-700);
+
+  --card: var(--brand-ink-800); /* #0f1826 */
+  --card-foreground: var(--brand-slate-100);
+
+  --popover: var(--brand-ink-850);
+  --popover-foreground: var(--brand-slate-100);
+
+  --primary: var(--brand-cyan-400); /* #22d3ee */
+  --primary-foreground: var(--brand-ink-950);
+  --primary-soft: color-mix(in oklab, var(--brand-cyan-400) 16%, transparent);
+
+  --secondary: var(--brand-ink-700);
+  --secondary-foreground: var(--brand-slate-100);
+
+  --muted: var(--brand-ink-700);
+  --muted-foreground: var(--brand-slate-300); /* #8ea0bd */
+
+  --accent: var(--brand-ink-600);
+  --accent-foreground: var(--brand-slate-100);
+
+  --destructive: var(--brand-rose);
+  --destructive-foreground: var(--brand-ink-950);
+
+  --border: var(--brand-ink-600); /* #1c2b40 */
+  --input: var(--brand-ink-600);
+  --ring: var(--brand-cyan-400);
+
+  --mastery-high: var(--brand-emerald);
+  --mastery-medium: var(--brand-amber);
+  --mastery-low: var(--brand-rose);
+
+  --level-1: var(--brand-emerald);
+  --level-2: var(--brand-cyan-400);
+  --level-3: var(--brand-indigo);
+  --level-4: var(--brand-orange);
+  --level-5: var(--brand-gold);
+
+  --success: var(--brand-emerald);
+  --warning: var(--brand-amber);
+  --info: var(--brand-cyan-400);
+
+  --chart-1: var(--brand-cyan-400);
+  --chart-2: var(--brand-indigo);
+  --chart-3: var(--brand-emerald);
+  --chart-4: var(--brand-amber);
+  --chart-5: var(--brand-rose);
+
+  --sidebar: var(--brand-ink-900);
+  --sidebar-foreground: var(--brand-slate-300);
+  --sidebar-primary: var(--brand-cyan-400);
+  --sidebar-primary-foreground: var(--brand-ink-950);
+  --sidebar-accent: var(--brand-ink-800);
+  --sidebar-accent-foreground: var(--brand-slate-100);
+  --sidebar-border: var(--brand-ink-600);
+  --sidebar-ring: var(--brand-cyan-400);
+
+  /* Glow neon — a assinatura visual do tema escuro */
+  --glow-soft: 0 0 0 1px color-mix(in oklab, var(--primary) 25%, transparent),
+    0 0 24px -6px color-mix(in oklab, var(--primary) 40%, transparent);
+  --glow-strong: 0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent),
+    0 0 36px -4px color-mix(in oklab, var(--primary) 65%, transparent),
+    inset 0 0 24px -18px color-mix(in oklab, var(--primary) 80%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * MAPEAMENTO PARA O TAILWIND
+ * `inline` faz o Tailwind referenciar a variável (e não copiar o valor),
+ * que é o que permite o tema trocar em tempo de execução.
+ * ------------------------------------------------------------------------- */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-mastery-high: var(--mastery-high);
+  --color-mastery-medium: var(--mastery-medium);
+  --color-mastery-low: var(--mastery-low);
+
+  --color-level-1: var(--level-1);
+  --color-level-2: var(--level-2);
+  --color-level-3: var(--level-3);
+  --color-level-4: var(--level-4);
+  --color-level-5: var(--level-5);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+
+  --shadow-glow: var(--glow-soft);
+  --shadow-glow-strong: var(--glow-strong);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Altura da barra de navegação inferior fixa (mobile) */
+  --spacing-bottom-nav: 4.5rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * BASE
+ * ------------------------------------------------------------------------- */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    /* Evita o "pulo" de layout quando a barra de rolagem aparece */
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Títulos de card seguem o padrão do mockup: caixa alta e espaçamento */
+  .text-eyebrow {
+    @apply text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * UTILITÁRIOS DE PROJETO
+ * ------------------------------------------------------------------------- */
+
+/* Respeita a área segura do iOS — essencial porque a barra inferior é fixa */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Reserva o espaço da barra inferior fixa no conteúdo rolável */
+@utility pb-bottom-nav {
+  padding-bottom: calc(var(--spacing-bottom-nav) + env(safe-area-inset-bottom, 0px));
+}
+
+/* Card padrão do produto: borda sutil + brilho no tema escuro */
+@utility card-surface {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+@utility glow-ring {
+  box-shadow: var(--glow-soft);
+}
+
+@utility glow-ring-strong {
+  box-shadow: var(--glow-strong);
+}
+
+/* Números grandes das métricas (ver mockup) */
+@utility text-metric {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

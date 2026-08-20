@@ -1,0 +1,98 @@
+name: Backup do banco de dados
+
+# Rotina automática de backup exigida pelo README 1.1.
+#
+# Roda todo dia às 06:00 UTC (03:00 em Brasília) — horário de menor uso, para
+# o dump não competir com o aluno.
+#
+# Segredos necessários no repositório (Settings > Secrets and variables >
+# Actions):
+#   DATABASE_URL_DIRECT  conexão direta do Supabase (porta 5432, NÃO o pooler)
+#
+# Restauração: ver docs/backup-restore.md. Backup que ninguém sabe restaurar
+# não é backup.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  # Permite disparar manualmente antes de uma migration arriscada.
+  workflow_dispatch:
+
+# Impede dois backups simultâneos se um disparo manual coincidir com o agendado.
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Instalar o cliente do PostgreSQL 17
+        # A imagem do runner traz uma versão antiga do pg_dump. O dump precisa
+        # ser feito com um cliente da mesma versão do servidor ou mais novo,
+        # senão falha com "server version mismatch".
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+          pg_dump --version
+
+      - name: Gerar o dump
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DATABASE_URL_DIRECT}" ]; then
+            echo "::error::Segredo DATABASE_URL_DIRECT não configurado no repositório."
+            exit 1
+          fi
+
+          STAMP="$(date -u +%Y-%m-%d_%H%M)"
+          FILE="backup-${STAMP}.dump"
+          echo "BACKUP_FILE=${FILE}" >> "$GITHUB_ENV"
+          echo "BACKUP_STAMP=${STAMP}" >> "$GITHUB_ENV"
+
+          # -Fc  = formato custom: comprimido e restaurável seletivamente
+          # --no-owner / --no-acl = o dump não carrega donos e permissões do
+          #   Supabase, que não existem em outro destino de restauração
+          pg_dump "${DATABASE_URL_DIRECT}" \
+            --format=custom \
+            --no-owner \
+            --no-acl \
+            --verbose \
+            --file="${FILE}"
+
+          ls -lh "${FILE}"
+
+      - name: Conferir se o dump é legível
+        # Um arquivo gerado sem erro ainda pode estar truncado. `pg_restore
+        # --list` lê o índice interno do dump e é a checagem mais barata de que
+        # o arquivo não é lixo. Sem isto, a falha só apareceria no dia do
+        # desastre.
+        run: |
+          set -euo pipefail
+          OBJECTS="$(pg_restore --list "${BACKUP_FILE}" | grep -c '^[0-9]' || true)"
+          echo "Objetos no dump: ${OBJECTS}"
+          if [ "${OBJECTS}" -lt 50 ]; then
+            echo "::error::Dump com apenas ${OBJECTS} objetos — esperado bem mais. Backup suspeito."
+            exit 1
+          fi
+
+      - name: Guardar o backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ env.BACKUP_STAMP }}
+          path: ${{ env.BACKUP_FILE }}
+          # 30 dias é o teto útil do artifact do GitHub. Para retenção maior,
+          # ver a seção "Retenção longa" em docs/backup-restore.md.
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Avisar em caso de falha
+        if: failure()
+        run: |
+          echo "::error::O backup diário FALHOU. Verifique o segredo DATABASE_URL_DIRECT e o estado do Supabase."
