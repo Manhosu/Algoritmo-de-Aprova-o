@@ -241,6 +241,21 @@ Proposta da cliente, aplicada no schema (migration `0002`).
 | 44 | **Item fechado por limite de plano conta como CUMPRIDO** (`closed_by_plan_limit`) | Quem estudou tudo que o plano permitia não pode ver tarefa incompleta em vermelho. Vira o gancho natural de upgrade, no momento de maior intenção. |
 | 45 | **Nova configuração versionada `study_techniques`** | Quais técnicas entram na rotação, com que política de repetição e qual o fallback quando não há material. Editável pelo painel — desligar videoaula enquanto o acervo de vídeo está vazio não pode exigir deploy. |
 
+### Sessão 6 — 20/08/2026 (login com Google)
+
+⚠️ **Escopo novo, fora do README.** Pedido da cliente, autorizado pelo Eduardo
+com a justificativa de que adicionar OAuth depois custa muito mais caro —
+mexe em `users`, na criação de sessão e no fluxo de cadastro.
+
+| # | Decisão | Por quê |
+|---|---|---|
+| 46 | **OAuth implementado por nós, sem reintroduzir o Auth.js** | Voltar com a biblioteca só para o Google criaria dois sistemas de sessão convivendo: dois cookies, duas expirações, duas histórias de revogação. O fluxo Authorization Code + PKCE são ~180 linhas e mantém uma sessão só. É a revisita que ficou pendente na decisão 33, e a conclusão não mudou. |
+| 47 | **O Google autentica; a sessão continua sendo nossa** (`user_identities`) | Se a sessão fosse do Google, o pedido de exclusão de conta não derrubaria o acesso na hora e a promessa de remoção efetiva ficaria falsa. |
+| 48 | **Nenhum token do Google é armazenado** | Escopo pedido é só `openid email profile`; não há nada a acessar em nome do aluno depois do login. Credencial guardada sem uso é só passivo em caso de vazamento. |
+| 49 | **Vinculação automática exige e-mail verificado dos DOIS lados** | Unir contas por e-mail coincidente é vetor clássico de tomada de conta. Sem verificação nos dois lados, pede-se a senha. |
+| 50 | **Login com Google NÃO pula WhatsApp, consentimento nem disponibilidade** | O Google entrega nome, e-mail e foto — não entrega telefone. O ganho real é não ter senha para criar e ter o e-mail já verificado, não pular o cadastro. |
+| 51 | **`GOOGLE_CLIENT_*` são opcionais** | Sem elas o botão não aparece e o login por senha segue funcionando. Recurso de conveniência não pode impedir a aplicação de subir. |
+
 ### Decisões que dependem de terceiros
 
 | Item | Situação | Bloqueia |

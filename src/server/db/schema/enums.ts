@@ -29,6 +29,17 @@ export const verificationTokenTypeEnum = pgEnum("verification_token_type", [
   "email_change",
 ]);
 
+/**
+ * Provedores de identidade externos.
+ *
+ * ⚠️ O provedor autentica; QUEM MANDA NA SESSÃO CONTINUA SENDO A PLATAFORMA.
+ * O Google é consultado uma única vez, no momento do login, e o que se emite
+ * depois é a nossa sessão em banco — com expiração e revogação próprias. Sem
+ * isso, "excluir a conta agora" dependeria do ciclo de vida de um token de
+ * terceiro.
+ */
+export const identityProviderEnum = pgEnum("identity_provider", ["google"]);
+
 export const consentTypeEnum = pgEnum("consent_type", [
   /** Termos de uso. */
   "terms",

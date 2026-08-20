@@ -19,6 +19,7 @@ import {
   adminAuditActionEnum,
   consentTypeEnum,
   deletionRequestStatusEnum,
+  identityProviderEnum,
   legalDocumentTypeEnum,
   userRoleEnum,
   userStatusEnum,
@@ -199,6 +200,66 @@ export const authSessions = pgTable(
     uniqueIndex("auth_sessions_token_hash_unique").on(table.tokenHash),
     index("auth_sessions_user_idx").on(table.userId),
     index("auth_sessions_expires_idx").on(table.expiresAt),
+  ],
+);
+
+/**
+ * Identidade externa vinculada a uma conta (login com Google).
+ *
+ * O QUE ESTA TABELA **NÃO** FAZ
+ * ----------------------------------------------------------------------------
+ * Ela não substitui a sessão. O Google é consultado uma vez, no login; o que
+ * vale depois é a sessão em `auth_sessions`, com a nossa expiração e a nossa
+ * revogação. É o que mantém a promessa de derrubar o acesso na hora em que o
+ * titular pede exclusão da conta.
+ *
+ * NÃO GUARDAMOS TOKEN DO GOOGLE
+ * ----------------------------------------------------------------------------
+ * Nem access token, nem refresh token. Não pedimos escopo além de identificação
+ * (`openid email profile`), então não há nada a acessar em nome do aluno depois
+ * do login — e guardar credencial que não se usa é só passivo em caso de
+ * vazamento.
+ *
+ * VINCULAÇÃO DE CONTA É VETOR DE INVASÃO
+ * ----------------------------------------------------------------------------
+ * Se alguém se cadastrou com senha usando `x@gmail.com` e depois aparece um
+ * login Google com o mesmo endereço, vincular automaticamente permitiria tomar
+ * a conta de outra pessoa a partir de um e-mail não confirmado. A regra é:
+ * só vincula sozinho quando o Google informa `email_verified = true` E o e-mail
+ * da conta existente já está verificado. Fora disso, exige a senha.
+ */
+export const userIdentities = pgTable(
+  "user_identities",
+  {
+    id: primaryId(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+
+    provider: identityProviderEnum().notNull(),
+    /** O `sub` do Google — estável mesmo se o aluno trocar de e-mail lá. */
+    providerAccountId: varchar({ length: 255 }).notNull(),
+
+    /** E-mail no provedor. Pode divergir de `users.email` com o tempo. */
+    providerEmail: varchar({ length: 255 }),
+    providerEmailVerified: boolean().notNull().default(false),
+    providerDisplayName: varchar({ length: 200 }),
+    providerAvatarUrl: text(),
+
+    linkedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    lastLoginAt: timestamp({ withTimezone: true }),
+
+    ...timestamps,
+  },
+  (table) => [
+    /** Uma conta do Google não pode estar vinculada a dois alunos. */
+    uniqueIndex("user_identities_provider_account_unique").on(
+      table.provider,
+      table.providerAccountId,
+    ),
+    /** Um aluno tem no máximo uma conta por provedor. */
+    uniqueIndex("user_identities_user_provider_unique").on(table.userId, table.provider),
+    index("user_identities_email_idx").on(table.providerEmail),
   ],
 );
 
@@ -432,9 +493,14 @@ export const authThrottleCounters = pgTable(
 
 export const usersRelations = relations(users, ({ many }) => ({
   authSessions: many(authSessions),
+  identities: many(userIdentities),
   verificationTokens: many(verificationTokens),
   consents: many(userConsents),
   deletionRequests: many(dataDeletionRequests),
+}));
+
+export const userIdentitiesRelations = relations(userIdentities, ({ one }) => ({
+  user: one(users, { fields: [userIdentities.userId], references: [users.id] }),
 }));
 
 export const authSessionsRelations = relations(authSessions, ({ one }) => ({

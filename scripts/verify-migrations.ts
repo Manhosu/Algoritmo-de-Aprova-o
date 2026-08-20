@@ -144,6 +144,19 @@ async function main() {
             where not tgisinternal and tgname in ('trg_engine_configs_immutable', 'trg_engine_configs_no_delete')`,
       expect: (r) => (r[0] as { n: number }).n === 2,
     },
+    {
+      label: "identidade externa não pode servir a dois alunos",
+      sql: `select count(*)::int as n from pg_indexes
+            where indexname = 'user_identities_provider_account_unique'`,
+      expect: (r) => (r[0] as { n: number }).n === 1,
+    },
+    {
+      label: "identidade externa some junto com a conta",
+      sql: `select confdeltype as t from pg_constraint
+            where conname = 'user_identities_user_id_users_id_fk'`,
+      expect: (r) => (r[0] as { t: string })?.t === "c", // 'c' = CASCADE
+      detail: "o id da conta Google é dado pessoal e precisa ser apagado na exclusão",
+    },
   ];
 
   let failed = 0;

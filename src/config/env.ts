@@ -53,6 +53,16 @@ const serverEnvSchema = z.object({
   /** Leitura do edital em PDF (README: stack obrigatória). */
   ANTHROPIC_API_KEY: z.string().optional(),
 
+  /**
+   * Login com Google (OAuth 2.0, fluxo Authorization Code + PKCE).
+   *
+   * Opcionais: sem elas o botão "Entrar com Google" simplesmente não aparece e
+   * o login por e-mail e senha continua funcionando. Um recurso de conveniência
+   * não pode impedir a aplicação de subir.
+   */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+
   /** Envio de e-mail transacional. Sem chave, cai no driver de log (dev). */
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default("O Algoritmo da Aprovação <nao-responda@localhost>"),
@@ -109,3 +119,11 @@ export const env = parseServerEnv();
 export const isProduction = env.NODE_ENV === "production";
 export const isDevelopment = env.NODE_ENV === "development";
 export const isTest = env.NODE_ENV === "test";
+
+/**
+ * O login com Google só é oferecido quando as duas credenciais existem.
+ * A UI consulta esta flag para decidir se desenha o botão — nunca renderizar
+ * um caminho de autenticação que vai falhar no clique.
+ */
+export const isGoogleLoginEnabled =
+  Boolean(env.GOOGLE_CLIENT_ID) && Boolean(env.GOOGLE_CLIENT_SECRET);
