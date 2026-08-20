@@ -18,8 +18,21 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
+    alias: [
+      { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
+      /**
+       * `server-only` existe para o bundler do Next.js quebrar o build se um
+       * Client Component importar código de servidor. Fora do Next ele estoura
+       * na importação, o que impediria testar qualquer módulo de servidor —
+       * inclusive a política de senha, que é pura.
+       *
+       * Aqui ele vira um módulo vazio. A proteção real continua valendo onde
+       * importa: no `next build`.
+       */
+      {
+        find: /^server-only$/,
+        replacement: fileURLToPath(new URL("./src/test/server-only-stub.ts", import.meta.url)),
+      },
+    ],
   },
 });

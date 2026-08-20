@@ -93,9 +93,11 @@ Apresentado para aprovação em **`docs/schema.md`**.
 ## ⏳ Marco 1 — o que falta (nada iniciado)
 
 ### 1.1 Segurança e LGPD
-- [ ] Autenticação com argon2 e sessão segura
-- [ ] Controle de acesso aluno/administrador
-- [ ] Guards de autorização em toda rota de API e Server Action
+- [x] **Hashing argon2id + política de senha** — `src/server/auth/password.ts`
+- [x] **Geração e verificação de tokens, pseudonimização LGPD** — `tokens.ts`
+- [x] **Sessão em banco com revogação imediata** — `session.ts`
+- [x] **Guards de autorização, propriedade de recurso e CSRF** — `guards.ts`
+- [ ] Telas e rotas que usam tudo isso (precisa de banco)
 - [x] Rotina automática de backup *(falta cadastrar o segredo no GitHub)*
 - [ ] Recuperação de senha por e-mail com token de validade limitada
 - [ ] Exclusão de conta com remoção efetiva (anonimização)
@@ -114,7 +116,8 @@ Apresentado para aprovação em **`docs/schema.md`**.
 ### 1.4 Fluxo do botão "+"
 - [ ] Upload do edital em PDF + cargo pretendido
 - [ ] Data da prova e disponibilidade de estudo *(acrescentado na Sessão 1)*
-- [ ] Extração por IA (API da Anthropic)
+- [x] **Extração por IA** — `src/server/ai/`, com structured outputs, detecção
+      local de PDF escaneado e mensagens acionáveis ao aluno
 - [ ] Tela de revisão: editar, corrigir, excluir e acrescentar
 - [ ] Campo de peso do assunto quando o edital não informa
 - [ ] Confirmação do conteúdo
@@ -138,9 +141,12 @@ Apresentado para aprovação em **`docs/schema.md`**.
 - [ ] Tela "Revisões para Hoje" com botão REVISAR
 
 ### 1.8 Cronograma adaptativo
-- [ ] Projeção até a data da prova
-- [ ] Recálculo nos 5 gatilhos do README
-- [ ] Adiantar e atrasar conteúdo
+- [x] **Projeção até a data da prova, agregada por semana** — `src/modules/schedule/`
+- [x] **Viabilidade: o conteúdo cabe até a prova?** — com quantos minutos a mais por dia
+- [x] **Adiantar e atrasar conteúdo** — item movido prevalece sobre o motor
+- [x] **Gatilhos de recálculo + explicação ao aluno** — 27 testes
+- [ ] Persistência dos snapshots e da janela materializada (precisa de banco)
+- [ ] Tela do cronograma
 
 ### 1.9 Banco de questões
 - [ ] Importador CSV + questões de exemplo (3 disciplinas × 3 bancas)
