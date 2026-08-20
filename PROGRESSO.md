@@ -255,6 +255,19 @@ mexe em `users`, na criação de sessão e no fluxo de cadastro.
 | 49 | **Vinculação automática exige e-mail verificado dos DOIS lados** | Unir contas por e-mail coincidente é vetor clássico de tomada de conta. Sem verificação nos dois lados, pede-se a senha. |
 | 50 | **Login com Google NÃO pula WhatsApp, consentimento nem disponibilidade** | O Google entrega nome, e-mail e foto — não entrega telefone. O ganho real é não ter senha para criar e ter o e-mail já verificado, não pular o cadastro. |
 | 51 | **`GOOGLE_CLIENT_*` são opcionais** | Sem elas o botão não aparece e o login por senha segue funcionando. Recurso de conveniência não pode impedir a aplicação de subir. |
+| 52 | **URL de produção reservada: `algoritmo-da-aprovacao.vercel.app`** | Passada à cliente antes de o projeto existir, para ela cadastrar as duas URIs no Google de uma vez só e não haver segunda ida e volta. **O projeto na Vercel precisa se chamar exatamente `algoritmo-da-aprovacao`** — outro nome quebra o login com `redirect_uri_mismatch`. |
+
+### ⚠️ Compromissos assumidos com terceiros
+
+Coisas que já foram ditas à cliente e que o código precisa honrar:
+
+| Compromisso | Onde isso obriga |
+|---|---|
+| Projeto na Vercel se chamará `algoritmo-da-aprovacao` | Criação do projeto de deploy |
+| A rota de callback será `/api/auth/google/callback` | Implementação do OAuth |
+| A Política de Privacidade ficará em `/politica-de-privacidade` | Marco 1, seção 1.1 |
+| Os Termos de Uso ficarão em `/termos-de-uso` | Marco 1 |
+| Login com Google coleta WhatsApp, consentimento e disponibilidade numa etapa de conclusão | Fluxo de cadastro do Marco 1 |
 
 ### Decisões que dependem de terceiros
 

@@ -1,5 +1,23 @@
 # Login com Google — o que precisa ser configurado
 
+> ## ⚠️ URL de produção reservada
+>
+> ```
+> https://algoritmo-da-aprovacao.vercel.app
+> ```
+>
+> Ela já foi passada à cliente para cadastrar no Google Cloud, de modo a evitar
+> uma segunda ida e volta quando o deploy acontecer.
+>
+> **Consequência:** ao criar o projeto na Vercel, o nome precisa ser
+> **exatamente** `algoritmo-da-aprovacao`. Qualquer outro nome gera outra URL, e
+> aí o Google recusa o login com `redirect_uri_mismatch` até alguém reabrir o
+> console e corrigir.
+>
+> Se o subdomínio estiver ocupado quando formos criar o projeto, a Vercel
+> acrescenta um sufixo — nesse caso é preciso avisar a cliente e atualizar a URI
+> autorizada.
+
 Guia para gerar as credenciais no Google Cloud. Leva cerca de 15 minutos e não
 tem custo.
 
@@ -88,15 +106,24 @@ guardada sem uso é só passivo em caso de vazamento.
 
    ```
    http://localhost:3000
-   https://SEUDOMINIO.com.br
+   https://algoritmo-da-aprovacao.vercel.app
    ```
 
 6. **URIs de redirecionamento autorizados** — adicione:
 
    ```
    http://localhost:3000/api/auth/google/callback
-   https://SEUDOMINIO.com.br/api/auth/google/callback
+   https://algoritmo-da-aprovacao.vercel.app/api/auth/google/callback
    ```
+
+   O domínio próprio entra depois, como uma terceira linha em cada campo. Não
+   substitui a URL da Vercel: as duas podem coexistir, e manter a da Vercel é
+   útil para testar sem depender do DNS.
+
+   > **Deploys de preview não vão funcionar com o Google.** Cada branch gera uma
+   > URL com hash (`algoritmo-da-aprovacao-git-xyz.vercel.app`) que não bate com
+   > nenhuma URI cadastrada. É esperado: o login por senha continua funcionando
+   > nos previews, e só a produção tem o botão do Google.
 
    > Estes endereços precisam bater **caractere por caractere** com o que a
    > aplicação envia. Uma barra a mais no fim e o Google recusa com
