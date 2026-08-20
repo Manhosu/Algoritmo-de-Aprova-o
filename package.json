@@ -16,10 +16,12 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:verify": "tsx scripts/verify-migrations.ts",
+    "db:ping": "tsx scripts/db-ping.ts",
     "db:migrate": "tsx src/server/db/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx src/server/db/seed/index.ts"
+    "db:seed": "tsx src/server/db/seed/index.ts",
+    "db:status": "tsx scripts/db-status.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

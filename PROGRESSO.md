@@ -16,19 +16,37 @@ implementada ainda.**
 | Marco 1 — Núcleo do produto | 28/08/2026 | ⏳ Pronto para começar |
 | Marco 2 — Experiência e administração | 04/09/2026 | ⛔ Não autorizado |
 
+### ✅ Bloqueio resolvido — o banco está no ar
+
+Projeto Supabase criado em **20/08/2026**, com o token de gerenciamento da
+cliente. Migrations e seed aplicados.
+
+| | |
+|---|---|
+| Projeto | `algoritmo-da-aprovacao` |
+| Ref | `zzcvkhncelwwtuzxsciz` |
+| Região | `sa-east-1` (São Paulo — menor latência para alunos no Brasil) |
+| Versão | PostgreSQL 17.6 |
+| Plano | Free |
+| Aplicação | pooler, porta 6543, `prepare: false` |
+| Migrations e backup | conexão direta, porta 5432 |
+
+Estrutura aplicada: **73 tabelas · 55 enums · 242 índices · 127 FKs · 12 CHECKs ·
+2 gatilhos** — exatamente o que o `db:verify` previa em Postgres efêmero.
+
+Dados iniciais: 3 planos, 5 níveis, 6 configurações de motor v1, 9 bancas,
+7 disciplinas, 57 assuntos, 71 sinônimos, **106 questões** e 5 missões.
+
+⚠️ **A senha do banco só existe no `.env.local`.** O Supabase não a devolve
+depois de criada — só permite redefinir, o que quebraria as connection strings.
+Guarde-a num gerenciador de senhas.
+
+⚠️ **O token `sbp_` usado na criação tem acesso total à conta** (cria e apaga
+projetos). Deve ser revogado no painel do Supabase agora que o projeto existe.
+
 ### 🚧 Bloqueio ativo
 
-**Não há banco de dados persistente.** Docker não está instalado na máquina de
-desenvolvimento e o projeto Supabase da cliente ainda não forneceu a connection
-string. As migrations e o seed já foram validados num Postgres efêmero
-(`npm run db:verify`), mas para a aplicação rodar de verdade é preciso um dos
-dois:
-
-1. instalar o Docker Desktop e rodar `docker compose up -d --wait`; **ou**
-2. receber a `DATABASE_URL` do projeto Supabase da cliente.
-
-Nenhum dos dois bloqueia continuar escrevendo código — bloqueia rodar a
-aplicação.
+Nenhum. O que falta é construir as telas e as rotas.
 
 ---
 

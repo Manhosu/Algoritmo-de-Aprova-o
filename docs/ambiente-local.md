@@ -1,6 +1,24 @@
 # Subir o ambiente do zero
 
-Do clone até a aplicação rodando com dados. Não depende do Supabase da cliente.
+Do clone até a aplicação rodando com dados.
+
+> ## O banco de produção já existe
+>
+> Projeto Supabase `algoritmo-da-aprovacao` (ref `zzcvkhncelwwtuzxsciz`), região
+> `sa-east-1`, PostgreSQL 17.6, com migrations e seed aplicados.
+>
+> As connection strings estão no `.env.local` de quem já tem o ambiente montado.
+> Se você está começando agora, **peça as duas URLs ao Eduardo** — a senha do
+> banco não é recuperável pelo painel do Supabase, só redefinível.
+>
+> Com elas, pule a seção do Docker: `npm install`, preencha o `.env.local` e
+> `npm run dev`.
+>
+> Para conferir se o banco responde: `npm run db:ping`
+> Para ver o que tem dentro: `npm run db:status`
+>
+> O Docker abaixo continua sendo a opção para desenvolver contra um banco
+> descartável, sem risco de mexer no dado real.
 
 ## Pré-requisitos
 
