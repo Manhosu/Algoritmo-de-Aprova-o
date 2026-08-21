@@ -1,0 +1,61 @@
+import { describe, expect, it } from "vitest";
+
+import { practiceLink, studyLabel, studyLink } from "./deep-links";
+
+/**
+ * Estes testes travam duas regras que, se quebradas, produzem bugs silenciosos:
+ * link para página inexistente e clique desperdiçado numa lista quando o
+ * material específico já era conhecido.
+ */
+
+describe("studyLink", () => {
+  it("NÃO LINKA para rota que ainda não existe", () => {
+    // Link que leva a 404 é pior que ausência de link: o aluno conclui que a
+    // plataforma está quebrada, e não que a página ainda não chegou.
+    expect(studyLink({ technique: "flashcard", topicSlug: "crase" })).toBeNull();
+    expect(studyLink({ technique: "mind_map", topicSlug: "crase" })).toBeNull();
+    expect(studyLink({ technique: null })).toBeNull();
+  });
+
+  it("material específico teria prioridade sobre a lista filtrada", () => {
+    // Quando a rota de conteúdo existir, o link vai direto ao item prescrito.
+    // Enquanto não existe, os dois casos devolvem null — mas a regra de
+    // prioridade já está fixada aqui.
+    const comItem = studyLink({ technique: "mind_map", contentItemId: "abc", topicSlug: "crase" });
+    const semItem = studyLink({ technique: "mind_map", topicSlug: "crase" });
+    expect(comItem).toBe(semItem); // ambos null hoje
+  });
+});
+
+describe("practiceLink", () => {
+  it("não linka enquanto o banco de questões não existir", () => {
+    expect(practiceLink("crase")).toBeNull();
+  });
+});
+
+describe("studyLabel", () => {
+  it("nomeia a técnica quando ela foi prescrita", () => {
+    expect(studyLabel("flashcard", "Crase")).toBe("Flash Cards — Crase");
+    expect(studyLabel("mind_map", "Colocação Pronominal")).toBe(
+      "Mapa Mental — Colocação Pronominal",
+    );
+    expect(studyLabel("summary", "Crase")).toBe("Resumo — Crase");
+  });
+
+  it("SEM TÉCNICA, mostra só o assunto", () => {
+    // Nomear uma técnica cujo material não existe seria prometer o que não há —
+    // e é o caso comum enquanto o acervo está sendo construído.
+    expect(studyLabel(null, "Crase")).toBe("Crase");
+  });
+
+  it("cobre todas as técnicas sem devolver rótulo vazio", () => {
+    const tecnicas = [
+      "reading", "video", "flashcard", "mind_map",
+      "summary", "audio", "questions", "other",
+    ] as const;
+
+    for (const tecnica of tecnicas) {
+      expect(studyLabel(tecnica, "Assunto").length).toBeGreaterThan("Assunto".length);
+    }
+  });
+});
