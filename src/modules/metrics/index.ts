@@ -213,6 +213,83 @@ export function computeCoverage(topics: TopicCoverage[]): Coverage {
 }
 
 /* ========================================================================== *
+ * COBERTURA DO ACERVO
+ * ========================================================================== */
+
+export type TopicMaterialStatus = {
+  planTopicId: string;
+  /** Falso quando o assunto não casou com o catálogo — não há como ter material. */
+  isMapped: boolean;
+  questionCount: number;
+  contentCount: number;
+};
+
+export type CatalogCoverage = {
+  totalTopics: number;
+  /** Assuntos com pelo menos uma questão OU um material publicado. */
+  readyTopics: number;
+  inProductionTopics: number;
+  readyPercent: number;
+  inProductionPercent: number;
+  /** Quantos ainda não casaram com o catálogo — subconjunto de "em produção". */
+  unmappedTopics: number;
+};
+
+/**
+ * Quanto do edital do aluno já tem material disponível (ideia da cliente,
+ * 21/08/2026).
+ *
+ * A intenção é de retenção: o aluno vê que 80% do edital dele já tem material e
+ * que os 20% restantes estão sendo produzidos, em vez de encontrar assuntos
+ * vazios e concluir que a plataforma é incompleta.
+ *
+ * ⚠️ ISSO É UMA PROMESSA, NÃO SÓ UM NÚMERO.
+ * Dizer "20% em produção" compromete a operação a produzir aqueles 20%. Se o
+ * material nunca chega, o número deixa de ser expectativa e vira evidência de
+ * abandono — pior do que não mostrar nada. Quem liga esta métrica assume o
+ * compromisso de mover o ponteiro.
+ *
+ * "Tem material" é definido de forma deliberadamente generosa: basta UMA
+ * questão ou UM item de conteúdo. Exigir o conjunto completo faria quase todo
+ * assunto aparecer como vazio no começo da operação, que é justo quando o aluno
+ * mais precisa de sinal positivo.
+ *
+ * Os percentuais são calculados para SOMAR 100 exatamente. Arredondar os dois
+ * separadamente produz "80% + 21%", que é o tipo de detalhe que faz o aluno
+ * desconfiar do resto dos números.
+ */
+export function computeCatalogCoverage(topics: TopicMaterialStatus[]): CatalogCoverage {
+  const total = topics.length;
+
+  if (total === 0) {
+    return {
+      totalTopics: 0,
+      readyTopics: 0,
+      inProductionTopics: 0,
+      readyPercent: 0,
+      inProductionPercent: 0,
+      unmappedTopics: 0,
+    };
+  }
+
+  const ready = topics.filter(
+    (topic) => topic.isMapped && (topic.questionCount > 0 || topic.contentCount > 0),
+  ).length;
+
+  const readyPercent = Math.round((ready / total) * 100);
+
+  return {
+    totalTopics: total,
+    readyTopics: ready,
+    inProductionTopics: total - ready,
+    readyPercent,
+    // O complemento, não um segundo arredondamento: garante a soma em 100.
+    inProductionPercent: 100 - readyPercent,
+    unmappedTopics: topics.filter((topic) => !topic.isMapped).length,
+  };
+}
+
+/* ========================================================================== *
  * LACUNAS
  * ========================================================================== */
 

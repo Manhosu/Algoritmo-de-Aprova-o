@@ -1,5 +1,26 @@
 # Login com Google — o que precisa ser configurado
 
+> ## ⛔ SUSPENSO em 21/08/2026
+>
+> A cliente decidiu **não ter login com Google no lançamento**. Palavras dela:
+> *"pensando melhor acho que nesse começo é melhor não ter, para que eu possa
+> garantir o contato do usuário (whatsapp)"*.
+>
+> O motivo é correto: o Google entrega nome, e-mail e foto — **não entrega
+> telefone**. Com login social, parte dos alunos entraria sem WhatsApp, ou
+> passaria por uma etapa extra de conclusão que anularia a conveniência.
+>
+> **O que foi desfeito:** os botões nas telas de login e cadastro.
+>
+> **O que ficou:** a tabela `user_identities`, as variáveis de ambiente e este
+> documento. Manter custa zero, e retomar seria só religar. Desfazer a migration
+> `0003` custaria mais do que vale.
+>
+> O passo a passo abaixo continua válido para o dia em que a decisão mudar.
+
+---
+
+
 > ## ⚠️ URL de produção reservada
 >
 > ```

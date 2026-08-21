@@ -7,7 +7,6 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 
 import { Field, FormError } from "./field";
-import { GoogleButton } from "./google-button";
 import { loginAction, type AuthFormState } from "./actions";
 
 const INITIAL: AuthFormState = { status: "idle" };
@@ -23,28 +22,11 @@ const INITIAL: AuthFormState = { status: "idle" };
  * conveniência — `required` e `type="email"` evitam uma ida e volta inútil,
  * mas não são segurança: qualquer pessoa pode enviar o formulário direto.
  */
-export function LoginForm({
-  nextPath,
-  googleEnabled,
-}: {
-  nextPath?: string;
-  googleEnabled: boolean;
-}) {
+export function LoginForm({ nextPath }: { nextPath?: string }) {
   const [state, formAction, pending] = useActionState(loginAction, INITIAL);
 
   return (
     <div className="mt-6 flex flex-col gap-5">
-      {googleEnabled ? (
-        <>
-          <GoogleButton label="Entrar com Google" nextPath={nextPath} />
-          <div className="flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" aria-hidden />
-            <span className="text-xs text-muted-foreground uppercase">ou</span>
-            <span className="h-px flex-1 bg-border" aria-hidden />
-          </div>
-        </>
-      ) : null}
-
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         {nextPath ? <input type="hidden" name="proximo" value={nextPath} /> : null}
 

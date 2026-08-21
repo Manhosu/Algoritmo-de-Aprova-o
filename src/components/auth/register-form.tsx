@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 
 import { registerAction, type AuthFormState } from "./actions";
 import { Field, FormError } from "./field";
-import { GoogleButton } from "./google-button";
 
 const INITIAL: AuthFormState = { status: "idle" };
 
@@ -22,32 +21,22 @@ const INITIAL: AuthFormState = { status: "idle" };
  *
  * O QUE **NÃO** ESTÁ AQUI, DE PROPÓSITO
  * ----------------------------------------------------------------------------
- * Tempo de estudo e dias da semana. A cliente pediu esses campos "no cadastro
- * do perfil", e a decisão foi capturá-los logo DEPOIS da conta existir, como
- * primeiro passo do onboarding.
+ * 1. Tempo de estudo e dias da semana. A cliente pediu esses campos "no
+ *    cadastro do perfil", e a decisão foi capturá-los logo DEPOIS da conta
+ *    existir, como primeiro passo do onboarding. É a tela onde mais se perde
+ *    gente, e cada campo a mais aqui custa conversão.
  *
- * O motivo é de funil: esta é a tela onde mais se perde gente, e cada campo a
- * mais aqui custa conversão. Perguntar disponibilidade a quem já criou a conta
- * tem taxa de resposta muito melhor do que perguntar a quem ainda está
- * decidindo se entra.
+ * 2. Login com Google. Foi decidido, implementado no banco e depois RETIRADO a
+ *    pedido da cliente em 21/08/2026: o Google não entrega telefone, e ela
+ *    quer garantir o WhatsApp de todo mundo que entra. O e-mail e a senha
+ *    passam a ser o único caminho.
  */
-export function RegisterForm({ googleEnabled }: { googleEnabled: boolean }) {
+export function RegisterForm() {
   const [state, formAction, pending] = useActionState(registerAction, INITIAL);
   const errors = state.status === "error" ? state.fieldErrors : undefined;
 
   return (
     <div className="mt-6 flex flex-col gap-5">
-      {googleEnabled ? (
-        <>
-          <GoogleButton label="Criar conta com Google" />
-          <div className="flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" aria-hidden />
-            <span className="text-xs text-muted-foreground uppercase">ou</span>
-            <span className="h-px flex-1 bg-border" aria-hidden />
-          </div>
-        </>
-      ) : null}
-
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         {state.status === "error" && state.formError ? (
           <FormError>{state.formError}</FormError>

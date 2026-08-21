@@ -8,6 +8,7 @@ import type { CivilDate } from "@/modules/shared/dates";
 
 import {
   buildEvolutionSeries,
+  computeCatalogCoverage,
   computeCoverage,
   computeGoldenHour,
   computePreparationIndex,
@@ -202,6 +203,75 @@ describe("computeCoverage", () => {
     ]);
     expect(cobertura.percent).toBe(100);
     expect(cobertura.weightedPercent).toBe(100);
+  });
+});
+
+describe("computeCatalogCoverage — acervo disponível vs em produção", () => {
+  const topico = (
+    id: string,
+    over: Partial<{ isMapped: boolean; questionCount: number; contentCount: number }> = {},
+  ) => ({
+    planTopicId: id,
+    isMapped: over.isMapped ?? true,
+    questionCount: over.questionCount ?? 0,
+    contentCount: over.contentCount ?? 0,
+  });
+
+  it("conta como pronto quem tem questão OU material", () => {
+    // Generoso de propósito: exigir o conjunto completo faria quase todo
+    // assunto aparecer vazio no começo, justo quando o aluno mais precisa de
+    // sinal positivo.
+    const cobertura = computeCatalogCoverage([
+      topico("a", { questionCount: 12 }),
+      topico("b", { contentCount: 1 }),
+      topico("c"),
+      topico("d"),
+    ]);
+    expect(cobertura.readyTopics).toBe(2);
+    expect(cobertura.readyPercent).toBe(50);
+  });
+
+  it("OS DOIS PERCENTUAIS SOMAM EXATAMENTE 100", () => {
+    // Arredondar os dois separadamente produziria "80% + 21%", que é o tipo de
+    // detalhe que faz o aluno desconfiar do resto dos números.
+    for (const n of [3, 6, 7, 9, 11, 13, 17, 23, 97]) {
+      const topicos = Array.from({ length: n }, (_, i) =>
+        topico(`t${i}`, { questionCount: i % 3 === 0 ? 5 : 0 }),
+      );
+      const c = computeCatalogCoverage(topicos);
+      expect(c.readyPercent + c.inProductionPercent).toBe(100);
+    }
+  });
+
+  it("assunto não mapeado nunca conta como pronto", () => {
+    // Sem casamento com o catálogo não há como haver material.
+    const cobertura = computeCatalogCoverage([
+      topico("a", { isMapped: false, questionCount: 99 }),
+      topico("b", { questionCount: 5 }),
+    ]);
+    expect(cobertura.readyTopics).toBe(1);
+    expect(cobertura.unmappedTopics).toBe(1);
+  });
+
+  it("edital totalmente coberto dá 100 e zero em produção", () => {
+    const cobertura = computeCatalogCoverage([
+      topico("a", { questionCount: 1 }),
+      topico("b", { contentCount: 1 }),
+    ]);
+    expect(cobertura.readyPercent).toBe(100);
+    expect(cobertura.inProductionPercent).toBe(0);
+  });
+
+  it("edital sem nada dá 0 e 100 em produção", () => {
+    const cobertura = computeCatalogCoverage([topico("a"), topico("b")]);
+    expect(cobertura.readyPercent).toBe(0);
+    expect(cobertura.inProductionPercent).toBe(100);
+  });
+
+  it("edital vazio não divide por zero", () => {
+    const cobertura = computeCatalogCoverage([]);
+    expect(cobertura.readyPercent).toBe(0);
+    expect(cobertura.inProductionPercent).toBe(0);
   });
 });
 

@@ -78,13 +78,20 @@ export const config = {
   matcher: [
     /**
      * Roda em tudo, menos assets estáticos e arquivos de metadado.
+     *
      * As rotas de API ficam DE FORA de propósito: elas devolvem 401 em JSON
      * pelos seus próprios guards, e não um redirecionamento para uma página
      * de login que um cliente de API não sabe interpretar.
+     *
+     * ⚠️ `manifest.webmanifest` também precisa ficar de fora. Ele é lido pelo
+     * NAVEGADOR, não pelo usuário — e o navegador não tem cookie de sessão no
+     * momento em que busca o manifesto. Com o proxy ativo ali, a requisição
+     * era redirecionada para o login e voltava HTML no lugar do JSON, o que
+     * quebra silenciosamente o "Adicionar à tela de início".
      */
     {
       source:
-        "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?)$).*)",
+        "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|webmanifest|woff2?)$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

@@ -285,6 +285,23 @@ mexe em `users`, na criação de sessão e no fluxo de cadastro.
 | 51 | **`GOOGLE_CLIENT_*` são opcionais** | Sem elas o botão não aparece e o login por senha segue funcionando. Recurso de conveniência não pode impedir a aplicação de subir. |
 | 52 | **URL de produção reservada: `algoritmo-da-aprovacao.vercel.app`** | Passada à cliente antes de o projeto existir, para ela cadastrar as duas URIs no Google de uma vez só e não haver segunda ida e volta. **O projeto na Vercel precisa se chamar exatamente `algoritmo-da-aprovacao`** — outro nome quebra o login com `redirect_uri_mismatch`. |
 
+### Sessão 7 — 21/08/2026 (primeiras telas e ajustes de escopo)
+
+| # | Decisão | Por quê |
+|---|---|---|
+| 53 | **Login com Google REMOVIDO da UI** | Decisão da cliente: o Google não entrega telefone, e ela quer garantir o WhatsApp de todo mundo. A tabela e as variáveis ficam; desfazer a migration custaria mais do que vale. **Reduz escopo — ajuda o prazo.** |
+| 54 | **Manifesto do site fora do matcher do proxy** | Bug encontrado ao testar: o navegador busca o manifesto SEM cookie de sessão, o proxy redirecionava para o login e devolvia HTML no lugar do JSON. O "Adicionar à tela de início" quebrava em silêncio. |
+| 55 | **Percentual de acervo disponível vs em produção** | Ideia da cliente. Barato porque o dado já existe. ⚠️ É uma promessa: dizer "20% em produção" compromete a operação a produzir aqueles 20%. |
+| 56 | **Política de privacidade renderizada por parser próprio** | O texto é editável pelo painel; `dangerouslySetInnerHTML` numa página que todo visitante abre seria XSS a partir de conta de admin comprometida. |
+| 57 | **Cadastro NÃO pergunta disponibilidade de estudo** | É a tela onde mais se perde gente. A pergunta vai para o primeiro passo do onboarding, depois de a conta existir. |
+
+### ⏸ Ideias da cliente adiadas, com motivo
+
+| Ideia | Por que não agora |
+|---|---|
+| **Trilhas com Dominado/Em andamento/Não dominado + "Comprovar Proficiência"** | Não é dificuldade técnica — o motor já exclui assunto `mastered`. É que o teste precisa de ~30 questões por assunto, e o acervo tem 106 questões quase todas de Crase. Construir agora seria construir algo que não pode ser usado nem testado. |
+| **Notificações no sino (XP, tarefa concluída, envio pelo painel)** | Marco 2 (README 2.1 e 2.6). A tabela `notifications` já existe. |
+
 ### ⚠️ Compromissos assumidos com terceiros
 
 Coisas que já foram ditas à cliente e que o código precisa honrar:

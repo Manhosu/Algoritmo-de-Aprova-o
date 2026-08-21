@@ -54,11 +54,14 @@ const serverEnvSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
 
   /**
-   * Login com Google (OAuth 2.0, fluxo Authorization Code + PKCE).
+   * Login com Google (OAuth 2.0).
    *
-   * Opcionais: sem elas o botão "Entrar com Google" simplesmente não aparece e
-   * o login por e-mail e senha continua funcionando. Um recurso de conveniência
-   * não pode impedir a aplicação de subir.
+   * ⚠️ SUSPENSO em 21/08/2026 a pedido da cliente: o Google não entrega
+   * telefone, e ela quer garantir o WhatsApp de todo mundo que entra. A UI foi
+   * removida; a tabela `user_identities` e estas variáveis ficam porque o custo
+   * de mantê-las é zero e retomar depois seria só religar.
+   *
+   * Ver `docs/login-google.md`.
    */
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -121,9 +124,11 @@ export const isDevelopment = env.NODE_ENV === "development";
 export const isTest = env.NODE_ENV === "test";
 
 /**
- * O login com Google só é oferecido quando as duas credenciais existem.
- * A UI consulta esta flag para decidir se desenha o botão — nunca renderizar
- * um caminho de autenticação que vai falhar no clique.
+ * ⚠️ SUSPENSO em 21/08/2026 — ver a nota em `GOOGLE_CLIENT_ID`.
+ *
+ * A flag continua aqui para o dia em que o login com Google voltar: nesse dia,
+ * é ela que a UI consulta para decidir se desenha o botão. Nunca renderizar um
+ * caminho de autenticação que vai falhar no clique.
  */
 export const isGoogleLoginEnabled =
   Boolean(env.GOOGLE_CLIENT_ID) && Boolean(env.GOOGLE_CLIENT_SECRET);

@@ -3,7 +3,6 @@ import Link from "next/link";
 
 import { LoginForm } from "@/components/auth/login-form";
 import { Surface } from "@/components/shared/surface";
-import { isGoogleLoginEnabled } from "@/config/env";
 
 export const metadata: Metadata = {
   title: "Entrar",
@@ -23,7 +22,7 @@ export default async function LoginPage(props: PageProps<"/entrar">) {
         Sua tarefa de hoje já está pronta.
       </p>
 
-      <LoginForm nextPath={next} googleEnabled={isGoogleLoginEnabled} />
+      <LoginForm nextPath={next} />
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Ainda não tem conta?{" "}

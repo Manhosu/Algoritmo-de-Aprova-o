@@ -3,7 +3,6 @@ import Link from "next/link";
 
 import { RegisterForm } from "@/components/auth/register-form";
 import { Surface } from "@/components/shared/surface";
-import { isGoogleLoginEnabled } from "@/config/env";
 
 export const metadata: Metadata = {
   title: "Criar conta",
@@ -20,7 +19,7 @@ export default function RegisterPage() {
         Grátis para começar. Não pedimos cartão.
       </p>
 
-      <RegisterForm googleEnabled={isGoogleLoginEnabled} />
+      <RegisterForm />
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Já tem conta?{" "}
