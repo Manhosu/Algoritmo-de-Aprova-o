@@ -22,7 +22,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/server/db/seed/index.ts",
     "db:status": "tsx scripts/db-status.ts",
-    "db:config": "tsx scripts/activate-engine-config.ts"
+    "db:config": "tsx scripts/activate-engine-config.ts",
+    "email:check": "tsx scripts/email-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

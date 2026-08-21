@@ -297,6 +297,25 @@ Coisas que já foram ditas à cliente e que o código precisa honrar:
 | Os Termos de Uso ficarão em `/termos-de-uso` | Marco 1 |
 | Login com Google coleta WhatsApp, consentimento e disponibilidade numa etapa de conclusão | Fluxo de cadastro do Marco 1 |
 
+### Domínio e e-mail
+
+**Domínio registrado em 20/08/2026: `oalgoritmodaaprovacao.com.br`**
+
+Ele destrava duas cadeias que estavam paradas:
+
+| Cadeia | Estado |
+|---|---|
+| domínio → DNS no Resend → e-mail para qualquer aluno | ⏳ 3 registros DNS pendentes (`docs/email.md`) |
+| domínio → política publicada → tela do Google publicada → login liberado | ⏳ depende da política ir ao ar |
+
+O domínio já está **cadastrado no Resend** (região `sa-east-1`, id
+`4f4a7b0f-5a4b-4039-a29c-82451d92dc63`). Falta só adicionar os registros DNS no
+painel do domínio. `npm run email:check` diz o estado a qualquer momento.
+
+⚠️ Enquanto o DNS não propagar, o e-mail de recuperação de senha só entrega
+para `oalgoritmodaaprovacao@gmail.com`. O **item 12 do checklist de aceite não
+pode ser dado como pronto** antes disso.
+
 ### Decisões que dependem de terceiros
 
 | Item | Situação | Bloqueia |

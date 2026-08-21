@@ -73,9 +73,9 @@ guardada sem uso é só passivo em caso de vazamento.
    | Nome do app | `O Algoritmo da Aprovação` |
    | E-mail de suporte | `oalgoritmodaaprovacao@gmail.com` |
    | Logotipo | `public/brand/symbol-square.png` (512×512, já está no projeto) |
-   | Domínio do app | o domínio, quando existir |
-   | Link da Política de Privacidade | `https://SEUDOMINIO.com.br/politica-de-privacidade` |
-   | Link dos Termos de Uso | `https://SEUDOMINIO.com.br/termos-de-uso` |
+   | Domínio do app | `oalgoritmodaaprovacao.com.br` |
+   | Link da Política de Privacidade | `https://oalgoritmodaaprovacao.com.br/politica-de-privacidade` |
+   | Link dos Termos de Uso | `https://oalgoritmodaaprovacao.com.br/termos-de-uso` |
    | E-mail do desenvolvedor | `oalgoritmodaaprovacao@gmail.com` |
 
 4. **Escopos** → **Adicionar ou remover escopos** → marque exatamente estes três:
@@ -107,6 +107,7 @@ guardada sem uso é só passivo em caso de vazamento.
    ```
    http://localhost:3000
    https://algoritmo-da-aprovacao.vercel.app
+   https://oalgoritmodaaprovacao.com.br
    ```
 
 6. **URIs de redirecionamento autorizados** — adicione:
@@ -114,11 +115,11 @@ guardada sem uso é só passivo em caso de vazamento.
    ```
    http://localhost:3000/api/auth/google/callback
    https://algoritmo-da-aprovacao.vercel.app/api/auth/google/callback
+   https://oalgoritmodaaprovacao.com.br/api/auth/google/callback
    ```
 
-   O domínio próprio entra depois, como uma terceira linha em cada campo. Não
-   substitui a URL da Vercel: as duas podem coexistir, e manter a da Vercel é
-   útil para testar sem depender do DNS.
+   As três coexistem de propósito. Manter a URL da Vercel é útil para testar
+   sem depender do DNS, e o `localhost` é o que permite desenvolver.
 
    > **Deploys de preview não vão funcionar com o Google.** Cada branch gera uma
    > URL com hash (`algoritmo-da-aprovacao-git-xyz.vercel.app`) que não bate com
@@ -153,12 +154,17 @@ Para liberar a qualquer aluno:
 **Mas há uma dependência:** publicar exige que os links de Política de
 Privacidade e Termos de Uso estejam **no ar e acessíveis**, no domínio do app.
 
-Ou seja, a ordem é:
+A ordem é:
 
 ```
-registrar o domínio  →  publicar a Política de Privacidade
-                     →  publicar a tela de consentimento
-                     →  login com Google liberado para todos
+✅ registrar o domínio        (feito em 20/08/2026)
+   ↓
+   publicar a Política de Privacidade em
+   https://oalgoritmodaaprovacao.com.br/politica-de-privacidade
+   ↓
+   publicar a tela de consentimento
+   ↓
+   login com Google liberado para todos
 ```
 
 Até lá, o login com Google funciona normalmente em desenvolvimento e para os
