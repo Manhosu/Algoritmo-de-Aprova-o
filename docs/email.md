@@ -1,12 +1,12 @@
 # E-mail transacional
 
-A plataforma envia três e-mails, todos do Marco 1:
+A plataforma envia trÃªs e-mails, todos do Marco 1:
 
-- recuperação de senha
-- confirmação de e-mail no cadastro
-- confirmação de troca de e-mail (enviada ao endereço **novo**)
+- recuperaÃ§Ã£o de senha
+- confirmaÃ§Ã£o de e-mail no cadastro
+- confirmaÃ§Ã£o de troca de e-mail (enviada ao endereÃ§o **novo**)
 
-Provedor: **Resend**, região `sa-east-1` (São Paulo).
+Provedor: **Resend**, regiÃ£o `sa-east-1` (SÃ£o Paulo).
 
 ---
 
@@ -14,23 +14,23 @@ Provedor: **Resend**, região `sa-east-1` (São Paulo).
 
 | | |
 |---|---|
-| Domínio | `oalgoritmodaaprovacao.com.br` |
-| Cadastrado no Resend | ✅ em 20/08/2026 |
+| DomÃ­nio | `oalgoritmodaaprovacao.com.br` |
+| Cadastrado no Resend | âœ… em 20/08/2026 |
 | Id no Resend | `4f4a7b0f-5a4b-4039-a29c-82451d92dc63` |
-| Verificado | ❌ **aguardando os registros DNS** |
+| Verificado | âŒ **aguardando os registros DNS** |
 | Remetente final | `nao-responda@oalgoritmodaaprovacao.com.br` |
 
-**Enquanto não verificar**, o único remetente que funciona é
-`onboarding@resend.dev`, e ele **só entrega para o e-mail dono da conta
-Resend** (`oalgoritmodaaprovacao@gmail.com`). Dá para testar o fluxo inteiro,
-mas só para esse endereço — o item 12 do checklist de aceite depende da
-verificação para valer para qualquer aluno.
+**Enquanto nÃ£o verificar**, o Ãºnico remetente que funciona Ã©
+`onboarding@resend.dev`, e ele **sÃ³ entrega para o e-mail dono da conta
+Resend** (`oalgoritmodaaprovacao@gmail.com`). DÃ¡ para testar o fluxo inteiro,
+mas sÃ³ para esse endereÃ§o â€” o item 12 do checklist de aceite depende da
+verificaÃ§Ã£o para valer para qualquer aluno.
 
 ---
 
 ## Os 3 registros DNS
 
-Precisam ser adicionados no painel onde o domínio foi registrado.
+Precisam ser adicionados no painel onde o domÃ­nio foi registrado.
 
 ### 1. Assinatura DKIM
 
@@ -38,7 +38,7 @@ Precisam ser adicionados no painel onde o domínio foi registrado.
 Tipo:  TXT
 Nome:  resend._domainkey
 Valor: p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDXTSelbpDLTmY4Q8cw7mg5h0nBD0AA3WiSJvC2ssu6rZeCCZZg3VpXzkLGPfjBX5xwARoZhNqrOBMijuS5mHIAXjenivWvgpGO5+FJEtAN0r+yFctvDnupmQ8ZHnsJHwIRyBh9q8FcNc7ozjh3PsmOSjsoDYghma+0iM9DS5QzvwIDAQAB
-TTL:   automático
+TTL:   automÃ¡tico
 ```
 
 ### 2. Retorno de erros (bounce)
@@ -48,62 +48,62 @@ Tipo:       MX
 Nome:       send
 Valor:      feedback-smtp.sa-east-1.amazonses.com
 Prioridade: 10
-TTL:        automático
+TTL:        automÃ¡tico
 ```
 
-### 3. Autorização de envio (SPF)
+### 3. AutorizaÃ§Ã£o de envio (SPF)
 
 ```
 Tipo:  TXT
 Nome:  send
 Valor: v=spf1 include:amazonses.com ~all
-TTL:   automático
+TTL:   automÃ¡tico
 ```
 
 ### Cuidados ao cadastrar
 
-**O campo "Nome" é relativo ao domínio.** Se o painel pedir o nome completo,
+**O campo "Nome" Ã© relativo ao domÃ­nio.** Se o painel pedir o nome completo,
 use `resend._domainkey.oalgoritmodaaprovacao.com.br` e
-`send.oalgoritmodaaprovacao.com.br`. Se o painel já completa sozinho, use só
-`resend._domainkey` e `send` — digitar o domínio duas vezes é o erro mais
+`send.oalgoritmodaaprovacao.com.br`. Se o painel jÃ¡ completa sozinho, use sÃ³
+`resend._domainkey` e `send` â€” digitar o domÃ­nio duas vezes Ã© o erro mais
 comum e resulta em `send.oalgoritmodaaprovacao.com.br.oalgoritmodaaprovacao.com.br`.
 
-**O valor do DKIM é uma linha só.** Alguns painéis quebram em várias linhas ao
-colar. Confira se não entrou espaço nem quebra no meio.
+**O valor do DKIM Ã© uma linha sÃ³.** Alguns painÃ©is quebram em vÃ¡rias linhas ao
+colar. Confira se nÃ£o entrou espaÃ§o nem quebra no meio.
 
-**Não confunda o MX de `send` com o MX do domínio principal.** Este é do
-subdomínio `send`; ele não interfere no e-mail normal do domínio.
+**NÃ£o confunda o MX de `send` com o MX do domÃ­nio principal.** Este Ã© do
+subdomÃ­nio `send`; ele nÃ£o interfere no e-mail normal do domÃ­nio.
 
 ---
 
 ## Verificar
 
-Depois de adicionar os três, a propagação leva de alguns minutos a algumas
+Depois de adicionar os trÃªs, a propagaÃ§Ã£o leva de alguns minutos a algumas
 horas. Para conferir:
 
 ```bash
 npm run email:check
 ```
 
-Ou no painel: <https://resend.com/domains> → o domínio → **Verify DNS Records**.
+Ou no painel: <https://resend.com/domains> â†’ o domÃ­nio â†’ **Verify DNS Records**.
 
 ---
 
-## Por que três registros, e não um
+## Por que trÃªs registros, e nÃ£o um
 
 Cada um resolve um problema diferente de entrega. Sem eles, o e-mail de
-recuperação de senha vai direto para spam — ou nem sai.
+recuperaÃ§Ã£o de senha vai direto para spam â€” ou nem sai.
 
-**DKIM** assina cada mensagem criptograficamente. É o que prova ao Gmail que a
-mensagem veio mesmo de quem diz ter vindo, e não de alguém falsificando o
-domínio.
+**DKIM** assina cada mensagem criptograficamente. Ã‰ o que prova ao Gmail que a
+mensagem veio mesmo de quem diz ter vindo, e nÃ£o de alguÃ©m falsificando o
+domÃ­nio.
 
-**SPF** declara quais servidores podem enviar em nome do domínio. Sem ele,
+**SPF** declara quais servidores podem enviar em nome do domÃ­nio. Sem ele,
 qualquer um pode mandar e-mail se passando por `@oalgoritmodaaprovacao.com.br`.
 
 **MX de bounce** recebe de volta os avisos de entrega falhada. Sem ele, um
-e-mail que não chega simplesmente some, e ninguém descobre que o aluno nunca
-recebeu o link de recuperação — a falha mais silenciosa e mais irritante que
+e-mail que nÃ£o chega simplesmente some, e ninguÃ©m descobre que o aluno nunca
+recebeu o link de recuperaÃ§Ã£o â€” a falha mais silenciosa e mais irritante que
 existe nesse fluxo.
 
 ---
@@ -111,8 +111,8 @@ existe nesse fluxo.
 ## Em desenvolvimento
 
 Sem `RESEND_API_KEY` no `.env.local`, o adaptador de e-mail usa o **driver de
-log**: a mensagem inteira é impressa no console em vez de enviada.
+log**: a mensagem inteira Ã© impressa no console em vez de enviada.
 
-É proposital. Rodar o fluxo de recuperação de senha vinte vezes durante o
-desenvolvimento não deve consumir cota nem encher a caixa de ninguém — e ver o
-link direto no terminal é mais rápido que abrir o e-mail.
+Ã‰ proposital. Rodar o fluxo de recuperaÃ§Ã£o de senha vinte vezes durante o
+desenvolvimento nÃ£o deve consumir cota nem encher a caixa de ninguÃ©m â€” e ver o
+link direto no terminal Ã© mais rÃ¡pido que abrir o e-mail.

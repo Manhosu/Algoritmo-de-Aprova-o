@@ -1,0 +1,241 @@
+import { BookOpen, Check, ChevronRight, Lock, Target, Trophy } from "lucide-react";
+import Link from "next/link";
+import type { ReactNode } from "react";
+
+import { SectionTitle, Surface } from "@/components/shared/surface";
+import { practiceLink, studyLabel, studyLink, type LinkableTechnique } from "@/lib/deep-links";
+import { cn } from "@/lib/utils";
+
+/**
+ * MISSÕES DO DIA — um card só.
+ *
+ * Definição da cliente em 21/08/2026:
+ *
+ *   "Sobre os cards Tarefas do Dia e Missões do Dia é a mesma coisa. É um card
+ *    só com as Missões do dia, todas valendo XP, com as duplinhas de Estude e
+ *    Pratique. Todas clicáveis. Conforme vai cumprindo ele vai riscando."
+ *
+ * O QUE ISSO MUDA
+ * ----------------------------------------------------------------------------
+ * O mockup tinha DOIS cards: a Tarefa do Dia (saída do motor) e as Missões do
+ * Dia (metas genéricas de gamificação, tipo "Resolver 30 questões"). Agora é
+ * um só: as duplas que o motor gerou SÃO as missões, e cada uma vale XP.
+ *
+ * Isso simplifica o produto e some com uma pergunta difícil de responder — "por
+ * que a missão manda resolver 30 questões se a minha tarefa pede 12?". Duas
+ * listas de afazeres na mesma tela competem entre si; uma só, não.
+ *
+ * O catálogo genérico de missões (`missions`) fica sem uso por enquanto. As
+ * tabelas continuam no banco: apagar exigiria migration e o custo de manter é
+ * zero.
+ *
+ * O XP mostrado é a SOMA do que aquela dupla vai render, calculado a partir da
+ * configuração versionada (`xp_values`) — nunca de constante em código.
+ */
+
+export type MissionItemState = {
+  status: "pending" | "in_progress" | "completed" | "skipped";
+  closedByPlanLimit?: boolean;
+};
+
+export type DailyMission = {
+  blockIndex: number;
+  topicName: string;
+  subjectName: string;
+  topicSlug?: string | null;
+  technique: LinkableTechnique | null;
+  contentItemId?: string | null;
+  /** Quantos materiais existem — decide entre ir direto e abrir a lista. */
+  materialCount?: number;
+
+  study: MissionItemState & { xp: number };
+  /** Ausente quando o assunto não casou com o catálogo ou não há questão. */
+  practice?: MissionItemState & { xp: number };
+
+  reasonLabel?: string | null;
+};
+
+export type DailyMissionsProps = {
+  missions: DailyMission[];
+  /** XP extra por concluir o dia inteiro (`xp_values.dailyGoalCompleted`). */
+  completionBonusXp: number;
+};
+
+export function DailyMissions({ missions, completionBonusXp }: DailyMissionsProps) {
+  const items = missions.flatMap((mission) =>
+    mission.practice ? [mission.study, mission.practice] : [mission.study],
+  );
+  const done = items.filter((item) => item.status === "completed").length;
+  const total = items.length;
+  const percent = total === 0 ? 0 : Math.round((done / total) * 100);
+  const allDone = total > 0 && done === total;
+
+  return (
+    <Surface className="overflow-hidden">
+      <div className="px-4 pt-4 sm:px-5">
+        <SectionTitle icon={<Target className="size-4" />}>Missões do Dia</SectionTitle>
+
+        <p className="mt-3 text-sm text-muted-foreground">
+          {total === 0 ? "Nenhuma missão para hoje." : `${done}/${total} concluídas`}
+        </p>
+
+        <span
+          className="mt-2 block h-1.5 w-full overflow-hidden rounded-full bg-secondary"
+          aria-hidden
+        >
+          <span
+            className="block h-full rounded-full bg-primary transition-[width] duration-500"
+            style={{ width: `${percent}%` }}
+          />
+        </span>
+      </div>
+
+      <ul className="mt-4 flex flex-col">
+        {missions.map((mission) => (
+          <li key={mission.blockIndex} className="border-t border-border">
+            <p className="px-4 pt-3 text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase sm:px-5">
+              {mission.subjectName}
+            </p>
+
+            <MissionRow
+              icon={<BookOpen />}
+              action="Estude"
+              label={studyLabel(mission.technique, mission.topicName)}
+              href={studyLink({
+                technique: mission.technique,
+                contentItemId: mission.contentItemId,
+                topicSlug: mission.topicSlug,
+                materialCount: mission.materialCount,
+              })}
+              item={mission.study}
+            />
+
+            {mission.practice ? (
+              <MissionRow
+                icon={<Target />}
+                action="Pratique"
+                label={`Questões — ${mission.topicName}`}
+                href={practiceLink(mission.topicSlug)}
+                item={mission.practice}
+              />
+            ) : (
+              <p className="flex items-center gap-2.5 px-4 pb-3 text-sm text-muted-foreground sm:px-5">
+                <Target className="size-4 shrink-0" aria-hidden />
+                Ainda não temos questões deste assunto no acervo.
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {completionBonusXp > 0 && total > 0 ? (
+        <div
+          className={cn(
+            "flex items-center gap-3 border-t border-border px-4 py-3 sm:px-5",
+            allDone && "bg-success/10",
+          )}
+        >
+          <Trophy
+            className={cn("size-5 shrink-0", allDone ? "text-success" : "text-warning")}
+            aria-hidden
+          />
+          <span className="flex-1 text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+            Recompensa {allDone ? "conquistada" : "bônus"}
+          </span>
+          <span
+            className={cn(
+              "text-metric text-sm",
+              allDone ? "text-success" : "text-warning",
+            )}
+          >
+            +{completionBonusXp} XP
+          </span>
+        </div>
+      ) : null}
+    </Surface>
+  );
+}
+
+function MissionRow({
+  icon,
+  action,
+  label,
+  href,
+  item,
+}: {
+  icon: ReactNode;
+  action: string;
+  label: string;
+  href: string | null;
+  item: MissionItemState & { xp: number };
+}) {
+  const done = item.status === "completed";
+  const closedByLimit = item.closedByPlanLimit === true;
+
+  const content = (
+    <>
+      <span
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-lg border [&>svg]:size-4",
+          done
+            ? "border-success/40 bg-success/10 text-success"
+            : "border-primary/40 bg-primary-soft text-primary",
+        )}
+        aria-hidden
+      >
+        {done ? <Check /> : icon}
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="block text-[0.65rem] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+          {action}
+        </span>
+        <span
+          className={cn(
+            "block truncate text-sm",
+            // "Conforme vai cumprindo ele vai riscando" — palavras da cliente.
+            done ? "text-muted-foreground line-through" : "text-foreground",
+          )}
+        >
+          {label}
+        </span>
+      </span>
+
+      <span
+        className={cn(
+          "text-metric shrink-0 text-xs",
+          done ? "text-success" : "text-muted-foreground",
+        )}
+      >
+        +{item.xp} XP
+      </span>
+
+      {closedByLimit ? (
+        <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      ) : href && !done ? (
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      ) : (
+        <span className="size-4 shrink-0" aria-hidden />
+      )}
+    </>
+  );
+
+  const shared = "flex w-full items-center gap-3 px-4 py-2.5 text-left sm:px-5";
+
+  if (!href || done) {
+    return <div className={shared}>{content}</div>;
+  }
+
+  return (
+    <Link
+      href={href}
+      className={cn(
+        shared,
+        "transition-colors hover:bg-accent/60",
+        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:-outline-offset-2",
+      )}
+    >
+      {content}
+    </Link>
+  );
+}

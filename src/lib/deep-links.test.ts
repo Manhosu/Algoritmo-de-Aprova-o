@@ -17,13 +17,19 @@ describe("studyLink", () => {
     expect(studyLink({ technique: null })).toBeNull();
   });
 
-  it("material específico teria prioridade sobre a lista filtrada", () => {
-    // Quando a rota de conteúdo existir, o link vai direto ao item prescrito.
-    // Enquanto não existe, os dois casos devolvem null — mas a regra de
-    // prioridade já está fixada aqui.
-    const comItem = studyLink({ technique: "mind_map", contentItemId: "abc", topicSlug: "crase" });
-    const semItem = studyLink({ technique: "mind_map", topicSlug: "crase" });
-    expect(comItem).toBe(semItem); // ambos null hoje
+  it("UM material leva direto; VÁRIOS levam para a lista filtrada", () => {
+    // Pergunta da cliente: "e se tiver vários mapas mentais sobre crase, não
+    // teria que ter uma lista?" — tinha. A versão anterior escondia os demais.
+    // Enquanto as rotas não existem os dois devolvem null, mas a regra está
+    // fixada e passa a valer sozinha quando as telas entrarem.
+    const um = studyLink({ technique: "mind_map", contentItemId: "abc", materialCount: 1, topicSlug: "crase" });
+    const varios = studyLink({ technique: "mind_map", contentItemId: "abc", materialCount: 4, topicSlug: "crase" });
+    expect(um).toBeNull();
+    expect(varios).toBeNull();
+  });
+
+  it("sem materialCount, um contentItemId sozinho ainda significa um material", () => {
+    expect(studyLink({ technique: "mind_map", contentItemId: "abc" })).toBeNull();
   });
 });
 
