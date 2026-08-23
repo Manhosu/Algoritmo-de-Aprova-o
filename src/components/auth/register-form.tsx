@@ -89,7 +89,10 @@ export function RegisterForm() {
           <Checkbox id="privacidade" name="privacidade" className="mt-0.5" />
           <Label
             htmlFor="privacidade"
-            className="text-sm leading-snug font-normal text-muted-foreground"
+            // `block` anula o `flex` que o Label traz por padrão. Com flex, cada
+            // trecho de texto e cada link viram itens separados e a frase quebra
+            // em colunas em vez de fluir — é o que acontecia aqui.
+            className="block text-sm leading-snug font-normal text-muted-foreground"
           >
             Li e aceito a{" "}
             <Link

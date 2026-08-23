@@ -24,7 +24,8 @@
     "db:status": "tsx scripts/db-status.ts",
     "db:config": "tsx scripts/activate-engine-config.ts",
     "email:check": "tsx scripts/email-check.ts",
-    "legal:publish": "tsx scripts/publish-legal.ts"
+    "legal:publish": "tsx scripts/publish-legal.ts",
+    "smoke": "tsx scripts/smoke-flow.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
