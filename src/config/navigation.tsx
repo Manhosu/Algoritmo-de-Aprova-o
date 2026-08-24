@@ -27,6 +27,18 @@ export type NavItem = {
   href: string;
   label: string;
   icon: ReactNode;
+  /**
+   * A tela ainda não existe (Marco 2). O item aparece no menu, apagado e sem
+   * link.
+   *
+   * Aparecer é deliberado: o menu comunica o que o produto vai ser, e sumir com
+   * metade dele na demonstração daria a impressão de um produto menor do que é.
+   * Não linkar também é deliberado: um item que leva a 404 faz o aluno concluir
+   * que a plataforma está quebrada, não que a página ainda não chegou.
+   *
+   * ⚠️ Ao construir uma dessas telas, remova a marca daqui.
+   */
+  soon?: boolean;
 };
 
 /**
@@ -37,11 +49,16 @@ export type NavItem = {
  */
 export const SIDEBAR_ITEMS: NavItem[] = [
   { href: "/inicio", label: "Home", icon: <Home /> },
-  { href: "/estudos", label: "Estudos", icon: <BookOpen /> },
+  { href: "/estudos", label: "Estudos", icon: <BookOpen />, soon: true },
   { href: "/questoes", label: "Questões", icon: <CircleHelp /> },
   { href: "/revisoes", label: "Revisões", icon: <RefreshCw /> },
   { href: "/cronograma", label: "Cronograma Adaptativo", icon: <Compass /> },
-  { href: "/entenda-o-algoritmo", label: "Entenda o Algoritmo", icon: <Sparkles /> },
+  {
+    href: "/entenda-o-algoritmo",
+    label: "Entenda o Algoritmo",
+    icon: <Sparkles />,
+    soon: true,
+  },
 ];
 
 /**
@@ -53,9 +70,9 @@ export const SIDEBAR_ITEMS: NavItem[] = [
  */
 export const BOTTOM_NAV_ITEMS: NavItem[] = [
   { href: "/inicio", label: "Home", icon: <Home /> },
-  { href: "/trilhas", label: "Trilhas", icon: <Route /> },
-  { href: "/ranking", label: "Ranking", icon: <Trophy /> },
-  { href: "/loja", label: "Loja", icon: <ShoppingBag /> },
+  { href: "/trilhas", label: "Trilhas", icon: <Route />, soon: true },
+  { href: "/ranking", label: "Ranking", icon: <Trophy />, soon: true },
+  { href: "/loja", label: "Loja", icon: <ShoppingBag />, soon: true },
 ];
 
 /** Onde o botão "+" entra na barra inferior. */

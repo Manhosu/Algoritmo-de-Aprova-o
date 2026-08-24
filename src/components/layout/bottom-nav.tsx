@@ -78,25 +78,42 @@ function NavCell({
   item: (typeof BOTTOM_NAV_ITEMS)[number];
   active: boolean;
 }) {
+  const content = (
+    <>
+      <span className="[&>svg]:size-5" aria-hidden>
+        {item.icon}
+      </span>
+      <span className="text-[0.65rem] leading-none font-medium tracking-wide uppercase">
+        {item.label}
+      </span>
+    </>
+  );
+
+  // 44px de altura mínima: alvo de toque confortável.
+  const shared =
+    "flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 transition-colors";
+
   return (
     <li className="flex-1">
-      <Link
-        href={item.href}
-        aria-current={active ? "page" : undefined}
-        className={cn(
-          // 44px de altura mínima: alvo de toque confortável.
-          "flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 transition-colors",
-          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-          active ? "text-primary" : "text-muted-foreground",
-        )}
-      >
-        <span className="[&>svg]:size-5" aria-hidden>
-          {item.icon}
+      {item.soon ? (
+        /* Tela do Marco 2: aparece apagada e não linka. Ver a nota em
+           `config/navigation`. */
+        <span aria-disabled="true" className={cn(shared, "text-muted-foreground/40")}>
+          {content}
         </span>
-        <span className="text-[0.65rem] leading-none font-medium tracking-wide uppercase">
-          {item.label}
-        </span>
-      </Link>
+      ) : (
+        <Link
+          href={item.href}
+          aria-current={active ? "page" : undefined}
+          className={cn(
+            shared,
+            "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+            active ? "text-primary" : "text-muted-foreground",
+          )}
+        >
+          {content}
+        </Link>
+      )}
     </li>
   );
 }

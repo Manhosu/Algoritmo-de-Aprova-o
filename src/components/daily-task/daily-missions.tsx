@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { SectionTitle, Surface } from "@/components/shared/surface";
+import { CompleteStudyButton } from "./complete-study-button";
 import { practiceLink, studyLabel, studyLink, type LinkableTechnique } from "@/lib/deep-links";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,12 @@ import { cn } from "@/lib/utils";
 export type MissionItemState = {
   status: "pending" | "in_progress" | "completed" | "skipped";
   closedByPlanLimit?: boolean;
+  /**
+   * Id do item no banco. O de ESTUDO precisa dele para o botão "já estudei",
+   * que é o gatilho do Motor 2; o de prática se completa sozinho conforme o
+   * aluno responde questões.
+   */
+  itemId?: string;
 };
 
 export type DailyMission = {
@@ -108,6 +115,21 @@ export function DailyMissions({ missions, completionBonusXp }: DailyMissionsProp
                 materialCount: mission.materialCount,
               })}
               item={mission.study}
+              /*
+                Concluir o estudo é o que FAZ NASCER a série de revisões. O
+                botão é um alvo de toque separado do link: misturar os dois
+                faria o aluno concluir por engano ao tentar abrir o material, e
+                a série nasceria de um clique que ele não quis dar.
+              */
+              trailing={
+                mission.study.itemId ? (
+                  <CompleteStudyButton
+                    itemId={mission.study.itemId}
+                    done={mission.study.status === "completed"}
+                    topicName={mission.topicName}
+                  />
+                ) : null
+              }
             />
 
             {mission.practice ? (
@@ -162,12 +184,15 @@ function MissionRow({
   label,
   href,
   item,
+  trailing,
 }: {
   icon: ReactNode;
   action: string;
   label: string;
   href: string | null;
   item: MissionItemState & { xp: number };
+  /** Controle próprio à direita, fora do link. */
+  trailing?: ReactNode;
 }) {
   const done = item.status === "completed";
   const closedByLimit = item.closedByPlanLimit === true;
@@ -220,22 +245,29 @@ function MissionRow({
     </>
   );
 
-  const shared = "flex w-full items-center gap-3 px-4 py-2.5 text-left sm:px-5";
+  const shared = "flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left";
+  const rowClass = "flex items-center gap-2 px-4 sm:px-5";
 
-  if (!href || done) {
-    return <div className={shared}>{content}</div>;
-  }
+  const body =
+    !href || done ? (
+      <div className={shared}>{content}</div>
+    ) : (
+      <Link
+        href={href}
+        className={cn(
+          shared,
+          "rounded-lg transition-colors hover:bg-accent/60",
+          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:-outline-offset-2",
+        )}
+      >
+        {content}
+      </Link>
+    );
 
   return (
-    <Link
-      href={href}
-      className={cn(
-        shared,
-        "transition-colors hover:bg-accent/60",
-        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:-outline-offset-2",
-      )}
-    >
-      {content}
-    </Link>
+    <div className={rowClass}>
+      {body}
+      {trailing}
+    </div>
   );
 }

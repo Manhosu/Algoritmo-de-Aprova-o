@@ -10,7 +10,6 @@ import {
   canonicalTopics,
   dailyQuestionUsage,
   dailyTaskItems,
-  dailyTasks,
   examBoards,
   questionAttempts,
   questionOptions,
@@ -23,6 +22,7 @@ import {
   markActivity,
   xpEntriesFor,
 } from "@/server/engine/progress";
+import { recountTask } from "@/server/engine/task-progress";
 
 /**
  * BANCO DE QUESTÕES (README 1.9).
@@ -547,7 +547,10 @@ export async function answerQuestion(input: {
         set: {
           questionsAnswered: sql`${dailyQuestionUsage.questionsAnswered} + 1`,
           limitReachedAt: reachedNow
-            ? sql`coalesce(${dailyQuestionUsage.limitReachedAt}, ${now})`
+            // ⚠️ `${now}` cru num fragmento SQL vira `Date.toString()`, que o
+            // Postgres recusa: o mapeador da coluna não se aplica dentro de
+            // `sql`. O ISO com cast explícito é o que funciona.
+            ? sql`coalesce(${dailyQuestionUsage.limitReachedAt}, ${now.toISOString()}::timestamptz)`
             : dailyQuestionUsage.limitReachedAt,
           updatedAt: now,
         },
@@ -618,41 +621,13 @@ async function advanceTaskItem(
     .set({
       answeredQuestionCount: answered,
       status: completed ? "completed" : "in_progress",
-      startedAt: sql`coalesce(${dailyTaskItems.startedAt}, ${now})`,
+      startedAt: sql`coalesce(${dailyTaskItems.startedAt}, ${now.toISOString()}::timestamptz)`,
       completedAt: completed ? now : null,
       updatedAt: now,
     })
     .where(eq(dailyTaskItems.id, itemId));
 
   if (completed) await recountTask(tx, item.dailyTaskId, now);
-}
-
-/** Reconta os itens concluídos da tarefa a partir das linhas, não de contador. */
-export async function recountTask(
-  tx: Transaction,
-  dailyTaskId: string,
-  now: Date,
-): Promise<void> {
-  const [row] = await tx
-    .select({
-      total: count(),
-      done: sql<number>`count(*) filter (where ${dailyTaskItems.status} = 'completed')::int`,
-    })
-    .from(dailyTaskItems)
-    .where(eq(dailyTaskItems.dailyTaskId, dailyTaskId));
-
-  const total = row?.total ?? 0;
-  const done = row?.done ?? 0;
-
-  await tx
-    .update(dailyTasks)
-    .set({
-      itemsCompleted: done,
-      status: done === 0 ? "generated" : done >= total ? "completed" : "in_progress",
-      completedAt: done >= total && total > 0 ? now : null,
-      updatedAt: now,
-    })
-    .where(eq(dailyTasks.id, dailyTaskId));
 }
 
 async function findPlanTopic(

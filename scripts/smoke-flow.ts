@@ -222,6 +222,41 @@ async function main() {
       `${res.status}`,
     );
 
+    /* --- 7c. as telas do aluno ativo -------------------------------------- */
+    res = await fetch(`${BASE}/questoes`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Banco de questões renderiza com o painel de filtros",
+      // "Dificuldade" só aparece com o painel aberto, e ele começa fechado —
+      // 300 questões com quatro selects abertos empurrariam a primeira questão
+      // para fora da tela no celular.
+      res.ok && html.includes("Filtros") && html.includes("questões disponíveis"),
+      `${res.status}`,
+    );
+
+    /**
+     * ⚠️ O gabarito não pode chegar ao navegador antes de o aluno responder.
+     * Esta verificação olha o HTML DE VERDADE que sai pela rede, e não o objeto
+     * do serviço: é o único jeito de pegar um vazamento que aconteça na
+     * serialização do React em vez de na consulta.
+     */
+    record(
+      "O HTML da lista de questões NÃO carrega o gabarito",
+      res.ok && !/\?"isCorrect\?":/.test(html) && !html.includes('"isCorrect"'),
+      "nenhum isCorrect no payload",
+    );
+
+    res = await fetch(`${BASE}/revisoes`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Tela de revisões renderiza",
+      res.ok && html.includes("Revisões") && html.includes("24 horas"),
+      `${res.status}`,
+    );
+
+    res = await fetch(`${BASE}/cronograma`, { headers: { cookie } });
+    record("Tela de cronograma renderiza", res.ok, `${res.status}`);
+
     /* --- 8. logout revoga a sessão no banco -------------------------------- */
     res = await fetch(`${BASE}/sair`, { headers: { cookie }, redirect: "manual" });
     const [session] = await sql<Array<{ revoked_at: Date | null }>>`

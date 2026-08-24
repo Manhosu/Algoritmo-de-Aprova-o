@@ -281,6 +281,7 @@ function MissionsCard({ home }: { home: HomeData }) {
     study: {
       status: block.study.done ? "completed" : "pending",
       xp: home.xp.study,
+      itemId: block.study.itemId,
     },
     practice: block.practice
       ? {

@@ -26,25 +26,54 @@ export function Sidebar() {
       {SIDEBAR_ITEMS.map((item) => {
         const active = isActive(pathname, item.href);
 
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "group flex w-[84px] flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center transition-colors",
-              "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-              active
-                ? "border border-primary/60 bg-primary-soft text-primary glow-ring"
-                : "border border-transparent text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
-            )}
-          >
+        const content = (
+          <>
             <span className="[&>svg]:size-6" aria-hidden>
               {item.icon}
             </span>
             <span className="text-[0.65rem] leading-tight font-medium tracking-wide uppercase">
               {item.label}
             </span>
+          </>
+        );
+
+        const shared =
+          "group flex w-[84px] flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center transition-colors";
+
+        /**
+         * Tela que ainda não existe: aparece apagada e NÃO linka.
+         *
+         * O menu comunica o que o produto vai ser; sumir com metade dele daria
+         * a impressão de um produto menor. Mas link que leva a 404 faz o aluno
+         * concluir que a plataforma quebrou, e isso é pior que a espera.
+         */
+        if (item.soon) {
+          return (
+            <span
+              key={item.href}
+              aria-disabled="true"
+              title="Em breve"
+              className={cn(shared, "border border-transparent text-muted-foreground/40")}
+            >
+              {content}
+            </span>
+          );
+        }
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              shared,
+              "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+              active
+                ? "border border-primary/60 bg-primary-soft text-primary glow-ring"
+                : "border border-transparent text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
+            )}
+          >
+            {content}
           </Link>
         );
       })}

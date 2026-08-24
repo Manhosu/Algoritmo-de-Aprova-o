@@ -119,6 +119,9 @@ async function main() {
   const { ensureDailyTask, getDailyMissions } = await import(
     "../src/server/engine/daily-task"
   );
+  const { completeStudy, completeReviewOccurrence, getReviewsToday } = await import(
+    "../src/server/engine/review"
+  );
   const { eq, like, sql } = await import("drizzle-orm");
 
   const userId = randomUUID();
@@ -610,7 +613,7 @@ async function main() {
       `limite registrado: ${usage?.limitAtTime}`,
     );
 
-    /* --- 19. os dois motores continuam separados -------------------------- */
+    /* --- 19. Motor 1 não agenda revisão ----------------------------------- */
     const reviewRows = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(schema.reviewOccurrences)
@@ -620,6 +623,156 @@ async function main() {
       "Motor 1 não agenda revisão (os motores são separados)",
       (reviewRows[0]?.total ?? 0) === 0,
       "nenhuma revisão criada",
+    );
+
+    /* --- 20. MOTOR 2: o estudo concluído faz nascer a série ---------------- */
+    const studyItem = await db.query.dailyTaskItems.findFirst({
+      where: (t, { and: a, eq: e }) =>
+        a(e(t.preparationId, preparationId), e(t.kind, "study")),
+      columns: { id: true, planTopicId: true },
+    });
+    const studiedTopicId = studyItem!.planTopicId;
+
+    const studied = await completeStudy({
+      userId,
+      dailyTaskItemId: studyItem!.id,
+    });
+
+    check(
+      "Concluir um estudo faz nascer a série de revisões",
+      studied.ok && typeof studied.firstReviewOn === "string",
+      studied.ok ? `primeira revisão em ${studied.firstReviewOn}` : "falhou",
+    );
+
+    /**
+     * ⚠️ Só a PRIMEIRA etapa nasce agendada. Materializar as cinco criaria
+     * quatro datas que estarão erradas assim que o aluno atrasar uma revisão —
+     * e corrigi-las depois seria reescrever o compromisso, apagando o atraso
+     * que a métrica de aderência precisa medir.
+     */
+    const occurrences = await db
+      .select({
+        id: schema.reviewOccurrences.id,
+        stageIndex: schema.reviewOccurrences.stageIndex,
+        intervalDays: schema.reviewOccurrences.intervalDays,
+        dueDate: schema.reviewOccurrences.dueDate,
+      })
+      .from(schema.reviewOccurrences)
+      .where(eq(schema.reviewOccurrences.userId, userId));
+
+    check(
+      "Só a PRIMEIRA etapa nasce agendada, não as cinco",
+      occurrences.length === 1 &&
+        occurrences[0].stageIndex === 0 &&
+        occurrences[0].intervalDays === 1,
+      `${occurrences.length} ocorrência, etapa ${occurrences[0]?.stageIndex}, ${occurrences[0]?.intervalDays} dia`,
+    );
+
+    const schedule = await db.query.reviewSchedules.findFirst({
+      where: (t, { eq: e }) => e(t.userId, userId),
+      columns: { totalStages: true, trigger: true, engineConfigId: true },
+    });
+
+    check(
+      "A série guarda as 5 etapas do README e a configuração que a produziu",
+      schedule?.totalStages === 5 &&
+        schedule.trigger === "study_completed" &&
+        schedule.engineConfigId !== null,
+      `${schedule?.totalStages} etapas`,
+    );
+
+    /* --- 21. a revisão atrasada acumula ----------------------------------- */
+    /**
+     * Empurra a revisão para 10 dias atrás — contados no FUSO DO ALUNO.
+     *
+     * A primeira versão usava `current_date` do Postgres, que é UTC: rodando às
+     * 22h de Brasília, o servidor já virou o dia e o atraso saía 9 em vez de
+     * 10. Não era defeito do motor; era o teste supondo que servidor e aluno
+     * compartilham a data. Eles não compartilham, e é exatamente por isso que o
+     * produto guarda data civil.
+     */
+    const civilToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date());
+    const overdueDate = new Date(`${civilToday}T00:00:00Z`);
+    overdueDate.setUTCDate(overdueDate.getUTCDate() - 10);
+    const overdueCivil = overdueDate.toISOString().slice(0, 10);
+
+    await db.execute(
+      sql`update review_occurrences
+          set due_date = ${overdueCivil}::date, due_at = ${overdueCivil}::date
+          where user_id = ${userId}`,
+    );
+
+    const reviewsToday = await getReviewsToday({ userId, preparationId });
+
+    check(
+      "Revisão vencida em dia anterior ACUMULA, não some",
+      reviewsToday.due.length === 1 &&
+        reviewsToday.due[0].isLate &&
+        reviewsToday.due[0].daysLate === 10,
+      `${reviewsToday.due.length} pendente(s), ${reviewsToday.due[0]?.daysLate} dia(s) de atraso`,
+    );
+
+    /* --- 22. a regra do atraso -------------------------------------------- */
+    const reviewed = await completeReviewOccurrence({
+      userId,
+      occurrenceId: occurrences[0].id,
+      performanceRating: "hard",
+    });
+
+    check(
+      "Concluir a revisão agenda a seguinte",
+      reviewed.ok && reviewed.nextReviewOn !== null,
+      reviewed.ok ? `próxima em ${reviewed.nextReviewOn}` : "falhou",
+    );
+
+    /**
+     * ⚠️ A REGRA DO ATRASO (decisão do Eduardo).
+     *
+     * O próximo intervalo conta a partir da EXECUÇÃO REAL, não da data
+     * prevista. Sem isso, quem revisa com 10 dias de atraso receberia a
+     * segunda etapa (7 dias) já vencida há 3 — um acúmulo instantâneo, que é o
+     * oposto do que a curva do esquecimento quer.
+     */
+    const expectedNext = new Date(`${civilToday}T00:00:00Z`);
+    expectedNext.setUTCDate(expectedNext.getUTCDate() + 7);
+
+    check(
+      "O próximo intervalo conta da EXECUÇÃO REAL, não da data prevista",
+      reviewed.ok && reviewed.nextReviewOn === expectedNext.toISOString().slice(0, 10),
+      reviewed.ok
+        ? `${reviewed.nextReviewOn} (esperado ${expectedNext.toISOString().slice(0, 10)})`
+        : "—",
+    );
+
+    const completedRow = await db.query.reviewOccurrences.findFirst({
+      where: (t, { eq: e }) => e(t.id, occurrences[0].id),
+      columns: { isLate: true, daysLate: true, performanceRating: true },
+    });
+
+    check(
+      "O atraso NÃO é perdoado nem escondido — fica registrado",
+      completedRow?.isLate === true && completedRow.daysLate === 10,
+      `${completedRow?.daysLate} dias registrados`,
+    );
+
+    check(
+      "A percepção do aluno é coletada para calibração futura",
+      completedRow?.performanceRating === "hard",
+      `${completedRow?.performanceRating}`,
+    );
+
+    /* --- 23. cobertura e aderência ---------------------------------------- */
+    const covered = await db.query.topicStates.findFirst({
+      where: (t, { eq: e }) => e(t.planTopicId, studiedTopicId),
+      columns: { coverageStatus: true, reviewsCompleted: true },
+    });
+
+    check(
+      "A revisão concluída move a cobertura do assunto",
+      covered?.reviewsCompleted === 1 && covered.coverageStatus !== "not_started",
+      `${covered?.coverageStatus}, ${covered?.reviewsCompleted} revisão`,
     );
   } finally {
     const { db } = await import("../src/server/db");
