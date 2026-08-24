@@ -7,6 +7,7 @@ import { env } from "@/config/env";
 
 import {
   EDITAL_PROMPT_VERSION,
+  clipExtraction,
   editalExtractionSchema,
   type EditalExtraction,
 } from "./edital-schema";
@@ -39,6 +40,16 @@ import {
  */
 
 const MODEL = "claude-opus-5";
+
+/**
+ * Teto de saída do modelo. Medido contra a API: 128.000 é o máximo aceito para
+ * `claude-opus-5`; 200.000 volta 400.
+ *
+ * ⚠️ O raciocínio adaptativo consome deste mesmo orçamento. Com 64.000 — metade
+ * do disponível — um edital real de 83 páginas truncava o JSON no meio de uma
+ * string e a leitura falhava com "erro inesperado".
+ */
+const MAX_OUTPUT_TOKENS = 128_000;
 
 /** Limites da API para documento em base64. */
 const MAX_REQUEST_BYTES = 32 * 1024 * 1024;
@@ -112,7 +123,9 @@ Preencha "questionCount" SOMENTE quando o documento informar explicitamente o n�
 
 CARGOS
 
-Muitos editais cobrem vários cargos com conteúdos diferentes. Liste todos os cargos identificados em "positions" e extraia o conteúdo programático de TODOS eles, agrupado por disciplina. O aluno escolhe o cargo dele depois.
+Liste em "positions" TODOS os cargos que você identificar no documento — isso é barato e permite ao aluno corrigir se o cargo dele for outro.
+
+Já o CONTEÚDO PROGRAMÁTICO segue a instrução do pedido do usuário: quando ele informar um cargo, extraia apenas os conhecimentos comuns a todos os cargos mais os específicos daquele. Não extraia o conteúdo específico dos demais.
 
 DATA DA PROVA
 
@@ -127,13 +140,44 @@ Marque "isReadable" como false e indique o motivo:
 
 É melhor admitir que não deu para ler do que devolver uma extração inventada. Uma extração errada faz o aluno estudar o conteúdo errado.`;
 
-const USER_PROMPT = `Extraia o conteúdo programático deste edital.
+/**
+ * ⚠️ O CARGO É O QUE TORNA A LEITURA VIÁVEL NUM EDITAL REAL.
+ *
+ * A primeira versão pedia o conteúdo de TODOS os cargos ("o aluno escolhe o
+ * dele depois"). Parecia generoso e não sobrevive ao mundo: o edital do TJ-RJ
+ * tem 83 páginas e oito especialidades, cada uma com o programa completo. O
+ * JSON estourou o orçamento de saída e a leitura falhou inteira.
+ *
+ * Só que o aluno JÁ DISSE o cargo dele no passo 1. Pedir o tronco comum mais a
+ * especialidade dele corta a saída em várias vezes, sai mais barato, mais
+ * rápido — e entrega exatamente o edital DELE, não um superconjunto que ele
+ * teria de podar na tela seguinte.
+ *
+ * `positions` continua trazendo TODOS os cargos identificados, para a tela
+ * poder dizer qual foi usado e oferecer a troca se a escolha estiver errada.
+ */
+function buildUserPrompt(targetPosition?: string | null): string {
+  const focus = targetPosition?.trim()
+    ? `O aluno vai prestar o cargo: "${targetPosition.trim()}".
+
+Extraia:
+- os CONHECIMENTOS BÁSICOS / GERAIS, que valem para todos os cargos;
+- os CONHECIMENTOS ESPECÍFICOS APENAS desse cargo.
+
+Ignore o conteúdo específico dos outros cargos. Se não encontrar esse cargo
+exato, use o mais parecido e diga qual escolheu em "notes".`
+    : `Extraia o conteúdo programático de todos os cargos, agrupado por disciplina.`;
+
+  return `Extraia o conteúdo programático deste edital.
+
+${focus}
 
 Antes de responder, confira internamente:
-- todas as disciplinas do programa foram incluídas?
+- todas as disciplinas que valem para esse cargo foram incluídas?
 - os nomes estão idênticos ao documento?
 - algum "questionCount" foi preenchido sem o documento informar o número?
 - a hierarquia de subitens foi preservada?`;
+}
 
 /* ========================================================================== *
  * EXTRAÇÃO
@@ -146,6 +190,13 @@ export type ExtractEditalInput = {
   fileName?: string;
   /** Número de páginas, quando já conhecido — evita uma chamada cara e inútil. */
   pageCount?: number;
+  /**
+   * Cargo que o aluno informou no passo 1.
+   *
+   * ⚠️ É o que torna a leitura viável em edital real. Ver a nota em
+   * `buildUserPrompt`.
+   */
+  targetPosition?: string | null;
   signal?: AbortSignal;
 };
 
@@ -197,7 +248,7 @@ export async function extractEdital(
     const stream = client.messages.stream(
       {
         model: MODEL,
-        max_tokens: 64_000,
+        max_tokens: MAX_OUTPUT_TOKENS,
         system: SYSTEM_PROMPT,
         thinking: { type: "adaptive" },
         output_config: {
@@ -219,7 +270,7 @@ export async function extractEdital(
                 // evita pagar de novo numa retentativa.
                 cache_control: { type: "ephemeral" },
               },
-              { type: "text", text: USER_PROMPT },
+              { type: "text", text: buildUserPrompt(input.targetPosition) },
             ],
           },
         ],
@@ -268,8 +319,12 @@ export async function extractEdital(
       };
     }
 
-    if (!result.data.isReadable) {
-      const reason = (result.data.unreadableReason ?? "unknown") as UnreadableReason;
+    // Corta os textos para as larguras do banco. O schema aceita mais do que a
+    // coluna guarda, de propósito — ver a nota em `clipExtraction`.
+    const data = clipExtraction(result.data);
+
+    if (!data.isReadable) {
+      const reason = (data.unreadableReason ?? "unknown") as UnreadableReason;
       return {
         status: "unreadable",
         reason,
@@ -280,7 +335,7 @@ export async function extractEdital(
 
     // O modelo disse que leu, mas não devolveu assunto nenhum. Tratar como
     // sucesso vazio faria o aluno ver uma tela em branco sem explicação.
-    const topicCount = countTopics(result.data);
+    const topicCount = countTopics(data);
     if (topicCount === 0) {
       return {
         status: "unreadable",
@@ -290,7 +345,7 @@ export async function extractEdital(
       };
     }
 
-    return { status: "succeeded", data: result.data, usage };
+    return { status: "succeeded", data, usage };
   } catch (error) {
     if (error instanceof Anthropic.APIError) {
       return {
@@ -299,6 +354,49 @@ export async function extractEdital(
         cause: error,
       };
     }
+
+    /**
+     * ⚠️ SAÍDA TRUNCADA — o caso mais provável num edital grande de verdade.
+     *
+     * Quando a resposta estoura o orçamento de saída, ela é cortada no meio de
+     * uma string e o SDK falha ao converter o JSON, ANTES de devolver a
+     * mensagem — então não dá para inspecionar `stop_reason`.
+     *
+     * Descoberto lendo o edital do TJ-RJ (83 páginas, oito cargos): a leitura
+     * devolvia "falha inesperada", que não diz nada a ninguém. O aluno
+     * reenviaria o mesmo arquivo esperando outro resultado, e cada tentativa
+     * custaria de novo.
+     *
+     * Agora vira `too_large`, cuja mensagem diz o que fazer: mandar só as
+     * páginas do conteúdo programático.
+     */
+    if (isTruncatedOutput(error)) {
+      return {
+        status: "unreadable",
+        reason: "too_large",
+        message: messageForUnreadable("too_large"),
+        usage: emptyUsage(),
+      };
+    }
+
+    /**
+     * A resposta veio inteira mas não passou na validação.
+     *
+     * Isso é defeito NOSSO — schema apertado demais para o que os editais
+     * reais trazem —, não do arquivo do aluno. A mensagem não pode mandá-lo
+     * mexer no PDF, porque não há nada que ele possa fazer. `cause` carrega o
+     * detalhe para o log.
+     */
+    if (error instanceof Error && error.message.includes("structured output")) {
+      return {
+        status: "failed",
+        message:
+          "A leitura terminou, mas o resultado veio num formato que não conseguimos " +
+          "aproveitar. Já registramos o caso — tente de novo em alguns minutos.",
+        cause: error,
+      };
+    }
+
     return {
       status: "failed",
       message: "Falha inesperada ao ler o edital.",
@@ -405,6 +503,28 @@ export function countTopicsWithWeight(extraction: EditalExtraction): number {
         0,
       ),
     0,
+  );
+}
+
+/**
+ * A resposta foi CORTADA no meio, ou apenas não passou na validação?
+ *
+ * ⚠️ A distinção importa e eu já errei nela. A primeira versão tratava qualquer
+ * "Failed to parse structured output" como truncamento e mandava o aluno
+ * reenviar "só as páginas do conteúdo programático" — quando o problema real
+ * era um nome de cargo com mais de 200 caracteres. Conselho errado, com toda a
+ * aparência de conselho certo.
+ *
+ * Truncamento tem assinatura própria: o JSON acaba no meio. Falha de validação
+ * tem JSON completo e um campo fora das regras. Só a primeira justifica pedir
+ * um arquivo menor.
+ */
+function isTruncatedOutput(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("Unterminated string in JSON") ||
+    message.includes("Unexpected end of JSON input") ||
+    message.includes("Unexpected end of input")
   );
 }
 

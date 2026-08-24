@@ -12,9 +12,36 @@ import { z } from "zod";
  * campo sem saber quem o consome.
  */
 
+/**
+ * ⚠️ ESTE SCHEMA VAI PARA A API. NADA DE `.transform()` AQUI.
+ *
+ * `zodOutputFormat` converte o schema em JSON Schema para instruir o modelo, e
+ * transformação não existe em JSON Schema — a conversão lança
+ * "Transforms cannot be represented in JSON Schema" e a leitura morre ANTES de
+ * qualquer chamada. Aconteceu comigo ao tentar fazer os campos se auto-cortarem.
+ *
+ * O corte acontece DEPOIS, em `clipExtraction`. A separação é a correta de
+ * qualquer forma: aqui é o contrato com o modelo; lá é a adequação ao banco.
+ *
+ * ⚠️ E NADA DE `.max()` NOS CAMPOS DE TEXTO LIVRE.
+ *
+ * Perseguir o teto certo é um jogo que não se ganha. No edital do TJ-RJ:
+ * primeiro um nome de cargo passou de 200 caracteres; subi para 300 e um
+ * assunto passou de 600. Editais têm "assuntos" que são parágrafos inteiros
+ * listando leis.
+ *
+ * E o teto não compra nada: ele não faz o modelo escrever mais curto, só faz a
+ * extração INTEIRA falhar — dois minutos de espera e mais de um dólar de API
+ * por causa de um campo secundário. O tamanho total já está limitado por
+ * `max_tokens`, e a adequação às colunas do banco é feita por `clipExtraction`.
+ *
+ * Os limites de QUANTIDADE (arrays) ficam: eles têm efeito real, dizem ao
+ * modelo que não é para inventar duzentas disciplinas.
+ */
+
 export const editalTopicSchema = z.object({
   /** Texto do assunto exatamente como aparece no edital. */
-  name: z.string().min(1).max(300),
+  name: z.string().min(1),
 
   /**
    * Quantidade de questões que o edital atribui a este assunto, quando o
@@ -26,22 +53,22 @@ export const editalTopicSchema = z.object({
   children: z
     .array(
       z.object({
-        name: z.string().min(1).max(300),
+        name: z.string().min(1),
         questionCount: z.number().int().min(0).max(500).nullable(),
       }),
     )
-    .max(60)
+    .max(120)
     .optional(),
 });
 
 export const editalSubjectSchema = z.object({
   /** Nome da disciplina como aparece no edital. */
-  name: z.string().min(1).max(200),
+  name: z.string().min(1),
 
   /** Quantidade de questões da disciplina inteira, quando informada. */
   questionCount: z.number().int().min(0).max(500).nullable(),
 
-  topics: z.array(editalTopicSchema).min(1).max(200),
+  topics: z.array(editalTopicSchema).min(1).max(400),
 });
 
 export const editalExtractionSchema = z.object({
@@ -61,13 +88,20 @@ export const editalExtractionSchema = z.object({
     .nullable(),
 
   /** Órgão/instituição do concurso. */
-  institution: z.string().max(200).nullable(),
+  institution: z.string().nullable(),
 
   /** Banca organizadora, se identificada no documento. */
-  examBoard: z.string().max(160).nullable(),
+  examBoard: z.string().nullable(),
 
-  /** Cargos identificados. O aluno escolhe o dele na tela de confirmação. */
-  positions: z.array(z.string().max(200)).max(40),
+  /**
+   * Cargos identificados. O aluno escolhe o dele na tela de confirmação.
+   *
+   * O teto de 300 caracteres por nome é folgado de propósito: editais grandes
+   * escrevem coisas como "Analista Judiciário – Grupo: Nível Superior – Sem
+   * Especialidade – Área: Administrativa". Foi exatamente um nome desses que
+   * derrubou a primeira leitura do edital do TJ-RJ.
+   */
+  positions: z.array(z.string().min(1)).max(80),
 
   /**
    * Data da prova em AAAA-MM-DD, quando o edital a informa.
@@ -84,7 +118,7 @@ export const editalExtractionSchema = z.object({
   /** Verdadeiro quando o edital marca a data como provável/estimada. */
   examDateIsEstimated: z.boolean(),
 
-  subjects: z.array(editalSubjectSchema).min(1).max(60),
+  subjects: z.array(editalSubjectSchema).min(1).max(80),
 
   /**
    * Observações do modelo sobre a extração: partes ilegíveis, ambiguidades,
@@ -93,10 +127,46 @@ export const editalExtractionSchema = z.object({
    * Vai para o log, não para o aluno. É o que permite melhorar o prompt
    * olhando casos reais.
    */
-  notes: z.string().max(2000).nullable(),
+  notes: z.string().nullable(),
 });
 
 export type EditalExtraction = z.infer<typeof editalExtractionSchema>;
+
+/* ========================================================================== *
+ * ADEQUAÇÃO AO BANCO
+ * ========================================================================== */
+
+/**
+ * Corta os textos para as larguras das colunas, DEPOIS da validação.
+ *
+ * O schema acima aceita bem mais do que o banco guarda, de propósito: recusar
+ * uma extração inteira por causa de um nome comprido é caro e não ajuda
+ * ninguém. Aqui o texto é aparado — o que aconteceria de qualquer forma na
+ * gravação, só que sem derrubar nada.
+ */
+export function clipExtraction(data: EditalExtraction): EditalExtraction {
+  const clip = (value: string, max: number) => value.slice(0, max);
+
+  return {
+    ...data,
+    institution: data.institution ? clip(data.institution, 200) : null,
+    examBoard: data.examBoard ? clip(data.examBoard, 160) : null,
+    positions: data.positions.map((position) => clip(position, 200)),
+    notes: data.notes ? clip(data.notes, 2000) : null,
+    subjects: data.subjects.map((subject) => ({
+      ...subject,
+      name: clip(subject.name, 200),
+      topics: subject.topics.map((topic) => ({
+        ...topic,
+        name: clip(topic.name, 300),
+        children: topic.children?.map((child) => ({
+          ...child,
+          name: clip(child.name, 300),
+        })),
+      })),
+    })),
+  };
+}
 export type EditalSubject = z.infer<typeof editalSubjectSchema>;
 export type EditalTopic = z.infer<typeof editalTopicSchema>;
 
@@ -105,5 +175,10 @@ export type EditalTopic = z.infer<typeof editalTopicSchema>;
  *
  * Quando a extração sair ruim, a única forma de melhorar é comparar entrada e
  * saída reais entre versões. Incremente ao mudar o prompt.
+ *
+ * v2 (24/08/2026) — o conteúdo passou a ser extraído SÓ do cargo que o aluno
+ * informou, em vez de todos os cargos do edital. Num edital real de 83 páginas
+ * com oito especialidades, a versão anterior estourava o orçamento de saída e
+ * a leitura falhava inteira.
  */
-export const EDITAL_PROMPT_VERSION = "v1";
+export const EDITAL_PROMPT_VERSION = "v2";

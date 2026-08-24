@@ -214,6 +214,18 @@ export async function runExtraction(extractionId: string): Promise<RunExtraction
 
   if (!document) return { status: "failed", message: "Arquivo do edital não encontrado." };
 
+  /**
+   * O cargo que o aluno informou no passo 1 vai junto para a leitura.
+   *
+   * Sem ele, a IA extrai o programa de TODOS os cargos do edital — e num
+   * edital real com oito especialidades isso estoura o orçamento de saída e a
+   * leitura falha inteira. Ver a nota em `buildUserPrompt`.
+   */
+  const forPosition = await db.query.preparations.findFirst({
+    where: (t, { eq: e }) => e(t.id, extraction.preparationId),
+    columns: { targetPosition: true },
+  });
+
   const startedAt = new Date();
   await db
     .update(editalExtractions)
@@ -227,6 +239,7 @@ export async function runExtraction(extractionId: string): Promise<RunExtraction
       pdf: bytes,
       fileName: document.fileName,
       pageCount: document.pageCount ?? undefined,
+      targetPosition: forPosition?.targetPosition ?? null,
     });
 
     if (outcome.status !== "succeeded") {

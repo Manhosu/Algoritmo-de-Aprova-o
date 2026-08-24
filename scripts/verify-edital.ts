@@ -31,6 +31,12 @@ config({ path: [".env.local", ".env"], quiet: true });
  * Uso:
  *   npx tsx scripts/make-sample-edital.ts edital.pdf   (gera um de exemplo)
  *   npm run verify:edital -- edital.pdf
+ *   npm run verify:edital -- edital.pdf "Analista Judiciário - Área Judiciária"
+ *
+ * O segundo argumento é o CARGO. Ele muda o resultado: a IA extrai o tronco
+ * comum mais a especialidade daquele cargo, e ignora as dos outros. Num edital
+ * com oito especialidades, é a diferença entre ler e estourar o orçamento de
+ * saída.
  */
 
 async function main() {
@@ -114,7 +120,8 @@ async function main() {
       .insert(schema.preparations)
       .values({
         userId,
-        targetPosition: "Cargo de teste",
+        // O cargo entra na leitura e é o que a torna viável num edital real.
+        targetPosition: process.argv[3] ?? "Analista Judiciário",
         title: "Leitura de edital",
         status: "draft",
         isCurrent: true,
@@ -132,9 +139,16 @@ async function main() {
       bytes,
     });
 
+    /**
+     * ⚠️ `throw`, NUNCA `process.exit()` aqui dentro.
+     *
+     * `process.exit()` mata o processo na hora e PULA o `finally` — a limpeza
+     * não roda justamente no caminho de falha, que é quando ela mais importa.
+     * Descobri isso depois de quatro leituras que falharam: sobraram 7 usuários
+     * de teste e 347 itens na fila do painel da cliente.
+     */
     if (!received.ok) {
-      console.error(`   ✗ ${received.message}`);
-      process.exit(1);
+      throw new Error(received.message);
     }
 
     const afterUpload = await getEditalStatus(preparation.id, userId);
@@ -145,8 +159,7 @@ async function main() {
     const result = await runExtraction(received.extractionId);
 
     if (result.status !== "succeeded") {
-      console.error(`   ✗ ${result.message}`);
-      process.exit(1);
+      throw new Error(result.message);
     }
 
     console.log(
