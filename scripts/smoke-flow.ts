@@ -257,6 +257,33 @@ async function main() {
     res = await fetch(`${BASE}/cronograma`, { headers: { cookie } });
     record("Tela de cronograma renderiza", res.ok, `${res.status}`);
 
+    res = await fetch(`${BASE}/preparacoes`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Tela de gestão da preparação renderiza com o gate do plano visível",
+      res.ok && html.includes("Minhas preparações") && html.includes("preparação ativa"),
+      `${res.status}`,
+    );
+
+    res = await fetch(`${BASE}/configuracoes`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Configurações renderiza senha, e-mail e exclusão",
+      res.ok &&
+        html.includes("Trocar senha") &&
+        html.includes("Trocar e-mail") &&
+        html.includes("Excluir conta"),
+      `${res.status}`,
+    );
+
+    res = await fetch(`${BASE}/recuperar-senha`);
+    html = await res.text();
+    record(
+      "Recuperação de senha é pública e não revela se o e-mail existe",
+      res.ok && html.includes("Esqueceu a senha?") && html.includes("Se houver uma"),
+      `${res.status}`,
+    );
+
     /* --- 8. logout revoga a sessão no banco -------------------------------- */
     res = await fetch(`${BASE}/sair`, { headers: { cookie }, redirect: "manual" });
     const [session] = await sql<Array<{ revoked_at: Date | null }>>`

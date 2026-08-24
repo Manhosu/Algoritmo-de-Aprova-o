@@ -64,9 +64,14 @@ export default async function SettingsPage() {
           <Row label="E-mail" value={context.user.email ?? "—"} />
         </dl>
 
-        <Button asChild variant="outline" size="sm" className="mt-4">
-          <Link href="/boas-vindas?editar=1">Ajustar meu tempo de estudo</Link>
-        </Button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/boas-vindas?editar=1">Ajustar meu tempo de estudo</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/preparacoes">Minhas preparações</Link>
+          </Button>
+        </div>
       </Surface>
 
       <Surface className="p-4 sm:p-5">

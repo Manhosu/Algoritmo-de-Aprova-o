@@ -1,191 +1,170 @@
 # PROGRESSO — O Algoritmo da Aprovação
 
 > Documento vivo. Atualizado a cada incremento entregue.
-> **Última atualização:** 20/08/2026 — fim da Sessão 1 (fundação).
+> **Última atualização:** 24/08/2026 — Marco 1 concluído.
 
 ## Onde estamos agora
 
-**Fundação construída, schema aprovado, migrations escritas e verificadas, seed
-funcionando com o acervo real da cliente. Nenhuma funcionalidade do Marco 1
-implementada ainda.**
+**O Marco 1 está completo. Os 13 itens do checklist de aceite passam, verificados
+contra o Supabase de produção e conferidos no navegador em 390px e desktop.**
 
 | Marco | Entrega | Situação |
 |---|---|---|
 | Fundação | — | ✅ Concluída |
-| Banco de dados | — | ✅ Migrations + seed prontos e verificados |
-| Marco 1 — Núcleo do produto | 28/08/2026 | ⏳ Pronto para começar |
-| Marco 2 — Experiência e administração | 04/09/2026 | ⛔ Não autorizado |
+| Banco de dados | — | ✅ 73 tabelas, migrations e seed aplicados |
+| Marco 1 — Núcleo do produto | 28/08/2026 | ✅ **Concluído em 24/08** |
+| Marco 2 — Experiência e administração | 04/09/2026 | ⛔ Aguardando autorização |
 
-### ✅ Bloqueio resolvido — o banco está no ar
+### O caminho que o aluno percorre hoje
 
-Projeto Supabase criado em **20/08/2026**, com o token de gerenciamento da
-cliente. Migrations e seed aplicados.
+Cadastro → disponibilidade de estudo → cria a preparação → sobe o PDF do edital
+→ a IA extrai o conteúdo programático → o aluno confere e corrige → faz o
+diagnóstico → **recebe as Missões do Dia** → estuda → as revisões nascem em 24h,
+7, 30, 60 e 90 dias → responde questões com comentário → o cronograma se refaz.
 
-| | |
+Tudo isso roda ponta a ponta. Nenhuma tela é maquete.
+
+### Checklist de aceite do Marco 1
+
+| # | Item | |
+|---|---|---|
+| 1 | Cadastro com nome, e-mail e WhatsApp | ✅ |
+| 2 | Landing page explicativa antes do login | ✅ |
+| 3 | Sobe PDF de edital e a IA extrai disciplinas e assuntos | ✅ |
+| 4 | Editar, corrigir, excluir e acrescentar itens extraídos | ✅ |
+| 5 | Preencher o peso quando o edital não informa | ✅ |
+| 6 | Diagnóstico com os 3 níveis e o aviso obrigatório | ✅ |
+| 7 | Tarefa do Dia coerente com o diagnóstico e os pesos | ✅ |
+| 8 | Revisões em 24h/7/30/60/90, separadas da Tarefa do Dia | ✅ |
+| 9 | Cronograma muda quando o aluno estuda ou responde | ✅ |
+| 10 | Responde questão e vê o comentário abaixo | ✅ |
+| 11 | Filtros de banca, disciplina, assunto e dificuldade | ✅ |
+| 12 | Recuperação de senha, troca de e-mail, exclusão de conta | ✅ |
+| 13 | Política de Privacidade publicada e consentimento no cadastro | ✅ |
+
+### Como isso é verificado
+
+Cinco camadas, cada uma pegando o que a anterior não pega:
+
+| Comando | O que prova | Números |
+|---|---|---|
+| `npm run typecheck` + `lint` | tipos e regras de arquitetura | 0 erros |
+| `npm run test` | as regras dos motores, sem banco | **311 testes** |
+| `npm run db:verify` | migrations e invariantes em Postgres efêmero | ok |
+| `npm run verify:engine` | as regras contra o Postgres real | **50 verificações** |
+| `npm run verify:account` | senha, e-mail e exclusão, incluindo os caminhos de ataque | **25 verificações** |
+| `npm run smoke` | as telas respondendo por HTTP, com sessão real | **21 verificações** |
+| `npm run verify:edital -- x.pdf` | leitura de um edital real, com chamada de IA | ⚠️ gasta ~4 centavos |
+| `npm run build` | build de produção | 22 rotas |
+
+Os scripts limpam tudo que criam — inclusive os rollups de estatística de turma e
+os itens que acrescentaram à fila global de mapeamento. Depois de rodar todos, o
+banco fica com **0 usuários e 0 itens na fila**.
+
+### Bugs que só apareceram ao executar
+
+Nenhum destes aparecia no `typecheck`, no `lint` ou nos 311 testes.
+
+| O que era | Como se manifestava |
 |---|---|
-| Projeto | `algoritmo-da-aprovacao` |
-| Ref | `zzcvkhncelwwtuzxsciz` |
-| Região | `sa-east-1` (São Paulo — menor latência para alunos no Brasil) |
-| Versão | PostgreSQL 17.6 |
-| Plano | Free |
-| Aplicação | pooler, porta 6543, `prepare: false` |
-| Migrations e backup | conexão direta, porta 5432 |
+| **Pooler de transação trava com 4 consultas simultâneas** | Requisição pendurada até o timeout da função. Sem erro, sem log. Várias telas fazem exatamente quatro leituras em paralelo. Trocado para o pooler de sessão (5432). |
+| **Numeração do edital quebrava o casamento** | "3 Emprego do sinal indicativo de crase" não casava com o catálogo por causa do "3". Casamento de 21% num edital que o catálogo cobre — o aluno não receberia questão e a fila encheria de itens já resolvíveis. |
+| **`NULL` no limite do plano virava 1** | Aluno **Premium** via "seu plano permite 1 preparação ativa" e era limitado a 10 questões por dia. `?? 1` não distingue "coluna nula de propósito" de "linha ausente". |
+| **XP pago em dobro** | Responder a mesma questão de novo pagava XP outra vez: a chave de idempotência era o id da tentativa, e cada resposta cria uma nova. |
+| **`Date` cru dentro de `sql`** | Virava `Date.toString()`, que o Postgres recusa. Quebrava concluir estudo e bater o limite diário. |
+| **Client component importando módulo de servidor** | Arrastava o driver `postgres` para o bundle do navegador. Área do aluno inteira em HTTP 500. |
+| **Manifest redirecionado para o login** | O proxy interceptava `.webmanifest`; o navegador o busca sem cookie e recebia HTML. "Adicionar à tela inicial" quebrava em silêncio. |
+| **Menu levando a 404** | `/estudos`, `/trilhas`, `/ranking`, `/loja`, `/perfil` e mais três são telas do Marco 2. Ficaram visíveis e desabilitadas. |
 
-Estrutura aplicada: **73 tabelas · 55 enums · 242 índices · 127 FKs · 12 CHECKs ·
-2 gatilhos** — exatamente o que o `db:verify` previa em Postgres efêmero.
+### O que está pronto mas depende da cliente
 
-Dados iniciais: 3 planos, 5 níveis, 6 configurações de motor v1, 9 bancas,
-7 disciplinas, 57 assuntos, 71 sinônimos, **106 questões** e 5 missões.
-
-⚠️ **A senha do banco só existe no `.env.local`.** O Supabase não a devolve
-depois de criada — só permite redefinir, o que quebraria as connection strings.
-Guarde-a num gerenciador de senhas.
-
-⚠️ **O token `sbp_` usado na criação tem acesso total à conta** (cria e apaga
-projetos). Deve ser revogado no painel do Supabase agora que o projeto existe.
-
-### 🚧 Bloqueio ativo
-
-Nenhum. O que falta é construir as telas e as rotas.
+| Pendência | De quem | Situação |
+|---|---|---|
+| Catálogo canônico incompleto | Natália | 57 assuntos cobrem ~54% de um edital comum. Cada assunto cadastrado rende questão a mais. A fila do painel é a lista do que falta. |
+| Acervo de questões | Natália | 106 questões, quase todas de Crase. O resto do edital mostra "questões em produção". |
+| Material de estudo (mapas mentais, flashcards) | Natália | Zero itens. Os blocos aparecem como "Estude: <assunto>", sem nomear técnica — prometer material que não existe seria pior. |
+| Edital real para conferência final | Natália | A leitura foi verificada com um PDF gerado que imita os defeitos de um edital real. Falta rodar com um documento de banca de verdade. |
+| Deploy na Vercel | Eduardo | Não conectado ainda, a seu pedido. As variáveis estão documentadas no `.env.example`. |
 
 ---
 
-## ✅ Concluído
-
-### Etapa A — Scaffold e fundação
-
-| Item | Onde |
-|---|---|
-| Next.js 16.3 (App Router) + React 19.2 + TypeScript 5 | `package.json` |
-| Tailwind CSS v4 (configuração em CSS, sem `tailwind.config.js`) | `src/app/globals.css` |
-| shadcn/ui sobre Radix (estilo `radix-nova`) | `components.json` |
-| Drizzle ORM + `postgres.js` apontando para o Supabase | `src/server/db/index.ts` |
-| Estrutura de pastas modular | `src/{app,components,modules,server,lib,config}` |
-| `.env.example` documentado variável por variável | `.env.example` |
-| Validação das variáveis de ambiente com falha legível | `src/config/env.ts` |
-| Cabeçalhos de segurança em toda resposta | `next.config.ts` |
-| CSP com nonce por requisição + esqueleto de proteção de rotas | `src/proxy.ts` |
-| Vitest configurado para rodar os motores sem framework | `vitest.config.ts` |
-| Regra de lint que impede o domínio de importar framework ou banco | `eslint.config.mjs` |
-| Rotina automática de backup + procedimento de restauração | `.github/workflows/database-backup.yml`, `docs/backup-restore.md` |
-
-### Etapa B — Modelagem do banco
-
-Schema completo cobrindo **Marco 1 e Marco 2**, em
-`src/server/db/schema/` (15 arquivos por domínio).
-
-**72 tabelas · 54 tipos · 163 índices · 124 chaves estrangeiras.**
-Compila sem erro e gera SQL válido (validado gerando para pasta temporária, sem
-tocar no banco).
-
-Apresentado para aprovação em **`docs/schema.md`**.
-
-### Etapa C — Design system
-
-| Item | Onde |
-|---|---|
-| Tokens em 3 camadas: primitivas da marca → semânticas → domínio | `src/app/globals.css` |
-| Tema escuro com os hex exatos do README (`#0a0e17`, `#0f1826`, `#1c2b40`, `#22d3ee`, `#dbe4f3`, `#8ea0bd`) | idem |
-| Tema claro completo, espelhando a estrutura | idem |
-| Cores de domínio: níveis de domínio (🟢🟡🔴) e os 5 níveis de gamificação | idem |
-| Glow neon, utilitários de card e área segura do iOS para a barra fixa | idem |
-| Provedor de tema com escuro como padrão | `src/components/theme-provider.tsx` |
-
-### Etapa D — Este documento
-
-### O que foi verificado de fato (não só escrito)
-
-| Verificação | Resultado |
-|---|---|
-| `tsc --noEmit` | ✅ sem erros |
-| `eslint .` | ✅ sem erros |
-| `next build` (produção, Turbopack) | ✅ compila e prerrenderiza |
-| Schema gera SQL válido | ✅ 72 tabelas, 54 tipos, 163 índices, 124 FKs |
-| Cabeçalhos de segurança na resposta | ✅ CSP com nonce, HSTS, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, sem `X-Powered-By` |
-| Rota privada sem sessão | ✅ `/inicio` e `/admin` → 307 para o login |
-| Rota pública e de auth | ✅ não são redirecionadas |
-| Tema escuro aplicado por padrão | ✅ |
-
----
-
-## ⏳ Marco 1 — o que falta (nada iniciado)
+## ⏳ Marco 1 — detalhamento
 
 ### 1.1 Segurança e LGPD
-- [x] **Hashing argon2id + política de senha** — `src/server/auth/password.ts`
-- [x] **Geração e verificação de tokens, pseudonimização LGPD** — `tokens.ts`
-- [x] **Sessão em banco com revogação imediata** — `session.ts`
-- [x] **Guards de autorização, propriedade de recurso e CSRF** — `guards.ts`
-- [ ] Telas e rotas que usam tudo isso (precisa de banco)
-- [x] Rotina automática de backup *(falta cadastrar o segredo no GitHub)*
-- [ ] Recuperação de senha por e-mail com token de validade limitada
-- [ ] Exclusão de conta com remoção efetiva (anonimização)
-- [ ] Página de Política de Privacidade
-- [ ] Consentimento no cadastro com finalidade declarada
+- [x] Hashing argon2id + política de senha — `src/server/auth/password.ts`
+- [x] Tokens com hash SHA-256, pseudonimização LGPD — `tokens.ts`
+- [x] Sessão em banco com revogação imediata — `session.ts`
+- [x] Guards de autorização, propriedade de recurso e CSRF — `guards.ts`
+- [x] Rotina automática de backup
+- [x] **Recuperação de senha por e-mail**, token de 1 hora, uso único
+- [x] **Exclusão de conta** com 7 dias de janela e pseudonimização irreversível
+- [x] Página de Política de Privacidade
+- [x] Consentimento no cadastro com a versão do documento gravada
 
 ### 1.2 Cadastro e autenticação
-- [ ] Cadastro com nome, e-mail e WhatsApp
-- [ ] Login e logout
-- [ ] Recuperação e alteração de senha
-- [ ] Alteração de e-mail com confirmação no novo endereço
+- [x] Cadastro com nome, e-mail e WhatsApp
+- [x] Login e logout (logout revoga a sessão no banco)
+- [x] Recuperação e alteração de senha
+- [x] Alteração de e-mail com confirmação no endereço novo + aviso no antigo
 
 ### 1.3 Landing page pública
-- [ ] Página explicando como o Algoritmo funciona
+- [x] Página explicando o diferencial: edital → IA → diagnóstico → plano
 
 ### 1.4 Fluxo do botão "+"
-- [ ] Upload do edital em PDF + cargo pretendido
-- [ ] Data da prova e disponibilidade de estudo *(acrescentado na Sessão 1)*
-- [x] **Extração por IA** — `src/server/ai/`, com structured outputs, detecção
-      local de PDF escaneado e mensagens acionáveis ao aluno
-- [ ] Tela de revisão: editar, corrigir, excluir e acrescentar
-- [ ] Campo de peso do assunto quando o edital não informa
-- [ ] Confirmação do conteúdo
+- [x] Passo 1: cargo, órgão, banca e data da prova
+- [x] Passo 2: upload do PDF, com assinatura do arquivo conferida no servidor
+- [x] Extração por IA — structured outputs, detecção local de PDF escaneado
+- [x] Passo 3: revisão do conteúdo — editar, corrigir, excluir, acrescentar
+- [x] Campo de peso do assunto, com a origem do peso registrada
+- [x] Passo 4: confirmação (renomear um assunto **refaz** o casamento)
 
 ### 1.5 Diagnóstico inicial
-- [ ] Níveis de domínio por disciplina, com propagação e refino opcional
-- [ ] Aviso obrigatório com o texto exato do README
+- [x] Níveis por disciplina, propagados para os assuntos
+- [x] Aviso obrigatório com o texto exato do README *(o smoke compara palavra por palavra)*
+- [x] Trava definitiva — não se refaz, e a tela avisa disso antes do clique
 
 ### 1.6 Motor 1 — Tarefa do Dia
-- [x] **Módulo puro com os 5 sinais ponderados** — `src/modules/daily-task/signals.ts`
-- [x] **Montagem em blocos, rotação de técnica, corte por tempo** — `generate.ts`
-- [x] **Suíte de testes** — 75 testes
-- [ ] Serviço que persiste a tarefa gerada (precisa de banco)
-- [ ] Tela da Tarefa do Dia
+- [x] Módulo puro com os 5 sinais ponderados
+- [x] Blocos com técnica prescrita, rotação, corte por tempo
+- [x] Serviço que persiste, idempotente por dia
+- [x] Missões do Dia na Home, clicáveis, riscando ao concluir
 
 ### 1.7 Motor 2 — Revisão
-- [x] **Módulo puro da curva do esquecimento (24h/7/30/60/90)** — `src/modules/review/engine.ts`
-- [x] **Regra de atraso: acumula, próximo intervalo da execução real**
-- [x] **Suíte de testes** — 25 testes
-- [ ] Serviço que persiste as ocorrências (precisa de banco)
-- [ ] Tela "Revisões para Hoje" com botão REVISAR
+- [x] Módulo puro da curva do esquecimento (24h/7/30/60/90)
+- [x] Regra de atraso: acumula, próximo intervalo conta da execução real
+- [x] Serviço que persiste — só a primeira etapa nasce agendada
+- [x] Tela "Revisões para Hoje" com botão REVISAR e o atraso visível
 
 ### 1.8 Cronograma adaptativo
-- [x] **Projeção até a data da prova, agregada por semana** — `src/modules/schedule/`
-- [x] **Viabilidade: o conteúdo cabe até a prova?** — com quantos minutos a mais por dia
-- [x] **Adiantar e atrasar conteúdo** — item movido prevalece sobre o motor
-- [x] **Gatilhos de recálculo + explicação ao aluno** — 27 testes
-- [ ] Persistência dos snapshots e da janela materializada (precisa de banco)
-- [ ] Tela do cronograma
+- [x] Projeção semanal até a prova, calculada na leitura
+- [x] Viabilidade com o número de minutos por dia que faltam
+- [x] Gatilhos de recálculo + explicação ao aluno
+- [x] Tela do cronograma
 
 ### 1.9 Banco de questões
-- [ ] Importador CSV + questões de exemplo (3 disciplinas × 3 bancas)
-- [ ] Resposta com comentário explicativo abaixo
-- [ ] Filtros de banca, disciplina, assunto e dificuldade
-- [ ] Limite diário por plano *(antecipado do Marco 2 a seu pedido)*
+- [x] Importador de planilha + as 106 questões da cliente no banco
+- [x] Resposta com comentário explicativo logo abaixo
+- [x] Filtros de banca, disciplina, assunto e dificuldade
+- [x] Limite diário por plano *(antecipado do Marco 2)*
+- [x] Gabarito **não** viaja com a página — só depois de responder
 
 ### 1.10 Gestão da preparação
-- [ ] Múltiplas preparações com o gate do Premium ativo
-- [ ] Trocar, editar e encerrar preparação
+- [x] Múltiplas preparações com o gate do Premium ativo
+- [x] Trocar, renomear e encerrar — encerrar não apaga e libera a vaga
 
 ### Transversal
-- [ ] Shell de navegação: menu lateral + barra inferior fixa
-- [ ] Instrumentação do funil desde a primeira tela
+- [x] Shell de navegação: menu lateral + barra inferior fixa
+- [x] Instrumentação do funil desde o cadastro
+- [x] Tema escuro por padrão, claro suportado
 
 ---
 
 ## ⛔ Marco 2 — não autorizado
 
-Modelado no banco, não implementado. Dashboard Home, gamificação, módulos de
-conteúdo, planos com Mercado Pago e painel administrativo.
+Modelado no banco, não implementado. Dashboard Home com as métricas, gamificação
+(XP já é creditado, mas sem loja/ranking/trilhas), módulos de conteúdo, planos
+com Mercado Pago e painel administrativo — incluindo a tela da **fila de
+mapeamento**, que hoje só existe como tabela.
 
 **Não começar sem autorização explícita.**
 
@@ -347,38 +326,68 @@ pode ser dado como pronto** antes disso.
 
 ## Riscos em acompanhamento
 
-| Risco | Impacto | Como está sendo tratado |
+| Risco | Impacto | Situação em 24/08/2026 |
 |---|---|---|
-| **Prazo do Marco 1** — 9 dias corridos para segurança, auth, IA, dois motores, cronograma e banco de questões | Alto | Fundação construída em uma sessão. O caminho crítico agora são as chaves de terceiros. |
-| **Qualidade da extração de edital** — PDFs heterogêneos, alguns escaneados | Alto | `edital_extractions` guarda entrada, saída, custo e versão do prompt para permitir iterar. A tela de correção do aluno é a rede de segurança. |
-| **Casamento de taxonomia** | Alto | Três camadas + fila visível no painel. Vale medir a taxa de casamento nos primeiros editais reais. |
-| **Auth.js Credentials não suporta sessão em banco** | Médio | Levantado em `docs/schema.md`, aguardando decisão. |
-| **Custo da API da Anthropic** | Médio | Custo por execução registrado; `plan_limits.monthly_edital_upload_limit` já modelado como teto. |
+| **Casamento de taxonomia** | Alto | **Medido.** 54% num edital que imita um real, depois de duas correções. Os 46% restantes são buraco de catálogo, não defeito de código — a fila do painel é a lista do que cadastrar. Vale medir de novo no primeiro edital de banca de verdade. |
+| **Acervo raso** | Alto | 106 questões, quase todas de Crase. O produto funciona, mas a maioria dos assuntos mostra "questões em produção". É trabalho de conteúdo da cliente. |
+| **Qualidade da extração de edital** | Médio | Verificada com chamada real: acertou disciplinas, hierarquia, pesos, data estimada e IGNOROU a seção de bibliografia. `edital_extractions` guarda entrada, saída, custo e versão do prompt para permitir iterar. |
+| **`after()` não é fila de verdade** | Médio | Se o processo morrer no meio da leitura, a extração fica em `running` e ninguém a retoma. O arquivo já está guardado e a tela oferece reenviar. Fila real (Inngest, QStash) é o próximo passo se a taxa de falha justificar. |
+| **Pooler de sessão em vez de transação** | Médio | Escolha forçada: o de transação trava com 4 consultas simultâneas. Segura uma conexão do servidor por cliente, então o `max` fica baixo. Se a concorrência crescer, aumentar o pool no painel do Supabase — não voltar para o 6543. |
+| **Custo da API da Anthropic** | Baixo | 4 centavos de dólar por edital pequeno, registrado por execução. `plan_limits.monthly_edital_upload_limit` já modelado como teto. |
+| **Auth.js retirado** | Resolvido | A sessão é própria, em banco. O Auth.js não entrega nada nesse desenho e saiu. |
 
 ---
 
 ## Pendências de produto (não técnicas)
 
 1. **Rótulos do Índice de Preparação** — a palavra "Competitivo" agora é nome de
-   nível de gamificação e não pode ser reusada no índice. Proposta pendente de
-   apresentação ao Eduardo.
-2. **Diagnóstico por disciplina com propagação** — decisão de produto, o Eduardo
-   vai comunicar à cliente.
+   nível de gamificação e não pode ser reusada no índice. Proposta pendente.
+2. **Comprovação de proficiência** — a cliente autorizou em 21/08. Precisa de
+   ~30 questões por assunto para o resultado significar algo; o acervo tem 106
+   no total. Fica para depois do acervo crescer.
+3. **Edital real de banca** para conferência final da leitura.
 
 ---
 
 ## Como rodar
 
 ```bash
-cp .env.example .env.local     # preencha DATABASE_URL e AUTH_SECRET
+cp .env.example .env.local     # preencha DATABASE_URL, AUTH_SECRET e as chaves
 npm install
 npm run dev                    # http://localhost:3000
+```
 
+### Validação
+
+```bash
 npm run typecheck              # TypeScript
-npm run lint                   # ESLint
-npm run test                   # Vitest (motores)
+npm run lint                   # ESLint (inclui as regras de pureza dos módulos)
+npm run test                   # Vitest — 311 testes das regras dos motores
+npm run db:verify              # migrations e invariantes em Postgres efêmero
 
-npm run db:generate            # gera a migration  ⚠️ só após aprovação
-npm run db:migrate             # aplica no Supabase ⚠️ só após aprovação
-npm run db:seed                # popula dados iniciais
+npm run verify:engine          # 50 verificações contra o Postgres real
+npm run verify:account         # 25 verificações de senha, e-mail e exclusão
+npm run smoke                  # 21 telas por HTTP (precisa do `npm run dev`)
+npm run build                  # build de produção
+```
+
+### Banco
+
+```bash
+npm run db:generate            # gera a migration
+npm run db:migrate             # aplica
+npm run db:seed                # popula dados iniciais (idempotente)
+npm run db:status              # retrato do banco
+npm run db:ping                # testa as duas conexões
+```
+
+### Operação
+
+```bash
+npm run email:check            # verificação do domínio no Resend
+npm run deletions:run          # executa as exclusões de conta vencidas (cron diário)
+
+# ⚠️ Gasta dinheiro — chamada real à API da Anthropic (~4 centavos):
+npx tsx scripts/make-sample-edital.ts edital.pdf
+npm run verify:edital -- edital.pdf
 ```

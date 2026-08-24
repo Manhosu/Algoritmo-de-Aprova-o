@@ -86,6 +86,14 @@ export type PreparationLimit = {
 };
 
 /**
+ * Teto do plano Free, usado quando o aluno não tem assinatura ativa nenhuma.
+ *
+ * É o padrão CONSERVADOR: quem não tem linha de assinatura não deve receber
+ * acesso ilimitado por omissão.
+ */
+const FREE_MAX_PREPARATIONS = 1;
+
+/**
  * Quantas preparações ativas o plano do aluno permite.
  *
  * `NULL` em `max_active_preparations` significa ILIMITADO — nunca 0 nem um
@@ -107,7 +115,23 @@ export async function checkPreparationLimit(userId: string): Promise<Preparation
     },
   });
 
-  const limit = subscription?.plan?.limits?.maxActivePreparations ?? 1;
+  /**
+   * ⚠️ `NULL` NA COLUNA SIGNIFICA ILIMITADO — não "ausente".
+   *
+   * `subscription?.plan?.limits?.maxActivePreparations ?? 1` parece certo e está
+   * errado: `??` não distingue "não existe linha de limites" de "a coluna é
+   * NULL de propósito". No Premium, `max_active_preparations` é NULL justamente
+   * para dizer "sem teto" — e o `?? 1` transformava isso em UMA preparação.
+   *
+   * Encontrado em 24/08/2026 na tela de gestão: um aluno Premium via
+   * "seu plano permite 1 preparação ativa". O mesmo erro estava em
+   * `getDailyLimit`, onde limitava o Premium a 10 questões por dia.
+   *
+   * A distinção agora é explícita: sem linha de limites, cai nos valores do
+   * Free; com a linha e a coluna nula, é ilimitado.
+   */
+  const limits = subscription?.plan?.limits;
+  const limit = limits ? limits.maxActivePreparations : FREE_MAX_PREPARATIONS;
   const planCode = subscription?.plan?.code ?? "free";
 
   const [row] = await db

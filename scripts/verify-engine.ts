@@ -122,7 +122,8 @@ async function main() {
   const { completeStudy, completeReviewOccurrence, getReviewsToday } = await import(
     "../src/server/engine/review"
   );
-  const { eq, like, sql } = await import("drizzle-orm");
+  const manage = await import("../src/server/preparations/manage");
+  const { and, eq, like, sql } = await import("drizzle-orm");
 
   const userId = randomUUID();
   const email = `${MARKER}-${Date.now()}@exemplo.invalido`;
@@ -787,6 +788,123 @@ async function main() {
       "A revisão concluída move a cobertura do assunto",
       covered?.reviewsCompleted === 1 && covered.coverageStatus !== "not_started",
       `${covered?.coverageStatus}, ${covered?.reviewsCompleted} revisão`,
+    );
+
+    /* --- 24. GESTÃO DA PREPARAÇÃO (README 1.10) --------------------------- */
+    const list = await manage.listPreparations(userId);
+
+    check(
+      "A lista de preparações traz o progresso de cada uma",
+      list.length === 1 && list[0].isCurrent && list[0].topicCount === 6,
+      `${list.length} preparação · ${list[0]?.studiedCount}/${list[0]?.topicCount} estudados`,
+    );
+
+    const renamedPrep = await manage.renamePreparation({
+      userId,
+      preparationId,
+      title: "Meu concurso renomeado",
+    });
+    check(
+      "Renomear a preparação funciona",
+      renamedPrep.ok,
+      renamedPrep.ok ? "ok" : renamedPrep.message!,
+    );
+
+    /**
+     * ⚠️ Encerrar CANCELA as revisões pendentes. Continuar cobrando revisão de
+     * um concurso que o aluno abandonou seria uma dívida que não existe mais, e
+     * estragaria a aderência dele na preparação que importa.
+     */
+    const archived = await manage.archivePreparation({ userId, preparationId });
+    check("Encerrar a preparação funciona", archived.ok, archived.ok ? "ok" : archived.reason);
+
+    const canceledReviews = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(schema.reviewOccurrences)
+      .where(
+        and(
+          eq(schema.reviewOccurrences.preparationId, preparationId),
+          eq(schema.reviewOccurrences.status, "scheduled"),
+        ),
+      );
+
+    check(
+      "Encerrar cancela as revisões pendentes daquela preparação",
+      (canceledReviews[0]?.total ?? 0) === 0,
+      "nenhuma revisão pendente sobrou",
+    );
+
+    /**
+     * ⚠️ Encerrar NÃO apaga. O aluno que passou meses estudando não perde o
+     * registro por ter mudado de alvo — e a vaga no limite do plano é liberada.
+     */
+    const stillThere = await db.query.preparations.findFirst({
+      where: (t, { eq: e }) => e(t.id, preparationId),
+      columns: { status: true, isCurrent: true, archivedAt: true },
+    });
+
+    const topicsKept = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(schema.studyPlanTopics)
+      .where(eq(schema.studyPlanTopics.preparationId, preparationId));
+
+    check(
+      "Encerrar NÃO apaga o conteúdo nem o histórico",
+      stillThere?.status === "archived" &&
+        stillThere.archivedAt !== null &&
+        (topicsKept[0]?.total ?? 0) === 6,
+      `${topicsKept[0]?.total} assuntos preservados`,
+    );
+
+    const gateAfter = await import("../src/server/preparations/service").then((m) =>
+      m.checkPreparationLimit(userId),
+    );
+    check(
+      "Encerrar libera a vaga no limite do plano Free",
+      gateAfter.allowed && gateAfter.current === 0,
+      `${gateAfter.current}/${gateAfter.limit} usadas`,
+    );
+
+    const reopened = await manage.reopenPreparation({ userId, preparationId });
+    check(
+      "Reabrir funciona quando há vaga",
+      reopened.ok,
+      reopened.ok ? "ok" : reopened.message!,
+    );
+
+    /* --- 25. NULL no limite significa ILIMITADO --------------------------- */
+    /**
+     * ⚠️ Verificação nascida de um bug real (24/08/2026).
+     *
+     * `limits?.maxActivePreparations ?? 1` parecia certo e transformava o
+     * Premium — onde a coluna é NULL de propósito, querendo dizer "sem teto" —
+     * em UMA preparação. O gêmeo do mesmo erro limitava o Premium a 10 questões
+     * por dia. Cliente pagante recebendo o plano Free em silêncio.
+     */
+    const premiumPlan = await db.query.plans.findFirst({
+      where: (t, { eq: e }) => e(t.code, "premium"),
+      columns: { id: true },
+    });
+
+    await db
+      .update(schema.subscriptions)
+      .set({ planId: premiumPlan!.id })
+      .where(eq(schema.subscriptions.userId, userId));
+
+    const { checkPreparationLimit } = await import("../src/server/preparations/service");
+
+    const premiumPreps = await checkPreparationLimit(userId);
+    check(
+      "Premium tem preparações ILIMITADAS (NULL não é 1)",
+      premiumPreps.limit === null && premiumPreps.allowed,
+      `limite ${premiumPreps.limit === null ? "ilimitado" : premiumPreps.limit}`,
+    );
+
+    const premiumQuestions = await getDailyLimit(userId);
+    check(
+      "Premium tem questões diárias ILIMITADAS (NULL não é 10)",
+      premiumQuestions.limit === null && !premiumQuestions.reached,
+      `limite ${premiumQuestions.limit === null ? "ilimitado" : premiumQuestions.limit}`,
     );
   } finally {
     const { db } = await import("../src/server/db");

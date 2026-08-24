@@ -1,4 +1,12 @@
-import { ArrowRight, CalendarClock, FileUp, Loader2, ListChecks, Target } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarClock,
+  ChevronRight,
+  FileUp,
+  ListChecks,
+  Loader2,
+  Target,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -196,8 +204,18 @@ async function ActiveDashboard({
 
   return (
     <>
-      <Surface className="p-4 sm:p-5">
-        <SectionTitle>{preparationTitle}</SectionTitle>
+      {/* O título é o caminho para trocar de preparação (README 1.10). Era o
+          lugar onde o aluno naturalmente tentaria clicar. */}
+      <Surface className="p-0">
+        <Link
+          href="/preparacoes"
+          className="flex items-center gap-3 p-4 transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
+        >
+          <span className="min-w-0 flex-1">
+            <SectionTitle>{preparationTitle}</SectionTitle>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
       </Surface>
 
       <Surface className="grid grid-cols-2 gap-y-5 py-5 sm:grid-cols-4">

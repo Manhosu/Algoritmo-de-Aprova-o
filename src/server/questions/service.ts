@@ -339,6 +339,9 @@ export type DailyLimit = {
   planCode: string;
 };
 
+/** Teto do Free, para quem não tem assinatura ativa. Padrão conservador. */
+const FREE_DAILY_QUESTIONS = 10;
+
 export async function getDailyLimit(
   userId: string,
   today?: CivilDate,
@@ -356,7 +359,17 @@ export async function getDailyLimit(
     },
   });
 
-  const limit = subscription?.plan?.limits?.dailyQuestionLimit ?? 10;
+  /**
+   * ⚠️ `NULL` NA COLUNA SIGNIFICA ILIMITADO — não "ausente".
+   *
+   * `?? 10` parecia certo e limitava o PREMIUM a 10 questões por dia: no
+   * Premium a coluna é NULL de propósito, para dizer "sem teto", e o `??` não
+   * distingue isso de "não existe linha de limites". Ver a mesma nota em
+   * `checkPreparationLimit`, onde o erro gêmeo dizia a um aluno Premium que ele
+   * podia ter uma preparação só.
+   */
+  const limits = subscription?.plan?.limits;
+  const limit = limits ? limits.dailyQuestionLimit : FREE_DAILY_QUESTIONS;
   const planCode = subscription?.plan?.code ?? "free";
 
   const usage = await db.query.dailyQuestionUsage.findFirst({
