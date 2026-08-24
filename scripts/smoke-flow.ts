@@ -126,10 +126,12 @@ async function main() {
     );
 
     /* --- 5. gate de plano: a segunda preparação é barrada ------------------ */
-    await sql`
+    const [prep] = await sql<Array<{ id: string }>>`
       insert into preparations (user_id, target_position, title, status, is_current)
       values (${userId}, 'Analista Judiciário', 'Analista Judiciário', 'draft', true)
+      returning id
     `;
+    const preparationId = prep.id;
 
     res = await fetch(`${BASE}/preparacoes/nova`, { headers: { cookie } });
     html = await res.text();
@@ -161,6 +163,64 @@ async function main() {
       html = await res.text();
       record(`Home reflete o estado "${status}"`, res.ok && html.includes(esperado));
     }
+
+    /* --- 7b. as telas do fluxo do "+" ------------------------------------- */
+    await sql`update preparations set status = 'draft' where id = ${preparationId}`;
+
+    res = await fetch(`${BASE}/preparacoes/${preparationId}/edital`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Tela de envio do edital renderiza",
+      res.ok && html.includes("Envie o edital") && html.includes("Toque para escolher o PDF"),
+      `${res.status}`,
+    );
+
+    // Conteúdo mínimo para as telas 3 e 4 terem o que mostrar.
+    const [subject] = await sql<Array<{ id: string }>>`
+      insert into study_plan_subjects
+        (preparation_id, raw_name, display_name, normalized_name, sort_order, origin, mapping_status)
+      values (${preparationId}, 'Língua Portuguesa', 'Língua Portuguesa', 'lingua portuguesa', 0, 'ai', 'unmapped')
+      returning id
+    `;
+    await sql`
+      insert into study_plan_topics
+        (preparation_id, plan_subject_id, raw_name, display_name, normalized_name,
+         depth, sort_order, weight_source, mapping_status, origin)
+      values (${preparationId}, ${subject.id}, 'Crase', 'Crase', 'crase',
+              0, 0, 'default', 'unmapped', 'ai')
+    `;
+
+    await sql`update preparations set status = 'review_pending' where id = ${preparationId}`;
+    res = await fetch(`${BASE}/preparacoes/${preparationId}/conteudo`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Tela de revisão do conteúdo renderiza o que a IA leu",
+      res.ok && html.includes("Confira o que a IA leu") && html.includes("Língua Portuguesa"),
+      `${res.status}`,
+    );
+
+    await sql`update preparations set status = 'diagnosis_pending' where id = ${preparationId}`;
+    res = await fetch(`${BASE}/preparacoes/${preparationId}/diagnostico`, {
+      headers: { cookie },
+    });
+    html = await res.text();
+
+    /**
+     * ⚠️ O README 1.5 exige este aviso com ESTE texto, palavra por palavra. É
+     * requisito de aceite do Marco 1, e o tipo de coisa que se perde num
+     * ajuste de copy meses depois — por isso a verificação compara o texto
+     * inteiro, e não um trecho.
+     */
+    const NOTICE =
+      "O nível de domínio informado neste diagnóstico é uma percepção inicial sobre o " +
+      "seu conhecimento. Ele será continuamente validado e atualizado pelo Algoritmo da " +
+      "Aprovação conforme você resolver questões, realizar revisões e evoluir na preparação.";
+
+    record(
+      "Tela de diagnóstico exibe o aviso obrigatório com o texto exato do README",
+      res.ok && stripHtml(html).includes(NOTICE),
+      `${res.status}`,
+    );
 
     /* --- 8. logout revoga a sessão no banco -------------------------------- */
     res = await fetch(`${BASE}/sair`, { headers: { cookie }, redirect: "manual" });
@@ -207,6 +267,23 @@ async function main() {
     process.exit(1);
   }
   console.log(`${steps.length} verificações passaram. Dados de teste removidos.`);
+}
+
+/**
+ * Tira as tags e devolve o texto corrido.
+ *
+ * O React quebra o parágrafo em vários nós de texto com comentários entre eles
+ * (`<!-- -->`), então procurar a frase inteira no HTML cru falharia mesmo com o
+ * texto correto na tela.
+ */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ");
 }
 
 main().catch((error) => {

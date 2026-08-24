@@ -54,6 +54,20 @@ const serverEnvSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
 
   /**
+   * Supabase Storage — onde ficam os PDFs de edital enviados pelos alunos.
+   *
+   * Mesmo projeto do banco; a chave `service_role` é usada só no servidor, para
+   * gravar num bucket PRIVADO. Sem elas, o armazenamento cai no disco local,
+   * que serve para desenvolvimento e é recusado em produção — ver
+   * `src/server/storage/index.ts`.
+   *
+   * ⚠️ A `service_role` ignora RLS. Nunca a exponha ao navegador nem a coloque
+   * numa variável NEXT_PUBLIC_.
+   */
+  SUPABASE_URL: z.url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+
+  /**
    * Login com Google (OAuth 2.0).
    *
    * ⚠️ SUSPENSO em 21/08/2026 a pedido da cliente: o Google não entrega
@@ -107,6 +121,10 @@ function parseServerEnv(): ServerEnv {
     const missing: string[] = [];
     if (!env.ANTHROPIC_API_KEY) missing.push("ANTHROPIC_API_KEY");
     if (!env.RESEND_API_KEY) missing.push("RESEND_API_KEY");
+    // Sem armazenamento remoto o upload de edital "funciona" e o arquivo some
+    // na invocação seguinte — falha silenciosa, a pior espécie.
+    if (!env.SUPABASE_URL) missing.push("SUPABASE_URL");
+    if (!env.SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
     if (missing.length > 0) {
       throw new Error(
         `Em produção estas variáveis são obrigatórias: ${missing.join(", ")}`,

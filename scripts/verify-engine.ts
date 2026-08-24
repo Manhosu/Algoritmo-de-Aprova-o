@@ -1,0 +1,482 @@
+import { createHmac, randomUUID } from "node:crypto";
+
+import { hash } from "@node-rs/argon2";
+import { config } from "dotenv";
+
+config({ path: [".env.local", ".env"], quiet: true });
+
+/**
+ * VERIFICAÇÃO DO CAMINHO COMPLETO, SEM GASTAR UMA CHAMADA DE IA.
+ * ============================================================================
+ *
+ * Alimenta um edital CONHECIDO — escrito à mão, com as redações reais que os
+ * editais usam — e percorre tudo que vem depois:
+ *
+ *   extração → casamento com o catálogo → revisão do aluno → diagnóstico →
+ *   Motor 1 → Missões do Dia
+ *
+ * POR QUE ISSO EXISTE SEPARADO DO `npm run smoke`
+ * ----------------------------------------------------------------------------
+ * O smoke prova que as TELAS respondem. Este prova que as REGRAS produzem o
+ * resultado certo contra o Postgres de verdade — com os tipos, as constraints e
+ * os gatilhos que o PGlite e os testes de unidade não exercitam.
+ *
+ * Ele não chama a API da Anthropic: a extração entra pronta, por
+ * `applyExtractedContent`. O que está sendo verificado aqui é o que acontece
+ * DEPOIS da leitura, que é onde mora a maior parte das regras.
+ *
+ * Limpa tudo que criou, inclusive quando falha no meio.
+ *
+ * ⚠️ Roda com `--conditions=react-server`. Sem isso, o pacote `server-only`
+ * lança ao ser importado fora do Next e nenhum módulo de servidor pode ser
+ * carregado por um script. A condição faz o Node resolver o `empty.js` que o
+ * próprio pacote publica para esse caso — a proteção real continua valendo
+ * onde importa, no `next build`.
+ *
+ * Uso: npm run verify:engine
+ */
+
+const MARKER = "engine-check";
+
+type Check = { label: string; ok: boolean; detail: string };
+const checks: Check[] = [];
+
+function check(label: string, ok: boolean, detail = "") {
+  checks.push({ label, ok, detail });
+  console.log(`  ${ok ? "✓" : "✗"} ${label}${detail ? ` — ${detail}` : ""}`);
+}
+
+/**
+ * Um edital de mentira, com problemas de verdade.
+ *
+ * Cada item aqui existe para exercitar uma regra específica:
+ *   • "Emprego do sinal indicativo de crase" — a redação longa que precisa
+ *     casar com o assunto canônico "Crase" pela camada de contenção;
+ *   • "Conceitos de Crase" — a variação que a cliente perguntou explicitamente;
+ *   • "Tópico Inexistente de Teste" — o que NÃO casa e precisa cair na fila;
+ *   • pesos presentes em uma disciplina e ausentes em outra — para conferir que
+ *     `weightSource` distingue "do edital" de "não informado".
+ */
+const FAKE_EXTRACTION = {
+  isReadable: true,
+  unreadableReason: null,
+  institution: "Tribunal de Justiça de Teste",
+  examBoard: "Cebraspe",
+  positions: ["Analista Judiciário — Área Administrativa"],
+  examDate: null,
+  examDateIsEstimated: false,
+  notes: null,
+  subjects: [
+    {
+      name: "Língua Portuguesa",
+      questionCount: 20,
+      topics: [
+        { name: "Emprego do sinal indicativo de crase", questionCount: 4, children: [] },
+        { name: "Conceitos de Crase", questionCount: 3, children: [] },
+        { name: "Concordância verbal e nominal", questionCount: 5, children: [] },
+        { name: "Tópico Inexistente de Teste", questionCount: null, children: [] },
+      ],
+    },
+    {
+      name: "Direito Administrativo",
+      questionCount: null,
+      topics: [
+        { name: "Atos administrativos", questionCount: null, children: [] },
+        { name: "Licitações", questionCount: null, children: [] },
+      ],
+    },
+  ],
+};
+
+async function main() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL não configurada.");
+
+  /**
+   * O pooler de TRANSAÇÃO (6543) trava a partir da quarta consulta simultânea.
+   * Este script faz exatamente isso em vários pontos, e a falha seria um
+   * travamento sem mensagem. Melhor recusar rodar e dizer o motivo.
+   * Ver a nota em `src/server/db/index.ts`.
+   */
+  if (url.includes(":6543")) {
+    throw new Error(
+      "DATABASE_URL aponta para o pooler de transação (6543), que trava com 4 " +
+        "consultas simultâneas. Use a porta 5432 (pooler de sessão).",
+    );
+  }
+
+  // Importados aqui, e não no topo, porque puxam `@/config/env`, que precisa do
+  // dotenv já carregado.
+  const { db } = await import("../src/server/db");
+  const schema = await import("../src/server/db/schema");
+  const { applyExtractedContent } = await import("../src/server/preparations/edital");
+  const { getPlanContent, savePlanContent } = await import(
+    "../src/server/preparations/content"
+  );
+  const { getDiagnosis, submitDiagnosis } = await import(
+    "../src/server/preparations/diagnosis"
+  );
+  const { ensureDailyTask, getDailyMissions } = await import(
+    "../src/server/engine/daily-task"
+  );
+  const { eq, like, sql } = await import("drizzle-orm");
+
+  const userId = randomUUID();
+  const email = `${MARKER}-${Date.now()}@exemplo.invalido`;
+  let preparationId = "";
+
+  try {
+    console.log("Preparando aluno de teste...\n");
+
+    const pseudonym = createHmac("sha256", process.env.ANONYMIZATION_PEPPER ?? "x")
+      .update(userId)
+      .digest("hex");
+
+    await db.insert(schema.users).values({
+      id: userId,
+      name: "Aluno do Motor",
+      email,
+      whatsapp: "+5511900000000",
+      passwordHash: await hash("uma frase longa de teste", {
+        memoryCost: 19_456,
+        timeCost: 2,
+        parallelism: 1,
+      }),
+      pseudonymKey: pseudonym,
+      role: "student",
+      status: "active",
+      timezone: "America/Sao_Paulo",
+    });
+
+    const freePlan = await db.query.plans.findFirst({
+      where: (t, { eq: e }) => e(t.code, "free"),
+      columns: { id: true },
+    });
+
+    await db.insert(schema.subscriptions).values({
+      userId,
+      planId: freePlan!.id,
+      status: "active",
+      provider: "manual",
+    });
+
+    await db.insert(schema.userFunnelProgress).values({
+      pseudonymKey: pseudonym,
+      userId,
+      signedUpAt: new Date(),
+      lastStageReached: "signed_up",
+      lastStageReachedAt: new Date(),
+    });
+
+    // Disponibilidade generosa em TODOS os dias: o script precisa rodar em
+    // qualquer dia da semana sem que a tarefa seja pulada por folga.
+    await db.insert(schema.userAvailability).values(
+      [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+        userId,
+        weekday,
+        minutesAvailable: 180,
+      })),
+    );
+
+    const [preparation] = await db
+      .insert(schema.preparations)
+      .values({
+        userId,
+        targetPosition: "Analista Judiciário — Área Administrativa",
+        title: "Analista Judiciário",
+        status: "extracting",
+        isCurrent: true,
+      })
+      .returning({ id: schema.preparations.id });
+
+    preparationId = preparation.id;
+
+    console.log("Percorrendo o caminho:\n");
+
+    /* --- 1. a extração vira plano de estudo ------------------------------- */
+    const persisted = await applyExtractedContent({
+      preparationId,
+      extraction: FAKE_EXTRACTION,
+    });
+
+    check(
+      "Extração vira conteúdo programático",
+      persisted.subjects === 2 && persisted.topics === 6,
+      `${persisted.subjects} disciplinas, ${persisted.topics} assuntos`,
+    );
+
+    /* --- 2. o casamento com o catálogo ------------------------------------ */
+    const content = await getPlanContent(preparationId, userId);
+    const topics = content!.subjects.flatMap((s) => s.topics);
+
+    const crase = topics.find((t) => t.displayName.includes("indicativo de crase"));
+    check(
+      'A redação longa do edital casa com "Crase"',
+      crase?.mappingStatus === "mapped" || crase?.mappingStatus === "manually_mapped",
+      `"${crase?.displayName}" → ${crase?.mappingStatus}`,
+    );
+
+    const conceitos = topics.find((t) => t.displayName === "Conceitos de Crase");
+    check(
+      '"Conceitos de Crase" também casa (pergunta da cliente)',
+      conceitos?.mappingStatus === "mapped" ||
+        conceitos?.mappingStatus === "manually_mapped",
+      `${conceitos?.mappingStatus}`,
+    );
+
+    const inexistente = topics.find((t) => t.displayName.includes("Inexistente"));
+    check(
+      "Assunto sem correspondência NÃO casa em silêncio",
+      inexistente?.mappingStatus === "unmapped" ||
+        inexistente?.mappingStatus === "ambiguous",
+      `${inexistente?.mappingStatus}`,
+    );
+
+    /* --- 3. a fila do painel recebeu o que não casou ---------------------- */
+    const queued = await db
+      .select({ normalizedName: schema.topicMappingQueue.normalizedName })
+      .from(schema.topicMappingQueue)
+      .where(like(schema.topicMappingQueue.normalizedName, "%inexistente%"));
+
+    check(
+      "O que não casou aparece na fila do painel",
+      queued.length > 0,
+      `${queued.length} item(ns)`,
+    );
+
+    /* --- 4. pesos: do edital vs. não informado ---------------------------- */
+    const doEdital = topics.filter((t) => t.weightSource === "edital").length;
+    const semPeso = topics.filter((t) => t.weight === null).length;
+    check(
+      "Peso do edital é distinguido de peso ausente",
+      doEdital === 3 && semPeso === 3,
+      `${doEdital} do edital, ${semPeso} sem peso`,
+    );
+
+    /* --- 5. renomear refaz o casamento ------------------------------------ */
+    const edits = topics.map((topic) => ({
+      id: topic.id,
+      subjectId: content!.subjects.find((s) => s.topics.some((t) => t.id === topic.id))!.id,
+      // O aluno reescreve o item que não casou usando o nome canônico.
+      displayName: topic.displayName.includes("Inexistente")
+        ? "Concordância verbal e nominal"
+        : topic.displayName,
+      weight: topic.weight,
+      isActive: true,
+    }));
+
+    const saved = await savePlanContent({
+      preparationId,
+      userId,
+      topics: edits,
+      confirm: true,
+    });
+
+    check(
+      "Revisão do aluno é gravada e refaz o casamento do que ele renomeou",
+      saved.ok && saved.remapped >= 1,
+      saved.ok ? `${saved.remapped} reprocessado(s)` : "falhou",
+    );
+
+    const afterRename = await getPlanContent(preparationId, userId);
+    const renamed = afterRename!.subjects
+      .flatMap((s) => s.topics)
+      .filter((t) => t.displayName === "Concordância verbal e nominal");
+
+    check(
+      "O item renomeado pelo aluno passa a casar com o catálogo",
+      renamed.length === 2 && renamed.every((t) => t.mappingStatus === "mapped"),
+      renamed.map((t) => t.mappingStatus).join(", "),
+    );
+
+    check(
+      "Confirmar o conteúdo move a preparação para o diagnóstico",
+      afterRename!.status === "diagnosis_pending",
+      afterRename!.status,
+    );
+
+    /* --- 6. diagnóstico incompleto é recusado ----------------------------- */
+    const diagnosis = await getDiagnosis(preparationId, userId);
+    const partial = await submitDiagnosis({
+      preparationId,
+      userId,
+      answers: [{ subjectId: diagnosis!.subjects[0].id, level: "low" }],
+    });
+
+    check(
+      "Diagnóstico incompleto é recusado (ele não pode ser refeito depois)",
+      !partial.ok,
+      partial.ok ? "aceitou" : "recusado",
+    );
+
+    /* --- 7. diagnóstico completo ativa a preparação ----------------------- */
+    const complete = await submitDiagnosis({
+      preparationId,
+      userId,
+      answers: diagnosis!.subjects.map((subject, index) => ({
+        subjectId: subject.id,
+        // Domínio baixo na primeira disciplina: o Motor 1 deve priorizá-la.
+        level: index === 0 ? ("low" as const) : ("high" as const),
+      })),
+    });
+
+    check(
+      "Diagnóstico completo semeia o estado de todos os assuntos",
+      complete.ok && complete.topicsInitialized === 6,
+      complete.ok ? `${complete.topicsInitialized} assuntos` : "falhou",
+    );
+
+    const activated = await db.query.preparations.findFirst({
+      where: (t, { eq: e }) => e(t.id, preparationId),
+      columns: { status: true },
+    });
+
+    check(
+      "A preparação fica ativa ao concluir o diagnóstico",
+      activated?.status === "active",
+      activated?.status ?? "—",
+    );
+
+    /* --- 8. o diagnóstico não se refaz ------------------------------------ */
+    const again = await submitDiagnosis({
+      preparationId,
+      userId,
+      answers: diagnosis!.subjects.map((s) => ({ subjectId: s.id, level: "high" as const })),
+    });
+
+    check(
+      "Diagnóstico concluído NÃO aceita ser refeito",
+      !again.ok,
+      again.ok ? "aceitou de novo" : "recusado",
+    );
+
+    /* --- 9. Motor 1 gera a Tarefa do Dia ---------------------------------- */
+    const generated = await ensureDailyTask({ userId, preparationId });
+
+    check(
+      "Motor 1 gera a Tarefa do Dia",
+      generated.status === "generated" && generated.blocks > 0,
+      generated.status === "generated"
+        ? `${generated.blocks} blocos, ${generated.plannedMinutes} min`
+        : generated.status,
+    );
+
+    /* --- 10. idempotência por dia ----------------------------------------- */
+    const second = await ensureDailyTask({ userId, preparationId });
+    check(
+      "Recarregar a página NÃO gera uma segunda tarefa no mesmo dia",
+      second.status === "existing",
+      second.status,
+    );
+
+    /* --- 11. a priorização é explicável ----------------------------------- */
+    const items = await db
+      .select({
+        priorityScore: schema.dailyTaskItems.priorityScore,
+        breakdown: schema.dailyTaskItems.priorityBreakdown,
+      })
+      .from(schema.dailyTaskItems)
+      .where(eq(schema.dailyTaskItems.preparationId, preparationId));
+
+    const explainable = items.every((item) => {
+      const contributions = item.breakdown?.contributions;
+      if (!contributions || item.priorityScore === null) return false;
+      const sum = Object.values(contributions).reduce((a, b) => a + b, 0);
+      // A soma das contribuições TEM que reproduzir o score. É o que torna
+      // possível responder "por que este assunto caiu hoje?".
+      return Math.abs(sum - item.priorityScore) < 0.001;
+    });
+
+    check(
+      "Cada item guarda os 5 sinais e a soma reproduz o score",
+      items.length > 0 && explainable,
+      `${items.length} itens`,
+    );
+
+    /**
+     * A versão da configuração fica na TAREFA, não no item: os itens de um
+     * mesmo dia foram todos produzidos pela mesma rodada do motor, e repetir a
+     * referência em cada linha abriria a possibilidade de divergirem.
+     */
+    const taskConfig = await db
+      .select({ engineConfigId: schema.dailyTasks.engineConfigId })
+      .from(schema.dailyTasks)
+      .where(eq(schema.dailyTasks.preparationId, preparationId));
+
+    check(
+      "A tarefa aponta para a versão da configuração que a produziu",
+      taskConfig.length === 1 && taskConfig[0].engineConfigId !== null,
+      "decisão 14",
+    );
+
+    /* --- 12. as Missões do Dia chegam à tela ------------------------------ */
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date());
+
+    const missions = await getDailyMissions(preparationId, today as `${number}-${number}-${number}`);
+
+    check(
+      "As Missões do Dia chegam prontas para a Home",
+      missions !== null && missions.blocks.length > 0,
+      `${missions?.blocks.length ?? 0} blocos`,
+    );
+
+    const pairs = missions?.blocks.filter((block) => block.practice !== null).length ?? 0;
+    check(
+      'Blocos com questão no acervo vêm com a dupla "Estude + Pratique"',
+      pairs > 0,
+      `${pairs} de ${missions?.blocks.length ?? 0} blocos com prática`,
+    );
+
+    /* --- 13. o motor não oferece prática sem acervo ------------------------ */
+    const semAcervo =
+      missions?.blocks.filter((block) => block.practice === null).length ?? 0;
+    check(
+      "Assunto sem questão NÃO ganha item de prática vazio",
+      // Direito Administrativo não tem questões no acervo semeado.
+      semAcervo > 0,
+      `${semAcervo} bloco(s) só de estudo`,
+    );
+
+    /* --- 14. os dois motores continuam separados -------------------------- */
+    const reviewRows = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(schema.reviewOccurrences)
+      .where(eq(schema.reviewOccurrences.userId, userId));
+
+    check(
+      "Motor 1 não agenda revisão (os motores são separados)",
+      (reviewRows[0]?.total ?? 0) === 0,
+      "nenhuma revisão criada",
+    );
+  } finally {
+    const { db } = await import("../src/server/db");
+    const schema = await import("../src/server/db/schema");
+    const { eq, like } = await import("drizzle-orm");
+
+    // Ordem obrigatória: `subscriptions` referencia `users` com ON DELETE
+    // RESTRICT, de propósito — registro financeiro tem prazo de guarda legal.
+    await db.delete(schema.subscriptions).where(eq(schema.subscriptions.userId, userId));
+    await db.delete(schema.users).where(like(schema.users.email, `${MARKER}-%`));
+
+    // A fila do painel é global e não pertence ao usuário de teste.
+    await db
+      .delete(schema.topicMappingQueue)
+      .where(like(schema.topicMappingQueue.rawName, "%Inexistente de Teste%"));
+  }
+
+  const failed = checks.filter((item) => !item.ok);
+  console.log("");
+  if (failed.length > 0) {
+    console.error(`${failed.length} de ${checks.length} verificações falharam.`);
+    process.exit(1);
+  }
+  console.log(`${checks.length} verificações passaram. Dados de teste removidos.`);
+  process.exit(0);
+}
+
+main().catch((error) => {
+  console.error("\n", error instanceof Error ? (error.stack ?? error.message) : error);
+  process.exit(1);
+});
