@@ -142,11 +142,17 @@ function AvatarMenu({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem asChild>
-          <Link href="/perfil">
-            <User aria-hidden />
-            Meu Perfil
-          </Link>
+        {/*
+          Só "Configurações" existe hoje. Os outros quatro são do Marco 2 e
+          ficam DESABILITADOS em vez de linkar para 404 — um item de menu que
+          leva a "página não encontrada" faz o aluno concluir que a plataforma
+          está quebrada, não que a tela ainda não chegou.
+
+          ⚠️ Ao construir cada uma, troque o `disabled` por `asChild` + `Link`.
+        */}
+        <DropdownMenuItem disabled>
+          <User aria-hidden />
+          Meu Perfil
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/configuracoes">
@@ -154,23 +160,17 @@ function AvatarMenu({
             Configurações
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/notificacoes">
-            <Bell aria-hidden />
-            Notificações
-          </Link>
+        <DropdownMenuItem disabled>
+          <Bell aria-hidden />
+          Notificações
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/suporte">
-            <MessageSquare aria-hidden />
-            Feedback &amp; Suporte
-          </Link>
+        <DropdownMenuItem disabled>
+          <MessageSquare aria-hidden />
+          Feedback &amp; Suporte
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/ajuda">
-            <CircleHelp aria-hidden />
-            Central de Ajuda
-          </Link>
+        <DropdownMenuItem disabled>
+          <CircleHelp aria-hidden />
+          Central de Ajuda
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />

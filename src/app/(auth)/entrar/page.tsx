@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 export default async function LoginPage(props: PageProps<"/entrar">) {
   const params = await props.searchParams;
   const next = typeof params.proximo === "string" ? params.proximo : undefined;
+  const passwordReset = params.senha === "redefinida";
 
   return (
     <Surface className="p-6 sm:p-8">
@@ -21,6 +22,17 @@ export default async function LoginPage(props: PageProps<"/entrar">) {
       <p className="mt-1.5 text-sm text-muted-foreground">
         Sua tarefa de hoje já está pronta.
       </p>
+
+      {/* Confirma o que acabou de acontecer. Sem isso, quem redefiniu a senha
+          cai numa tela de login idêntica à anterior e não sabe se funcionou. */}
+      {passwordReset ? (
+        <p
+          className="mt-4 rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-sm text-pretty text-foreground"
+          role="status"
+        >
+          Senha alterada. Entre com a nova.
+        </p>
+      ) : null}
 
       <LoginForm nextPath={next} />
 

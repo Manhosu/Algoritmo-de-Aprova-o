@@ -131,6 +131,20 @@ async function main() {
   /** Respostas gravadas — para desfazer o rollup de turma na limpeza. */
   const answeredQuestions: Array<{ questionId: string; isCorrect: boolean }> = [];
 
+  /**
+   * A fila de mapeamento é GLOBAL, não pertence ao usuário de teste: apagar o
+   * usuário não a limpa. Sem este retrato, cada execução deixaria itens para
+   * trás e a fila do painel administrativo acumularia trabalho que nunca
+   * existiu — o oposto do que ela serve para mostrar.
+   */
+  const queueBefore = new Set(
+    (
+      await db
+        .select({ key: schema.topicMappingQueue.normalizedName })
+        .from(schema.topicMappingQueue)
+    ).map((row) => row.key),
+  );
+
   try {
     console.log("Preparando aluno de teste...\n");
 
@@ -777,7 +791,9 @@ async function main() {
   } finally {
     const { db } = await import("../src/server/db");
     const schema = await import("../src/server/db/schema");
-    const { eq, like, sql: sqlFragment } = await import("drizzle-orm");
+    const { eq, like, sql: sqlFragment, inArray: inArrayFragment } = await import(
+      "drizzle-orm",
+    );
 
     // Ordem obrigatória: `subscriptions` referencia `users` com ON DELETE
     // RESTRICT, de propósito — registro financeiro tem prazo de guarda legal.
@@ -802,10 +818,20 @@ async function main() {
         .where(eq(schema.questions.id, answered.questionId));
     }
 
-    // A fila do painel é global e não pertence ao usuário de teste.
-    await db
-      .delete(schema.topicMappingQueue)
-      .where(like(schema.topicMappingQueue.rawName, "%Inexistente de Teste%"));
+    // Remove só o que ESTA execução acrescentou à fila global.
+    const queueAfter = await db
+      .select({
+        id: schema.topicMappingQueue.id,
+        key: schema.topicMappingQueue.normalizedName,
+      })
+      .from(schema.topicMappingQueue);
+
+    const created = queueAfter.filter((row) => !queueBefore.has(row.key)).map((r) => r.id);
+    if (created.length > 0) {
+      await db
+        .delete(schema.topicMappingQueue)
+        .where(inArrayFragment(schema.topicMappingQueue.id, created));
+    }
   }
 
   const failed = checks.filter((item) => !item.ok);

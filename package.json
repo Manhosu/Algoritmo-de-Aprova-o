@@ -26,7 +26,9 @@
     "email:check": "tsx scripts/email-check.ts",
     "legal:publish": "tsx scripts/publish-legal.ts",
     "smoke": "tsx scripts/smoke-flow.ts",
-    "verify:engine": "tsx --conditions=react-server scripts/verify-engine.ts"
+    "verify:engine": "tsx --conditions=react-server scripts/verify-engine.ts",
+    "deletions:run": "tsx --conditions=react-server scripts/run-deletions.ts",
+    "verify:account": "tsx --conditions=react-server scripts/verify-account.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

@@ -14,6 +14,7 @@ import {
   users,
 } from "@/server/db/schema";
 
+import { cancelPendingDeletion } from "./account";
 import { checkPasswordStrength, hashPassword, verifyPassword } from "./password";
 import { createSession, setSessionCookie } from "./session";
 import { pseudonymKey } from "./tokens";
@@ -224,6 +225,17 @@ export async function signIn(input: {
   }
 
   await clearAttempts(email);
+
+  /**
+   * ENTRAR JÁ CANCELA A EXCLUSÃO PENDENTE.
+   *
+   * Exclusão de conta é irreversível e quase sempre feita com raiva. Sete dias
+   * de janela só salvam quem se arrependeu se desistir for fácil — e nada é
+   * mais fácil do que simplesmente voltar. Exigir que a pessoa ache um botão
+   * escondido em Configurações transformaria arrependimento em labirinto.
+   */
+  await cancelPendingDeletion(user.id, now);
+
   await startSessionFor(user.id);
   await markFirstLogin(user.id, now);
 
