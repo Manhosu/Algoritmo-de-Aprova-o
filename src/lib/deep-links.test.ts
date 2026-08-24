@@ -34,8 +34,24 @@ describe("studyLink", () => {
 });
 
 describe("practiceLink", () => {
-  it("não linka enquanto o banco de questões não existir", () => {
-    expect(practiceLink("crase")).toBeNull();
+  it("leva ao banco de questões já filtrado no assunto", () => {
+    // A tela existe desde 23/08/2026. É o que torna clicável a metade
+    // "Pratique" de cada missão — pedido da cliente em 21/08/2026.
+    expect(practiceLink("crase")).toBe("/questoes?assunto=crase");
+  });
+
+  it("sem assunto, abre o banco inteiro", () => {
+    // Assunto que não casou com o catálogo não tem slug. Levar ao banco sem
+    // filtro é melhor que não levar a lugar nenhum.
+    expect(practiceLink(null)).toBe("/questoes");
+  });
+
+  it("escapa o assunto na URL", () => {
+    // Slug vem do catálogo, mas montar URL por concatenação sem escapar é o
+    // tipo de atalho que só falha no dia em que o dado muda.
+    expect(practiceLink("raciocinio logico")).toBe(
+      "/questoes?assunto=raciocinio%20logico",
+    );
   });
 });
 

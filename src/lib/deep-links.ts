@@ -38,15 +38,31 @@ export type LinkableTechnique =
   | "questions"
   | "other";
 
+export const QUESTIONS_ROUTE = "/questoes";
+export const CONTENT_ITEM_ROUTE = "/conteudo";
+
 /**
  * Rotas de conteúdo que JÁ EXISTEM.
  *
  * ⚠️ Ao construir uma dessas páginas, mova a entrada para cá. Enquanto ela
  * estiver fora, o bloco correspondente aparece sem link — que é o
  * comportamento correto, não uma limitação.
+ *
+ * ⚠️ As constantes de rota são declaradas ACIMA deste conjunto de propósito:
+ * `const` fica na zona morta temporal até a linha executar, e este `new Set`
+ * roda na avaliação do módulo. Declarar depois quebraria em runtime, não na
+ * compilação.
  */
 const IMPLEMENTED_ROUTES = new Set<string>([
-  // Preenchido conforme as telas forem entrando.
+  /**
+   * Banco de questões — entrou em 23/08/2026.
+   *
+   * É o que torna clicável a metade "Pratique" de cada missão, como a cliente
+   * pediu. A metade "Estude" continua sem link enquanto o acervo de material
+   * (mapas mentais, flashcards, resumos) não tiver tela: um link para uma
+   * página que não existe faz o aluno concluir que a plataforma está quebrada.
+   */
+  QUESTIONS_ROUTE,
 ]);
 
 const TECHNIQUE_ROUTES: Record<LinkableTechnique, string> = {
@@ -60,9 +76,6 @@ const TECHNIQUE_ROUTES: Record<LinkableTechnique, string> = {
   // Não deveria acontecer: "questions" é a prática, não uma técnica de estudo.
   questions: "/questoes",
 };
-
-export const QUESTIONS_ROUTE = "/questoes";
-export const CONTENT_ITEM_ROUTE = "/conteudo";
 
 export type StudyLinkInput = {
   technique: LinkableTechnique | null;

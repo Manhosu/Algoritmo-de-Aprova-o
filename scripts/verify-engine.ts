@@ -125,6 +125,9 @@ async function main() {
   const email = `${MARKER}-${Date.now()}@exemplo.invalido`;
   let preparationId = "";
 
+  /** Respostas gravadas — para desfazer o rollup de turma na limpeza. */
+  const answeredQuestions: Array<{ questionId: string; isCorrect: boolean }> = [];
+
   try {
     console.log("Preparando aluno de teste...\n");
 
@@ -439,7 +442,175 @@ async function main() {
       `${semAcervo} bloco(s) só de estudo`,
     );
 
-    /* --- 14. os dois motores continuam separados -------------------------- */
+    /* --- 14. responder questão ------------------------------------------- */
+    const { answerQuestion, findQuestions, getDailyLimit } = await import(
+      "../src/server/questions/service"
+    );
+
+    const bank = await findQuestions({
+      userId,
+      filters: { onlyUnanswered: true },
+    });
+
+    check(
+      "Banco de questões devolve questões com alternativas",
+      bank.questions.length > 0 && bank.questions[0].options.length > 1,
+      `${bank.total} questões, ${bank.questions[0]?.options.length ?? 0} alternativas`,
+    );
+
+    /**
+     * ⚠️ A verificação mais importante desta seção: o gabarito NÃO pode chegar
+     * junto com a lista. Quem abre o inspetor veria a alternativa certa, e o
+     * diagnóstico, a priorização e as métricas passariam a medir uma pessoa
+     * que não existe.
+     */
+    const leaked = bank.questions.some(
+      (question) =>
+        question.explanation !== undefined ||
+        question.options.some((option) => option.isCorrect !== undefined),
+    );
+
+    check(
+      "O gabarito NÃO viaja junto com a lista de questões",
+      !leaked,
+      leaked ? "VAZOU" : "só depois de responder",
+    );
+
+    const first = bank.questions[0];
+    const answer = await answerQuestion({
+      userId,
+      questionId: first.id,
+      optionId: first.options[0].id,
+      preparationId,
+    });
+
+    if (answer.ok) {
+      answeredQuestions.push({ questionId: first.id, isCorrect: answer.isCorrect });
+    }
+
+    check(
+      "Responder devolve o gabarito e o comentário",
+      answer.ok && typeof answer.correctOptionId === "string",
+      answer.ok ? (answer.isCorrect ? "acertou" : "errou") : "falhou",
+    );
+
+    /* --- 15. o desempenho volta para o Motor 1 ---------------------------- */
+    const touched = await db
+      .select({
+        questionsAnswered: schema.topicStates.questionsAnswered,
+        masteryConfidence: schema.topicStates.masteryConfidence,
+        lastAnsweredAt: schema.topicStates.lastAnsweredAt,
+      })
+      .from(schema.topicStates)
+      .where(eq(schema.topicStates.preparationId, preparationId));
+
+    const moved = touched.filter((row) => row.questionsAnswered > 0);
+
+    check(
+      "A resposta atualiza o estado do assunto (item 9 do aceite)",
+      moved.length === 1 && moved[0].lastAnsweredAt !== null,
+      `${moved.length} assunto(s) com desempenho registrado`,
+    );
+
+    check(
+      "A confiança do sistema no nível do aluno sobe com a resposta",
+      moved.length === 1 && moved[0].masteryConfidence > 0.15,
+      moved[0] ? moved[0].masteryConfidence.toFixed(3) : "—",
+    );
+
+    /* --- 16. XP e sequência ----------------------------------------------- */
+    const xpRows = await db
+      .select({ amount: schema.xpLedger.amount, activity: schema.xpLedger.activity })
+      .from(schema.xpLedger)
+      .where(eq(schema.xpLedger.userId, userId));
+
+    check(
+      "A resposta credita XP no livro-razão",
+      xpRows.length > 0,
+      xpRows.map((r) => `${r.activity} +${r.amount}`).join(", "),
+    );
+
+    const gami = await db.query.userGamificationStates.findFirst({
+      where: (t, { eq: e }) => e(t.userId, userId),
+      columns: { totalXp: true, currentStreak: true },
+    });
+
+    check(
+      "O saldo consolidado e a sequência acompanham",
+      (gami?.totalXp ?? 0) > 0 && (gami?.currentStreak ?? 0) === 1,
+      `${gami?.totalXp} XP, sequência ${gami?.currentStreak}`,
+    );
+
+    /* --- 17. o mesmo XP não é pago duas vezes ----------------------------- */
+    const duplicate = await answerQuestion({
+      userId,
+      questionId: first.id,
+      optionId: first.options[0].id,
+      preparationId,
+    });
+
+    if (duplicate.ok) {
+      answeredQuestions.push({ questionId: first.id, isCorrect: duplicate.isCorrect });
+    }
+
+    const xpAfter = await db
+      .select({ total: sql<number>`coalesce(sum(${schema.xpLedger.amount}), 0)::int` })
+      .from(schema.xpLedger)
+      .where(eq(schema.xpLedger.userId, userId));
+
+    /**
+     * Responder de novo é PERMITIDO — é assim que se pratica o que se errou —
+     * mas não pode pagar XP de participação outra vez. A chave de idempotência
+     * é a questão, não a tentativa. Esta verificação existe porque a primeira
+     * versão do código usava o id da tentativa e pagava dez vezes por dez
+     * respostas à mesma questão.
+     */
+    check(
+      "Responder a mesma questão de novo não paga XP em dobro",
+      duplicate.ok && (xpAfter[0]?.total ?? 0) === (gami?.totalXp ?? 0),
+      `${xpAfter[0]?.total} XP no total (era ${gami?.totalXp})`,
+    );
+
+    /* --- 18. o limite diário do plano Free -------------------------------- */
+    const limitBefore = await getDailyLimit(userId);
+
+    check(
+      "O limite diário do plano Free é 10 questões",
+      limitBefore.limit === 10 && limitBefore.planCode === "free",
+      `${limitBefore.used}/${limitBefore.limit} usadas`,
+    );
+
+    // Empurra o consumo até o teto sem responder 10 questões de verdade.
+    await db
+      .update(schema.dailyQuestionUsage)
+      .set({ questionsAnswered: 10 })
+      .where(eq(schema.dailyQuestionUsage.userId, userId));
+
+    const blocked = await answerQuestion({
+      userId,
+      questionId: bank.questions[1]!.id,
+      optionId: bank.questions[1]!.options[0].id,
+      preparationId,
+    });
+
+    check(
+      "Atingido o limite, o servidor recusa a resposta",
+      !blocked.ok && blocked.reason === "limit_reached",
+      blocked.ok ? "aceitou" : blocked.reason,
+    );
+
+    const usage = await db.query.dailyQuestionUsage.findFirst({
+      where: (t, { eq: e }) => e(t.userId, userId),
+      columns: { limitAtTime: true },
+    });
+
+    check(
+      "O teto vigente fica gravado no consumo do dia",
+      usage?.limitAtTime === 10,
+      `limite registrado: ${usage?.limitAtTime}`,
+    );
+
+    /* --- 19. os dois motores continuam separados -------------------------- */
     const reviewRows = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(schema.reviewOccurrences)
@@ -453,12 +624,30 @@ async function main() {
   } finally {
     const { db } = await import("../src/server/db");
     const schema = await import("../src/server/db/schema");
-    const { eq, like } = await import("drizzle-orm");
+    const { eq, like, sql: sqlFragment } = await import("drizzle-orm");
 
     // Ordem obrigatória: `subscriptions` referencia `users` com ON DELETE
     // RESTRICT, de propósito — registro financeiro tem prazo de guarda legal.
     await db.delete(schema.subscriptions).where(eq(schema.subscriptions.userId, userId));
     await db.delete(schema.users).where(like(schema.users.email, `${MARKER}-%`));
+
+    /**
+     * As estatísticas de turma na questão sobem com o teste e NÃO descem com o
+     * `delete` do usuário: `questions.attempt_count` é rollup, não chave
+     * estrangeira. Sem desfazer, cada execução envenenaria o "onde a turma mais
+     * erra" do painel administrativo com respostas que nunca existiram.
+     */
+    for (const answered of answeredQuestions) {
+      await db
+        .update(schema.questions)
+        .set({
+          attemptCount: sqlFragment`greatest(0, ${schema.questions.attemptCount} - 1)`,
+          correctCount: answered.isCorrect
+            ? sqlFragment`greatest(0, ${schema.questions.correctCount} - 1)`
+            : schema.questions.correctCount,
+        })
+        .where(eq(schema.questions.id, answered.questionId));
+    }
 
     // A fila do painel é global e não pertence ao usuário de teste.
     await db
