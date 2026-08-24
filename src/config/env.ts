@@ -54,6 +54,18 @@ const serverEnvSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
 
   /**
+   * Modelo usado para ler o edital. Vazio = Opus 5.
+   *
+   * Existe para permitir trocar por um modelo mais barato SEM alterar código,
+   * depois de comparar a qualidade com `npm run compare:models`. Preços por
+   * milhão de tokens (agosto/2026): Opus 5 $5/$25 · Sonnet 5 $2/$10 ·
+   * Haiku 4.5 $1/$5.
+   */
+  EDITAL_MODEL: z
+    .enum(["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"])
+    .optional(),
+
+  /**
    * Supabase Storage — onde ficam os PDFs de edital enviados pelos alunos.
    *
    * Mesmo projeto do banco; a chave `service_role` é usada só no servidor, para

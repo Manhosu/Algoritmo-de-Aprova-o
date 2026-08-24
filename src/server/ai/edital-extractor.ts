@@ -11,6 +11,7 @@ import {
   editalExtractionSchema,
   type EditalExtraction,
 } from "./edital-schema";
+import { extractEditalText } from "./pdf-text";
 
 /**
  * LEITURA DO EDITAL EM PDF
@@ -39,7 +40,25 @@ import {
  *   documento é o mesmo e não deve ser cobrado de novo a cada chamada.
  */
 
-const MODEL = "claude-opus-5";
+/**
+ * Modelo da leitura, configurável.
+ *
+ * PREÇOS POR MILHÃO DE TOKENS (agosto/2026)
+ * ----------------------------------------------------------------------------
+ *   claude-opus-5     $5 entrada / $25 saída
+ *   claude-sonnet-5   $2 entrada / $10 saída
+ *   claude-haiku-4-5  $1 entrada /  $5 saída
+ *
+ * O padrão é Opus 5 porque a leitura do edital é a operação que define se o
+ * aluno confia no produto: uma extração torta significa corrigir trezentas
+ * linhas na mão, e ninguém faz isso duas vezes.
+ *
+ * ⚠️ Com o texto já extraído localmente, a tarefa fica muito mais fácil — não
+ * há mais layout nem imagem para interpretar, só texto limpo. É bem provável
+ * que Sonnet ou Haiku deem o mesmo resultado por 2,5x a 5x menos. Isso PRECISA
+ * ser medido antes de trocar, e `npm run compare:models` existe para isso.
+ */
+const MODEL = env.EDITAL_MODEL ?? "claude-opus-5";
 
 /**
  * Teto de saída do modelo. Medido contra a API: 128.000 é o máximo aceito para
@@ -62,6 +81,8 @@ export type ExtractionUsage = {
   durationMs: number;
   model: string;
   promptVersion: string;
+  /** Como o documento foi enviado — entra no log para explicar o custo. */
+  inputMode: "text_sliced" | "text_full" | "pdf";
 };
 
 export type ExtractionOutcome =
@@ -241,6 +262,56 @@ export async function extractEdital(
     };
   }
 
+  /**
+   * ⚠️ AQUI MORA A MAIOR ECONOMIA DO PRODUTO.
+   *
+   * Medido no edital do TJ-RJ (83 páginas):
+   *   PDF como documento ......... 262.214 tokens de entrada
+   *   texto só do anexo ........... ~39.600 tokens          ← 7x menos
+   *
+   * A API trata cada página do PDF como IMAGEM além de texto, e imagem custa
+   * perto de 2.000 tokens por página. Mandando o texto que a gente mesmo
+   * extraiu, some tudo isso — e o corte para o anexo tira ainda o resto do
+   * edital, que a IA leria só para ignorar.
+   *
+   * PDF escaneado não tem camada de texto: aí o PDF original vai mesmo, porque
+   * a leitura de imagem é a única chance. Melhor pagar caro do que não ler.
+   */
+  const extracted = await extractEditalText(input.pdf);
+  const useText = extracted.hasUsableText && extracted.text.length > 0;
+
+  const documentBlock: Anthropic.ContentBlockParam = useText
+    ? {
+        type: "text",
+        text:
+          `Conteúdo do edital em texto` +
+          (extracted.slicedToContent && extracted.pageRange
+            ? ` (páginas ${extracted.pageRange.from} a ${extracted.pageRange.to} de ${extracted.totalPages}, ` +
+              `a seção de conteúdo programático)`
+            : ` (documento completo, ${extracted.totalPages} páginas)`) +
+          `:
+
+${extracted.text}`,
+        // A parte cara e estável do prompt. Cacheá-la evita pagar de novo numa
+        // retentativa.
+        cache_control: { type: "ephemeral" },
+      }
+    : {
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: toBase64(input.pdf),
+        },
+        cache_control: { type: "ephemeral" },
+      };
+
+  const inputMode: ExtractionUsage["inputMode"] = useText
+    ? extracted.slicedToContent
+      ? "text_sliced"
+      : "text_full"
+    : "pdf";
+
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const startedAt = Date.now();
 
@@ -259,17 +330,7 @@ export async function extractEdital(
           {
             role: "user",
             content: [
-              {
-                type: "document",
-                source: {
-                  type: "base64",
-                  media_type: "application/pdf",
-                  data: toBase64(input.pdf),
-                },
-                // O documento é a parte cara e estável do prompt. Cacheá-lo
-                // evita pagar de novo numa retentativa.
-                cache_control: { type: "ephemeral" },
-              },
+              documentBlock,
               { type: "text", text: buildUserPrompt(input.targetPosition) },
             ],
           },
@@ -291,6 +352,7 @@ export async function extractEdital(
       durationMs,
       model: MODEL,
       promptVersion: EDITAL_PROMPT_VERSION,
+      inputMode,
     };
 
     if (message.stop_reason === "refusal") {
@@ -445,9 +507,25 @@ function toBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString("base64");
 }
 
-/** Preços do Claude Opus 5: US$ 5 por milhão de entrada, US$ 25 de saída. */
+/**
+ * Custo em centavos de dólar, pelo preço do modelo em uso.
+ *
+ * ⚠️ A tabela é fixa no código de propósito: o custo gravado em
+ * `edital_extractions` precisa refletir o que foi COBRADO na época, e um preço
+ * lido de configuração mudaria o histórico retroativamente.
+ */
+const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
+  "claude-opus-5": { input: 5, output: 25 },
+  "claude-sonnet-5": { input: 2, output: 10 },
+  "claude-haiku-4-5-20251001": { input: 1, output: 5 },
+};
+
 function estimateCostCents(inputTokens: number, outputTokens: number): number {
-  const dollars = (inputTokens / 1_000_000) * 5 + (outputTokens / 1_000_000) * 25;
+  // Sem preço conhecido, usa o mais caro: subestimar custo é pior que
+  // superestimar, porque some do radar de quem paga a conta.
+  const price = PRICE_PER_MTOK[MODEL] ?? { input: 5, output: 25 };
+  const dollars =
+    (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
   return Math.ceil(dollars * 100);
 }
 
@@ -459,6 +537,7 @@ function emptyUsage(): ExtractionUsage {
     durationMs: 0,
     model: MODEL,
     promptVersion: EDITAL_PROMPT_VERSION,
+    inputMode: "pdf",
   };
 }
 

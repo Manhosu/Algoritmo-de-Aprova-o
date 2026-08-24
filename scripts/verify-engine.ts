@@ -124,6 +124,7 @@ async function main() {
   );
   const manage = await import("../src/server/preparations/manage");
   const { and, eq, like, sql } = await import("drizzle-orm");
+  const { EDITAL_PROMPT_VERSION } = await import("../src/server/ai/edital-schema");
 
   const userId = randomUUID();
   const email = `${MARKER}-${Date.now()}@exemplo.invalido`;
@@ -872,7 +873,137 @@ async function main() {
       reopened.ok ? "ok" : reopened.message!,
     );
 
-    /* --- 25. NULL no limite significa ILIMITADO --------------------------- */
+    /* --- 25. CACHE DE EXTRAÇÃO ENTRE ALUNOS ------------------------------- */
+    /**
+     * ⚠️ A economia que decide o custo em escala.
+     *
+     * Concurso popular tem milhares de candidatos subindo O MESMO PDF do MESMO
+     * site da banca. Sem cache, mil alunos do TJ-RJ seriam mil leituras
+     * idênticas — cerca de US$ 500 para produzir mil vezes a mesma resposta.
+     *
+     * Este teste simula o segundo aluno: mesmo arquivo, mesmo cargo, e verifica
+     * que a leitura foi REAPROVEITADA (custo zero, sem chamar a IA).
+     */
+    const { receiveEdital, runExtraction } = await import(
+      "../src/server/preparations/edital"
+    );
+
+    // Primeiro aluno: grava uma extração bem-sucedida à mão, como se a IA já
+    // tivesse lido este arquivo.
+    const sharedPdf = new TextEncoder().encode(
+      [
+        "%PDF-1.4",
+        "/Type /Font /BaseFont /Helvetica",
+        "BT (edital compartilhado) Tj ET",
+        "%%EOF",
+      ].join("\n"),
+    );
+
+    const [firstPrep] = await db
+      .insert(schema.preparations)
+      .values({
+        userId,
+        targetPosition: "Analista Judiciário — Área Administrativa",
+        title: "Primeiro aluno",
+        status: "draft",
+      })
+      .returning({ id: schema.preparations.id });
+
+    const firstUpload = await receiveEdital({
+      preparationId: firstPrep.id,
+      userId,
+      fileName: "edital-compartilhado.pdf",
+      bytes: sharedPdf,
+    });
+
+    await db
+      .update(schema.editalExtractions)
+      .set({
+        status: "succeeded",
+        promptVersion: EDITAL_PROMPT_VERSION,
+        model: "claude-opus-5",
+        estimatedCostCents: 50,
+        finishedAt: new Date(),
+        rawResponse: FAKE_EXTRACTION,
+      })
+      .where(eq(schema.editalExtractions.id, firstUpload.ok ? firstUpload.extractionId : ""));
+
+    // Segundo aluno: MESMO arquivo, MESMO cargo.
+    const [secondPrep] = await db
+      .insert(schema.preparations)
+      .values({
+        userId,
+        targetPosition: "analista judiciario - area administrativa",
+        title: "Segundo aluno",
+        status: "draft",
+      })
+      .returning({ id: schema.preparations.id });
+
+    const secondUpload = await receiveEdital({
+      preparationId: secondPrep.id,
+      userId,
+      fileName: "edital-compartilhado.pdf",
+      bytes: sharedPdf,
+    });
+
+    const reused = secondUpload.ok
+      ? await runExtraction(secondUpload.extractionId)
+      : { status: "failed" as const, message: "upload falhou" };
+
+    check(
+      "Segundo aluno com o MESMO edital reaproveita a leitura",
+      reused.status === "succeeded",
+      reused.status === "succeeded" ? `${reused.topics} assuntos` : reused.message,
+    );
+
+    const reusedRow = secondUpload.ok
+      ? await db.query.editalExtractions.findFirst({
+          where: (t, { eq: e }) => e(t.id, secondUpload.extractionId),
+          columns: { estimatedCostCents: true, errorMessage: true },
+        })
+      : null;
+
+    check(
+      "O reaproveitamento custa ZERO — nenhuma chamada de IA",
+      reusedRow?.estimatedCostCents === 0,
+      `${reusedRow?.estimatedCostCents} centavos`,
+    );
+
+    /**
+     * O cargo faz parte da chave: a leitura é específica dele, e servir a um
+     * aluno de Direito o programa de TI seria pior que ler de novo.
+     */
+    const [thirdPrep] = await db
+      .insert(schema.preparations)
+      .values({
+        userId,
+        targetPosition: "Técnico Judiciário — Área Apoio Especializado",
+        title: "Terceiro aluno, outro cargo",
+        status: "draft",
+      })
+      .returning({ id: schema.preparations.id });
+
+    const thirdUpload = await receiveEdital({
+      preparationId: thirdPrep.id,
+      userId,
+      fileName: "edital-compartilhado.pdf",
+      bytes: sharedPdf,
+    });
+
+    const cachedForOther = thirdUpload.ok
+      ? await db
+          .select({ id: schema.editalExtractions.id })
+          .from(schema.editalExtractions)
+          .where(eq(schema.editalExtractions.id, thirdUpload.extractionId))
+      : [];
+
+    check(
+      "Cargo DIFERENTE não reaproveita a leitura do outro cargo",
+      cachedForOther.length === 1,
+      "fila própria de leitura",
+    );
+
+    /* --- 26. NULL no limite significa ILIMITADO --------------------------- */
     /**
      * ⚠️ Verificação nascida de um bug real (24/08/2026).
      *

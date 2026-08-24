@@ -7,7 +7,12 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { normalizeText } from "@/modules/taxonomy/normalize";
 import type { QueueInput } from "@/modules/taxonomy/matcher";
 import { extractEdital, countTopics, countTopicsWithWeight } from "@/server/ai/edital-extractor";
-import type { EditalExtraction } from "@/server/ai/edital-schema";
+import {
+  EDITAL_PROMPT_VERSION,
+  clipExtraction,
+  editalExtractionSchema,
+  type EditalExtraction,
+} from "@/server/ai/edital-schema";
 import { db } from "@/server/db";
 import {
   editalExtractions,
@@ -209,7 +214,7 @@ export async function runExtraction(extractionId: string): Promise<RunExtraction
 
   const document = await db.query.preparationDocuments.findFirst({
     where: (t, { eq: e }) => e(t.id, extraction.documentId),
-    columns: { storagePath: true, fileName: true, pageCount: true },
+    columns: { storagePath: true, fileName: true, pageCount: true, checksum: true },
   });
 
   if (!document) return { status: "failed", message: "Arquivo do edital não encontrado." };
@@ -225,6 +230,58 @@ export async function runExtraction(extractionId: string): Promise<RunExtraction
     where: (t, { eq: e }) => e(t.id, extraction.preparationId),
     columns: { targetPosition: true },
   });
+
+  /**
+   * ⚠️ REAPROVEITAMENTO ENTRE ALUNOS — a economia que importa em escala.
+   *
+   * Concurso popular tem milhares de candidatos, e todos sobem O MESMO PDF do
+   * MESMO site da banca. Sem isto, mil alunos do TJ-RJ seriam mil leituras
+   * idênticas: mais de mil dólares para produzir mil vezes a mesma resposta.
+   *
+   * A chave é (checksum do arquivo + cargo pretendido). O cargo entra porque a
+   * leitura passou a ser específica dele — dois alunos do mesmo edital e cargos
+   * diferentes precisam de extrações diferentes.
+   *
+   * Não precisou de tabela nova: `edital_extractions.raw_response` já guardava
+   * a resposta completa, para depuração. Ela vira o cache.
+   */
+  const cached = await findCachedExtraction(
+    document.checksum,
+    forPosition?.targetPosition ?? null,
+  );
+
+  if (cached) {
+    const now = new Date();
+
+    await db
+      .update(editalExtractions)
+      .set({
+        status: "succeeded",
+        startedAt: now,
+        finishedAt: now,
+        durationMs: 0,
+        model: cached.model,
+        promptVersion: cached.promptVersion,
+        // Custo ZERO: nenhuma chamada foi feita. Gravar o custo original aqui
+        // inflaria o relatório de gastos com dinheiro que não saiu.
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostCents: 0,
+        rawResponse: cached.data,
+        errorMessage: "reaproveitado de uma leitura anterior do mesmo edital",
+        updatedAt: now,
+      })
+      .where(eq(editalExtractions.id, extractionId));
+
+    const persisted = await applyExtractedContent({
+      preparationId: extraction.preparationId,
+      extraction: cached.data,
+    });
+
+    await finishSuccessfully(extraction.preparationId, cached.data, now);
+
+    return { status: "succeeded", ...persisted };
+  }
 
   const startedAt = new Date();
   await db
@@ -279,41 +336,10 @@ export async function runExtraction(extractionId: string): Promise<RunExtraction
       })
       .where(eq(editalExtractions.id, extractionId));
 
-    /**
-     * A data da prova do edital só é adotada quando o aluno NÃO informou uma.
-     * Ele digitou aquela data olhando para o edital dele; sobrescrever com o
-     * palpite da IA seria desfazer uma decisão consciente sem avisar.
-     */
-    const preparation = await db.query.preparations.findFirst({
-      where: (t, { eq: e }) => e(t.id, extraction.preparationId),
-      columns: { userId: true, examDate: true, institution: true },
+    await finishSuccessfully(extraction.preparationId, outcome.data, finishedAt, {
+      ...persisted,
+      costCents: outcome.usage.estimatedCostCents,
     });
-
-    await db
-      .update(preparations)
-      .set({
-        status: "review_pending",
-        extractionSucceededAt: finishedAt,
-        examDate: preparation?.examDate ?? outcome.data.examDate,
-        examDateIsEstimated:
-          preparation?.examDate == null && outcome.data.examDate != null
-            ? outcome.data.examDateIsEstimated
-            : undefined,
-        institution: preparation?.institution ?? outcome.data.institution,
-        updatedAt: finishedAt,
-      })
-      .where(eq(preparations.id, extraction.preparationId));
-
-    if (preparation?.userId) {
-      await markFunnelStage(preparation.userId, "extraction_succeeded", finishedAt);
-      await recordEvent(preparation.userId, "extraction_succeeded", {
-        preparationId: extraction.preparationId,
-        subjects: persisted.subjects,
-        topics: persisted.topics,
-        mappedPercent: persisted.mappedPercent,
-        costCents: outcome.usage.estimatedCostCents,
-      });
-    }
 
     return { status: "succeeded", ...persisted };
   } catch (error) {
@@ -322,6 +348,110 @@ export async function runExtraction(extractionId: string): Promise<RunExtraction
     await failExtraction(extraction.id, extraction.preparationId, message);
     return { status: "failed", message };
   }
+}
+
+/**
+ * Encerra a preparação com sucesso. Usado pela leitura real E pelo cache.
+ *
+ * Estar num lugar só é o que garante que uma extração reaproveitada produza
+ * exatamente o mesmo estado de uma recém-lida — inclusive os degraus do funil,
+ * que se divergissem tornariam a métrica de ativação incomparável entre alunos.
+ */
+async function finishSuccessfully(
+  preparationId: string,
+  data: EditalExtraction,
+  at: Date,
+  stats?: { subjects: number; topics: number; mappedPercent: number; costCents: number },
+): Promise<void> {
+  /**
+   * A data da prova do edital só é adotada quando o aluno NÃO informou uma.
+   * Ele digitou aquela data olhando para o edital dele; sobrescrever com o
+   * palpite da IA seria desfazer uma decisão consciente sem avisar.
+   */
+  const preparation = await db.query.preparations.findFirst({
+    where: (t, { eq: e }) => e(t.id, preparationId),
+    columns: { userId: true, examDate: true, institution: true },
+  });
+
+  await db
+    .update(preparations)
+    .set({
+      status: "review_pending",
+      extractionSucceededAt: at,
+      examDate: preparation?.examDate ?? data.examDate,
+      examDateIsEstimated:
+        preparation?.examDate == null && data.examDate != null
+          ? data.examDateIsEstimated
+          : undefined,
+      institution: preparation?.institution ?? data.institution,
+      updatedAt: at,
+    })
+    .where(eq(preparations.id, preparationId));
+
+  if (preparation?.userId) {
+    await markFunnelStage(preparation.userId, "extraction_succeeded", at);
+    await recordEvent(preparation.userId, "extraction_succeeded", {
+      preparationId,
+      ...stats,
+    });
+  }
+}
+
+/**
+ * Procura uma leitura anterior do MESMO arquivo para o MESMO cargo.
+ *
+ * O cargo é comparado normalizado: "Analista Judiciário — Área Administrativa"
+ * e "analista judiciario - area administrativa" são o mesmo cargo, e exigir
+ * igualdade literal desperdiçaria o cache na maioria das vezes.
+ *
+ * Só aproveita leituras da versão ATUAL do prompt: uma extração produzida por
+ * um prompt antigo pode ter outra forma, e servi-la a um aluno novo esconderia
+ * a melhoria que a nova versão traz.
+ */
+async function findCachedExtraction(
+  checksum: string,
+  targetPosition: string | null,
+): Promise<{ data: EditalExtraction; model: string; promptVersion: string } | null> {
+  const wanted = normalizeText(targetPosition ?? "");
+
+  const rows = await db
+    .select({
+      rawResponse: editalExtractions.rawResponse,
+      model: editalExtractions.model,
+      promptVersion: editalExtractions.promptVersion,
+      targetPosition: preparations.targetPosition,
+    })
+    .from(editalExtractions)
+    .innerJoin(
+      preparationDocuments,
+      eq(editalExtractions.documentId, preparationDocuments.id),
+    )
+    .innerJoin(preparations, eq(editalExtractions.preparationId, preparations.id))
+    .where(
+      and(
+        eq(preparationDocuments.checksum, checksum),
+        eq(editalExtractions.status, "succeeded"),
+        eq(editalExtractions.promptVersion, EDITAL_PROMPT_VERSION),
+      ),
+    )
+    .orderBy(desc(editalExtractions.finishedAt))
+    .limit(20);
+
+  for (const row of rows) {
+    if (!row.rawResponse) continue;
+    if (normalizeText(row.targetPosition) !== wanted) continue;
+
+    const parsed = editalExtractionSchema.safeParse(row.rawResponse);
+    if (!parsed.success) continue;
+
+    return {
+      data: clipExtraction(parsed.data),
+      model: row.model ?? "cache",
+      promptVersion: row.promptVersion ?? EDITAL_PROMPT_VERSION,
+    };
+  }
+
+  return null;
 }
 
 async function failExtraction(
