@@ -64,24 +64,39 @@ export function AppHeader({
           <LogoSymbol size={36} className="sm:hidden" />
         </Link>
 
+{/*
+          As DUAS coisas que o README pede no topo da Home convivem aqui:
+          o nome do aluno com a contagem regressiva (2.1) e a saudação da
+          identidade visual.
+
+          A versão anterior trocava uma pela outra — quando o aluno informava a
+          data da prova, a frase da cliente sumia da tela. Era o texto que ela
+          escreveu para ser a voz do produto, e ele desaparecia justamente para
+          quem estava mais engajado.
+        */}
         <div className="hidden min-w-0 flex-1 flex-col justify-center sm:flex">
-          <p className="truncate text-sm font-semibold tracking-wide text-foreground uppercase sm:text-base">
-            {firstName ? `Olá, ${firstName}!` : "Olá!"}
+          <p className="flex items-baseline gap-2 text-sm font-semibold tracking-wide text-foreground uppercase sm:text-base">
+            <span className="truncate">{firstName ? `Olá, ${firstName}!` : "Olá!"}</span>
+            {countdownLabel ? (
+              <span className="shrink-0 text-xs font-medium normal-case text-primary">
+                {countdownLabel}
+              </span>
+            ) : null}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {countdownLabel ?? APP_TAGLINE}
-          </p>
+          <p className="truncate text-xs text-muted-foreground">{APP_TAGLINE}</p>
         </div>
 
         <div className="ml-auto flex items-center gap-1 sm:gap-3">
-          <Link
-            href="/notificacoes"
-            aria-label={
-              unreadNotifications > 0
-                ? `Notificações, ${unreadNotifications} não lidas`
-                : "Notificações"
-            }
-            className="relative flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+{/*
+            O sino aparece porque está no mockup e comunica o que o produto vai
+            ter — mas NÃO linka: a tela de notificações é do Marco 2. Um sino
+            que leva a 404 faz o aluno concluir que a plataforma quebrou.
+            Mesma regra do menu lateral e do menu do avatar.
+          */}
+          <span
+            aria-label="Notificações (em breve)"
+            title="Em breve"
+            className="relative flex size-11 items-center justify-center rounded-full text-muted-foreground/40"
           >
             <Bell className="size-5" aria-hidden />
             {unreadNotifications > 0 ? (
@@ -92,7 +107,7 @@ export function AppHeader({
                 {unreadNotifications > 9 ? "9+" : unreadNotifications}
               </span>
             ) : null}
-          </Link>
+          </span>
 
           <span
             className={cn(
