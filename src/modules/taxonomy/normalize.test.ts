@@ -4,6 +4,7 @@ import {
   MATCH_THRESHOLDS,
   normalizeText,
   slugify,
+  stripEnumeration,
   taxonomyKey,
   trigramSimilarity,
 } from "./normalize";
@@ -108,5 +109,70 @@ describe("limiares de casamento", () => {
   it("são conservadores: falso negativo vai para a fila, falso positivo é silencioso", () => {
     expect(MATCH_THRESHOLDS.confident).toBeGreaterThan(MATCH_THRESHOLDS.ambiguous);
     expect(MATCH_THRESHOLDS.confident).toBeGreaterThanOrEqual(0.8);
+  });
+});
+
+/* ========================================================================== *
+ * MARCADOR DE ENUMERAÇÃO
+ * ========================================================================== */
+
+describe("stripEnumeration", () => {
+  /**
+   * ⚠️ Estes casos vieram de um edital REAL lido pela IA em 23/08/2026.
+   *
+   * Sem a remoção do marcador, o casamento daquele edital ficou em 21% — e o
+   * aluno teria subido o documento para não receber questão quase nenhuma,
+   * enquanto a fila do painel enchia de itens que JÁ tinham correspondência no
+   * catálogo. É o pior tipo de falha: silenciosa dos dois lados.
+   */
+  it("remove a numeração que os editais colocam antes do assunto", () => {
+    expect(stripEnumeration("1 Ortografia oficial")).toBe("Ortografia oficial");
+    expect(stripEnumeration("2. Ortografia oficial")).toBe("Ortografia oficial");
+    expect(stripEnumeration("8.1 Substantivo e adjetivo")).toBe("Substantivo e adjetivo");
+    expect(stripEnumeration("2.3.1 Verbo: flexão")).toBe("Verbo: flexão");
+    expect(stripEnumeration("1) Licitações")).toBe("Licitações");
+    expect(stripEnumeration("1 - Ortografia oficial")).toBe("Ortografia oficial");
+  });
+
+  it("remove marcador de letra, romano e traço", () => {
+    expect(stripEnumeration("a) Concordância verbal")).toBe("Concordância verbal");
+    expect(stripEnumeration("IV - Licitações")).toBe("Licitações");
+    expect(stripEnumeration("III. Poderes da administração")).toBe(
+      "Poderes da administração",
+    );
+    expect(stripEnumeration("- Pontuação")).toBe("Pontuação");
+    expect(stripEnumeration("• Crase")).toBe("Crase");
+  });
+
+  it("NÃO remove número que é conteúdo", () => {
+    // Ano tem quatro dígitos e nunca é enumeração de item.
+    expect(stripEnumeration("1988 Constituição Federal")).toBe(
+      "1988 Constituição Federal",
+    );
+    // Sem separador, letra solta é palavra.
+    expect(stripEnumeration("a crase antes de pronomes")).toBe(
+      "a crase antes de pronomes",
+    );
+    // O número no meio fica: "Arts. 5º ao 17" não é "Arts. 20 ao 30".
+    expect(stripEnumeration("Lei 8.112 de 1990")).toBe("Lei 8.112 de 1990");
+  });
+
+  it("NÃO remove quando não sobra texto depois", () => {
+    // "5" sozinho não é enumeração de nada — é o próprio conteúdo, por
+    // estranho que seja. Esvaziar a chave a faria colidir com tudo.
+    expect(stripEnumeration("5")).toBe("5");
+    expect(stripEnumeration("1.2")).toBe("1.2");
+  });
+});
+
+describe("normalizeText com enumeração", () => {
+  it("faz o item numerado do edital cair na mesma chave do canônico", () => {
+    // O caso exato que falhou no edital de teste.
+    expect(taxonomyKey("3 Emprego do sinal indicativo de crase.")).toBe(
+      taxonomyKey("Emprego do sinal indicativo de crase"),
+    );
+    expect(taxonomyKey("4 Concordância verbal e nominal.")).toBe(
+      taxonomyKey("Concordância verbal e nominal"),
+    );
   });
 });

@@ -34,13 +34,77 @@ const STOP_WORDS = new Set([
 ]);
 
 /**
- * Forma canônica de comparação: minúscula, sem acento, sem pontuação,
- * espaços colapsados.
+ * Marcador de enumeração no INÍCIO do item.
  *
- * Mantém os números (importam: "Arts. 5º ao 17" não é "Arts. 20 ao 30").
+ * ⚠️ ISTO SALVOU O CASAMENTO NUM EDITAL REAL.
+ * ----------------------------------------------------------------------------
+ * Descoberto em 23/08/2026, lendo um edital de verdade pela IA: quase todo
+ * edital brasileiro numera os assuntos, e a extração preserva o texto como
+ * está — que é o comportamento correto, o aluno precisa reconhecer o documento
+ * dele. Só que "3 Emprego do sinal indicativo de crase" não casava com o
+ * sinônimo "emprego sinal indicativo crase" por causa do "3".
+ *
+ * O efeito era brutal e silencioso: 21% de casamento num edital cujo conteúdo
+ * o catálogo cobre. Na prática, o aluno subiria o edital e não receberia
+ * questão quase nenhuma, e a fila do painel encheria de itens que já tinham
+ * correspondência.
+ *
+ * O QUE É E O QUE NÃO É REMOVIDO
+ * ----------------------------------------------------------------------------
+ *   "1 Ortografia"        → "Ortografia"
+ *   "1.1 Substantivo"     → "Substantivo"
+ *   "2.3.1 Verbo"         → "Verbo"
+ *   "a) Concordância"     → "Concordância"
+ *   "IV - Licitações"     → "Licitações"
+ *   "- Pontuação"         → "Pontuação"
+ *
+ * Números de até 3 dígitos, de propósito: "1988 Constituição" tem quatro e
+ * NÃO é enumeração — é conteúdo. Algarismo romano e letra exigem separador
+ * (`.`, `)` ou `-`), senão "a" e "I" sozinhos comeriam palavra de verdade.
+ *
+ * E o marcador precisa ser seguido de uma LETRA: "5 " sozinho, ou "1.2" sem
+ * texto depois, não é enumeração de coisa nenhuma.
+ */
+const SEPARATOR = "[.)\\-–—:]";
+
+const LEADING_ENUMERATION = new RegExp(
+  "^\\s*(?:" +
+    // Número (e sub-níveis): o separador é OPCIONAL — "1 Ortografia" e
+    // "1.1 Substantivo" aparecem sem nenhum.
+    `\\d{1,3}(?:\\.\\d{1,3})*\\s*${SEPARATOR}?` +
+    "|" +
+    // Romano e letra EXIGEM separador. Sem ele, "a crase antes de pronomes"
+    // perderia o "a", e "I" ou "V" comeriam o começo de uma palavra.
+    `[ivxlcdm]{1,7}\\s*${SEPARATOR}` +
+    "|" +
+    `[a-z]\\s*${SEPARATOR}` +
+    "|" +
+    // Marcador de lista puro.
+    "[-–—•*]" +
+    ")\\s+(?=[a-zà-ÿ])",
+  "i",
+);
+
+export function stripEnumeration(value: string): string {
+  // Aplica repetidamente: "1.1 a) Substantivo" tem dois marcadores.
+  let text = value;
+  for (let round = 0; round < 3; round += 1) {
+    const next = text.replace(LEADING_ENUMERATION, "");
+    if (next === text) break;
+    text = next;
+  }
+  return text;
+}
+
+/**
+ * Forma canônica de comparação: minúscula, sem acento, sem pontuação,
+ * espaços colapsados, sem o marcador de enumeração do edital.
+ *
+ * Mantém os números do CONTEÚDO (importam: "Arts. 5º ao 17" não é
+ * "Arts. 20 ao 30"). Só o marcador do começo sai — ver `stripEnumeration`.
  */
 export function normalizeText(value: string): string {
-  return value
+  return stripEnumeration(value)
     .normalize("NFD")
     .replace(DIACRITICS, "")
     .toLowerCase()
@@ -127,6 +191,19 @@ const GENERIC_QUALIFIERS = new Set([
   // "de que tipo"
   "aspecto", "aspectos", "caracteristica", "caracteristicas",
   "tipo", "tipos", "forma", "formas", "classificacao", "elemento", "elementos",
+  /*
+   * "conceito, requisitos, atributos, classificação e espécies" é a fórmula
+   * padrão dos editais de Direito para descrever ASPECTOS de um mesmo instituto.
+   * Sem estas três, "Atos administrativos: conceito, requisitos, atributos" —
+   * exatamente como aparece nos editais — ficava em 0,65 e caía na fila, apesar
+   * de o catálogo ter "Atos administrativos".
+   *
+   * Nenhuma delas é assunto sozinha: não existe edital com "Requisitos" como
+   * tema autônomo. "Espécies de atos administrativos" contém o nome do pai e
+   * casa com ele, que é o comportamento desejado enquanto o acervo não tem essa
+   * granularidade.
+   */
+  "requisito", "requisitos", "atributo", "atributos", "especie", "especies",
   "geral", "gerais", "especial", "especiais", "basico", "basicos",
   "principal", "principais", "diverso", "diversos", "demais", "outros",
   "caso", "casos", "gramatical", "gramaticais",

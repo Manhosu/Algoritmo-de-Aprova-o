@@ -28,7 +28,8 @@
     "smoke": "tsx scripts/smoke-flow.ts",
     "verify:engine": "tsx --conditions=react-server scripts/verify-engine.ts",
     "deletions:run": "tsx --conditions=react-server scripts/run-deletions.ts",
-    "verify:account": "tsx --conditions=react-server scripts/verify-account.ts"
+    "verify:account": "tsx --conditions=react-server scripts/verify-account.ts",
+    "verify:edital": "tsx --conditions=react-server scripts/verify-edital.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
