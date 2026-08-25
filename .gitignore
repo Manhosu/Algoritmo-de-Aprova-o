@@ -46,3 +46,15 @@ next-env.d.ts
 /backups/
 *.dump
 *.sql.gz
+
+# Uploads de edital no driver de armazenamento LOCAL.
+#
+# ⚠️ Em producao os PDFs vao para o bucket privado do Supabase. Em
+# desenvolvimento eles caem aqui — e sao documentos que o ALUNO enviou.
+# Arquivo de aluno nao entra em repositorio, nem que o repositorio seja
+# privado: o dia em que ele deixar de ser, ja e tarde.
+.storage/
+
+# Editais usados em teste. Ficam na maquina de quem testa.
+*.pdf
+!public/**/*.pdf
