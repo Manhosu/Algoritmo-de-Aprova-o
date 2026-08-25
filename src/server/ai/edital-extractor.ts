@@ -88,7 +88,14 @@ export type ExtractionUsage = {
 export type ExtractionOutcome =
   | { status: "succeeded"; data: EditalExtraction; usage: ExtractionUsage }
   | { status: "unreadable"; reason: UnreadableReason; message: string; usage: ExtractionUsage }
-  | { status: "failed"; message: string; cause?: unknown };
+  | {
+      status: "failed";
+      /** ⚠️ Vai para a TELA DO ALUNO. Nunca repasse texto cru da API aqui. */
+      message: string;
+      /** Detalhe técnico para o painel administrativo e o log. */
+      operatorDetail?: string;
+      cause?: unknown;
+    };
 
 export type UnreadableReason =
   | "scanned_image"
@@ -358,7 +365,10 @@ ${extracted.text}`,
     if (message.stop_reason === "refusal") {
       return {
         status: "failed",
-        message: "O modelo recusou processar este documento.",
+        message:
+          "Não conseguimos processar este documento. Confira se enviou o edital " +
+          "certo e tente de novo.",
+        operatorDetail: `stop_reason=refusal ${JSON.stringify(message.stop_details)}`,
         cause: message.stop_details,
       };
     }
@@ -367,7 +377,10 @@ ${extracted.text}`,
     if (parsed === null) {
       return {
         status: "failed",
-        message: "A resposta não veio no formato esperado.",
+        message:
+          "A leitura terminou, mas o resultado veio incompleto. Tente de novo em " +
+          "alguns minutos.",
+        operatorDetail: `sem parsed_output · stop_reason=${message.stop_reason}`,
         cause: message.stop_reason,
       };
     }
@@ -376,7 +389,11 @@ ${extracted.text}`,
     if (!result.success) {
       return {
         status: "failed",
-        message: "A resposta não passou na validação do schema.",
+        message:
+          "A leitura terminou, mas o resultado veio num formato que não " +
+          "conseguimos aproveitar. Já registramos o caso — tente de novo em " +
+          "alguns minutos.",
+        operatorDetail: `schema: ${JSON.stringify(result.error.issues).slice(0, 800)}`,
         cause: result.error.issues,
       };
     }
@@ -410,9 +427,11 @@ ${extracted.text}`,
     return { status: "succeeded", data, usage };
   } catch (error) {
     if (error instanceof Anthropic.APIError) {
+      const failure = describeApiError(error);
       return {
         status: "failed",
-        message: describeApiError(error),
+        message: failure.student,
+        operatorDetail: failure.operator,
         cause: error,
       };
     }
@@ -461,7 +480,10 @@ ${extracted.text}`,
 
     return {
       status: "failed",
-      message: "Falha inesperada ao ler o edital.",
+      message:
+        "Não conseguimos concluir a leitura deste edital agora. Seu arquivo foi " +
+        "guardado — tente de novo em alguns minutos.",
+      operatorDetail: error instanceof Error ? error.message : String(error),
       cause: error,
     };
   }
@@ -607,15 +629,65 @@ function isTruncatedOutput(error: unknown): boolean {
   );
 }
 
-function describeApiError(error: InstanceType<typeof Anthropic.APIError>): string {
-  if (error instanceof Anthropic.AuthenticationError) {
-    return "A chave da API da Anthropic foi recusada. Verifique ANTHROPIC_API_KEY.";
+/**
+ * Traduz o erro da API em DUAS mensagens: uma para o aluno, outra para quem
+ * opera.
+ *
+ * ⚠️ NASCEU DE UM BUG REAL, ENCONTRADO EM 25/08/2026.
+ *
+ * Quando os créditos da conta acabaram, a versão anterior repassava o texto da
+ * API direto para `error_message` — que é exatamente o campo que a tela do
+ * aluno exibe. Na prática, quem subisse um edital leria:
+ *
+ *   "Your credit balance is too low to access the Anthropic API.
+ *    Please go to Plans & Billing to upgrade or purchase credits."
+ *
+ * Em inglês, sobre a conta de outra pessoa, e sem nenhuma ação possível do lado
+ * dele. Três problemas de uma vez: assusta, não ajuda e expõe a situação
+ * financeira da operação para o cliente final.
+ *
+ * A regra agora é: NENHUM texto vindo da API chega ao aluno. Ele recebe uma
+ * frase que descreve o que aconteceu do ponto de vista DELE e o que fazer; o
+ * detalhe técnico vai para `raw_response`, que é o campo de depuração e só o
+ * painel administrativo lê.
+ */
+type ApiFailure = { student: string; operator: string };
+
+function describeApiError(
+  error: InstanceType<typeof Anthropic.APIError>,
+): ApiFailure {
+  /**
+   * Problema de conta — crédito, cota, chave. É problema NOSSO, não do
+   * arquivo dele. A mensagem não pode mandá-lo mexer no PDF, porque não há
+   * nada que ele possa fazer, e não pode citar cobrança.
+   */
+  const isBilling =
+    error.status === 400 &&
+    /credit balance|billing|quota|payment/i.test(error.message);
+
+  if (isBilling || error instanceof Anthropic.AuthenticationError) {
+    return {
+      student:
+        "A leitura automática está temporariamente indisponível. Seu edital foi " +
+        "guardado — assim que o serviço voltar, é só tentar de novo. Nada do que " +
+        "você enviou se perdeu.",
+      operator: `Conta/credencial da API: ${error.message}`,
+    };
   }
+
   if (error instanceof Anthropic.RateLimitError) {
-    return "Limite de requisições da API atingido. Tente novamente em alguns instantes.";
+    return {
+      student:
+        "Estamos com muitos editais na fila neste momento. Tente de novo em " +
+        "alguns minutos — seu arquivo já está guardado.",
+      operator: `Rate limit: ${error.message}`,
+    };
   }
-  if (error instanceof Anthropic.BadRequestError) {
-    return `A requisição foi recusada pela API: ${error.message}`;
-  }
-  return `Erro na API da Anthropic (${error.status}): ${error.message}`;
+
+  return {
+    student:
+      "Não conseguimos concluir a leitura deste edital agora. Seu arquivo foi " +
+      "guardado — tente de novo em alguns minutos.",
+    operator: `API ${error.status}: ${error.message}`,
+  };
 }

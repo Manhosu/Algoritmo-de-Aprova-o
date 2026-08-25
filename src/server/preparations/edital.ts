@@ -305,6 +305,10 @@ export async function runExtraction(extractionId: string): Promise<RunExtraction
         // barreiras locais devolvem uso zerado. Registrar os dois é o que
         // permite responder "quanto está custando" com honestidade.
         usage: outcome.status === "unreadable" ? outcome.usage : undefined,
+        // O detalhe técnico NÃO vai para `error_message`, que é o campo que a
+        // tela do aluno exibe. Ver a nota em `describeApiError`.
+        operatorDetail:
+          outcome.status === "failed" ? outcome.operatorDetail : undefined,
       });
 
       return { status: "failed", message: outcome.message };
@@ -458,16 +462,33 @@ async function failExtraction(
   extractionId: string,
   preparationId: string,
   message: string,
-  options: { usage?: { inputTokens: number; outputTokens: number; estimatedCostCents: number } } = {},
+  options: {
+    usage?: { inputTokens: number; outputTokens: number; estimatedCostCents: number };
+    operatorDetail?: string;
+  } = {},
 ): Promise<void> {
   const now = new Date();
+
+  // O detalhe técnico vai para o log do servidor além do banco: quem está
+  // depurando um caso ao vivo não abre o painel, olha o log.
+  if (options.operatorDetail) {
+    console.error(`[edital ${extractionId.slice(0, 8)}] ${options.operatorDetail}`);
+  }
 
   await db
     .update(editalExtractions)
     .set({
       status: "failed",
       finishedAt: now,
+      /**
+       * ⚠️ Este campo é lido por `getEditalStatus` e exibido AO ALUNO. Só
+       * mensagem escrita para ele entra aqui — nunca texto vindo da API.
+       */
       errorMessage: message.slice(0, 2000),
+      /** O detalhe técnico fica no campo de depuração, que só o painel lê. */
+      rawResponse: options.operatorDetail
+        ? { failure: options.operatorDetail.slice(0, 4000) }
+        : undefined,
       inputTokens: options.usage?.inputTokens,
       outputTokens: options.usage?.outputTokens,
       estimatedCostCents: options.usage?.estimatedCostCents,
