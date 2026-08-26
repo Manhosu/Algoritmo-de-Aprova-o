@@ -27,3 +27,15 @@ export const APP_DESCRIPTION =
 export const APP_TIMEZONE = "America/Sao_Paulo";
 
 export const APP_LOCALE = "pt-BR";
+
+/**
+ * Contato de suporte.
+ *
+ * ⚠️ Endereço REAL, não um `contato@exemplo.com`. Rodapé com contato falso é
+ * pior que rodapé sem contato: quem escreve e não recebe resposta conclui que a
+ * empresa não existe.
+ *
+ * É a mesma conta que assina os e-mails da plataforma, então quem responder já
+ * tem o histórico da pessoa à mão.
+ */
+export const SUPPORT_EMAIL = "oalgoritmodaaprovacao@gmail.com";

@@ -4,12 +4,14 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { describeLimit, formatPrice, listPublicPlans } from "@/server/billing/plans";
+import { socialMetadata } from "@/lib/metadata";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Planos",
   description:
     "Comece de graça. Suba de plano quando quiser mais questões por dia e mais de uma preparação ao mesmo tempo.",
+  ...socialMetadata({ title: "Planos que cabem no seu ritmo de estudo", path: "/planos" }),
 };
 
 /**

@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 
 import { LegalDocument } from "@/components/legal/legal-document";
 import { getCurrentLegalDocument } from "@/server/legal/documents";
+import { socialMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = {
   title: "Termos de Uso",
   description:
     "As regras de uso da plataforma: conta, limites do plano, acervo e encerramento.",
+  ...socialMetadata({ title: "Termos de Uso", path: "/termos-de-uso" }),
 };
 
 /**

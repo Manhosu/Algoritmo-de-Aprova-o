@@ -349,13 +349,26 @@ async function main() {
      * O canal principal da cliente é o WhatsApp, que só monta o card com URL
      * ABSOLUTA. Relativa aqui significa link cinza sem imagem.
      */
-    res = await fetch(`${BASE}/`);
-    html = await res.text();
-    const ogImage = html.match(/property="og:image"\s+content="([^"]+)"/)?.[1] ?? "";
+    /**
+     * ⚠️ Uma página que declara `openGraph` por conta própria SUBSTITUI o objeto
+     * inteiro do layout — e perde a imagem que `opengraph-image.tsx` injeta.
+     * Aconteceu com a landing em 25/08/2026, justo a página mais compartilhada.
+     * Por isso a verificação cobre TODAS as públicas, não só a inicial.
+     */
+    const publicas = ["/", "/planos", "/termos-de-uso", "/politica-de-privacidade"];
+    const semImagem: string[] = [];
+
+    for (const rota of publicas) {
+      const page = await fetch(`${BASE}${rota}`);
+      const body = await page.text();
+      const og = body.match(/property="og:image"\s+content="([^"]+)"/)?.[1] ?? "";
+      if (!og.startsWith("http")) semImagem.push(rota);
+    }
+
     record(
-      "A landing traz og:image com URL absoluta",
-      ogImage.startsWith("http"),
-      ogImage.slice(0, 60) || "ausente",
+      "Toda página pública traz og:image com URL absoluta",
+      semImagem.length === 0,
+      semImagem.length === 0 ? `${publicas.length} páginas` : `sem imagem: ${semImagem.join(", ")}`,
     );
 
     /* --- 8. logout revoga a sessão no banco -------------------------------- */

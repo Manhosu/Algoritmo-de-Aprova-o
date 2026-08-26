@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 
 import { LegalDocument } from "@/components/legal/legal-document";
 import { getCurrentLegalDocument } from "@/server/legal/documents";
+import { socialMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = {
   title: "Política de Privacidade",
   description:
     "Como tratamos seus dados pessoais, por quanto tempo e quais são os seus direitos.",
+  ...socialMetadata({ title: "Política de Privacidade", path: "/politica-de-privacidade" }),
 };
 
 /**

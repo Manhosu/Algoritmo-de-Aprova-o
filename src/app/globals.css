@@ -151,7 +151,19 @@
   --glow-strong: 0 0 0 1px color-mix(in oklab, var(--primary) 22%, transparent),
     0 10px 32px -10px color-mix(in oklab, var(--primary) 45%, transparent);
 
-  --radius: 0.875rem;
+  /**
+   * ⚠️ Raio base COMPRIMIDO em 25/08/2026.
+   *
+   * Era `0.875rem`, e a escala multiplica até 2.6 — o `radius-4xl` chegava a
+   * 2,27rem. Canto muito arredondado é um dos sinais mais fortes de "template
+   * pronto": ele suaviza tudo e apaga a diferença entre um card, um botão e um
+   * aviso.
+   *
+   * Com `0.625rem` o topo da escala fica em torno de 1,6rem — arredondado o
+   * suficiente para ser acolhedor, discreto o bastante para a tipografia
+   * carregar a personalidade.
+   */
+  --radius: 0.625rem;
 }
 
 /* ---------------------------------------------------------------------------
