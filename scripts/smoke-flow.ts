@@ -284,6 +284,80 @@ async function main() {
       `${res.status}`,
     );
 
+    /* --- 7d. camada pública: jurídicas, 404 e SEO ------------------------- */
+    /**
+     * ⚠️ `/termos-de-uso` era um link QUEBRADO em produção: o checkbox do
+     * cadastro apontava para cá e dava 404, enquanto o texto prometia que a
+     * pessoa tinha lido os Termos.
+     */
+    res = await fetch(`${BASE}/termos-de-uso`);
+    html = await res.text();
+    record(
+      "Termos de Uso respondem e trazem o texto do banco",
+      res.ok && html.includes("Termos de Uso") && html.includes("Índice de Preparação"),
+      `${res.status}`,
+    );
+
+    res = await fetch(`${BASE}/planos`);
+    html = await res.text();
+    record(
+      "Página de planos monta os limites a partir do banco",
+      res.ok && html.includes("questões por dia") && html.includes("ilimitadas"),
+      `${res.status}`,
+    );
+
+    /**
+     * A 404 do Next é em inglês, sem marca e sem saída. Esta verificação
+     * garante que quem erra o endereço encontra o produto, não um beco.
+     */
+    res = await fetch(`${BASE}/rota-que-nao-existe-${Date.now()}`);
+    html = await res.text();
+    record(
+      "Rota inexistente cai na 404 do produto, não na do Next",
+      res.status === 404 && html.includes("Essa página não existe"),
+      `${res.status}`,
+    );
+
+    /**
+     * ⚠️ O 404 novo não pode ter custado a proteção. Rota privada SEM sessão
+     * continua indo para o login, e é isso que esta verificação trava.
+     */
+    res = await fetch(`${BASE}/inicio`, { redirect: "manual" });
+    record(
+      "Rota privada sem sessão continua indo para o login",
+      res.status === 307 && (res.headers.get("location") ?? "").includes("/entrar"),
+      `${res.status}`,
+    );
+
+    res = await fetch(`${BASE}/robots.txt`);
+    const robots = await res.text();
+    record(
+      "robots.txt mantém a área do aluno fora dos buscadores",
+      res.ok && robots.includes("Disallow: /inicio") && robots.includes("Sitemap:"),
+      `${res.status}`,
+    );
+
+    res = await fetch(`${BASE}/sitemap.xml`);
+    const sitemap = await res.text();
+    record(
+      "sitemap.xml lista as públicas e NENHUMA privada",
+      res.ok && sitemap.includes("/termos-de-uso") && !sitemap.includes("/inicio"),
+      `${res.status}`,
+    );
+
+    /**
+     * O canal principal da cliente é o WhatsApp, que só monta o card com URL
+     * ABSOLUTA. Relativa aqui significa link cinza sem imagem.
+     */
+    res = await fetch(`${BASE}/`);
+    html = await res.text();
+    const ogImage = html.match(/property="og:image"\s+content="([^"]+)"/)?.[1] ?? "";
+    record(
+      "A landing traz og:image com URL absoluta",
+      ogImage.startsWith("http"),
+      ogImage.slice(0, 60) || "ausente",
+    );
+
     /* --- 8. logout revoga a sessão no banco -------------------------------- */
     res = await fetch(`${BASE}/sair`, { headers: { cookie }, redirect: "manual" });
     const [session] = await sql<Array<{ revoked_at: Date | null }>>`

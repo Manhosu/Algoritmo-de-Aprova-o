@@ -22,7 +22,7 @@ import {
   type SeedTopic,
 } from "./catalog-data";
 import { buildExampleQuestions } from "./example-questions";
-import { PRIVACY_POLICY_DRAFT } from "./legal-data";
+import { PRIVACY_POLICY_DRAFT, TERMS_OF_USE_DRAFT } from "./legal-data";
 
 config({ path: [".env.local", ".env"], quiet: true });
 
@@ -287,32 +287,49 @@ async function seedEngineConfigs(db: Db) {
  * DOCUMENTOS LEGAIS
  * ========================================================================== */
 
+/**
+ * Os DOIS documentos que o cadastro pede aceite.
+ *
+ * ⚠️ São dois porque o checkbox diz "Li e aceito a Política de Privacidade E os
+ * Termos de Uso". Ter só um publicado tornava aquela frase uma promessa que o
+ * sistema não cumpria — e o link dos Termos dava 404.
+ */
+const LEGAL_DRAFTS = [
+  { type: "privacy" as const, draft: PRIVACY_POLICY_DRAFT },
+  { type: "terms" as const, draft: TERMS_OF_USE_DRAFT },
+];
+
 async function seedLegalDocuments(db: Db) {
   log.section("Documentos legais");
 
-  const existing = await db.query.legalDocuments.findFirst({
-    where: (t, { and, eq: e }) =>
-      and(e(t.type, "privacy"), e(t.version, PRIVACY_POLICY_DRAFT.version)),
-  });
+  for (const { type, draft } of LEGAL_DRAFTS) {
+    const existing = await db.query.legalDocuments.findFirst({
+      where: (t, { and, eq: e }) => and(e(t.type, type), e(t.version, draft.version)),
+    });
 
-  if (existing) {
-    log.item(`Política de Privacidade ${PRIVACY_POLICY_DRAFT.version} já existe`);
-    return;
+    if (existing) {
+      log.item(`${draft.title} ${draft.version} já existe`);
+      continue;
+    }
+
+    await db.insert(schema.legalDocuments).values({
+      type,
+      version: draft.version,
+      title: draft.title,
+      content: draft.content,
+      changeSummary: "Rascunho inicial.",
+      // isCurrent fica FALSO de propósito: um rascunho não pode ser publicado
+      // por acidente. Só vira corrente depois da revisão jurídica.
+      isCurrent: false,
+    });
+
+    log.item(`${draft.title} ${draft.version} inserido como RASCUNHO`);
   }
 
-  await db.insert(schema.legalDocuments).values({
-    type: "privacy",
-    version: PRIVACY_POLICY_DRAFT.version,
-    title: PRIVACY_POLICY_DRAFT.title,
-    content: PRIVACY_POLICY_DRAFT.content,
-    changeSummary: "Rascunho inicial.",
-    // isCurrent fica FALSO de propósito: um rascunho não pode ser publicado por
-    // acidente. Só vira corrente depois da revisão jurídica.
-    isCurrent: false,
-  });
-
-  log.item(`Política de Privacidade ${PRIVACY_POLICY_DRAFT.version} inserida como RASCUNHO`);
-  log.warn("Não publicada. Precisa de revisão jurídica antes de virar a versão corrente.");
+  log.warn(
+    "Nenhum dos dois está publicado. Precisam de revisão jurídica antes de virar " +
+      "a versão corrente — use `npm run legal:publish`.",
+  );
 }
 
 /* ========================================================================== *

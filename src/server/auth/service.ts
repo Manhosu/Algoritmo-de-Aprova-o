@@ -104,27 +104,52 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
       });
 
       /**
-       * Consentimento da LGPD, apontando para a VERSÃO do documento aceita.
+       * Consentimento da LGPD, apontando para a VERSÃO de cada documento aceita.
        *
        * Sem a versão, "o usuário consentiu" é afirmação sem prova: não há como
        * dizer com o quê ele consentiu se o texto mudou depois.
+       *
+       * ⚠️ São DOIS registros, não um. O checkbox do cadastro diz "Li e aceito
+       * a Política de Privacidade E os Termos de Uso" — gravar só a política
+       * deixava metade da frase sem lastro. Corrigido em 25/08/2026, junto com
+       * a criação da página de Termos, que até então dava 404.
        */
-      const policy = await tx.query.legalDocuments.findFirst({
-        where: (t, { and: a, eq: e }) => a(e(t.type, "privacy"), e(t.isCurrent, true)),
-        columns: { id: true },
+      const documents = await tx.query.legalDocuments.findMany({
+        where: (t, { and: a, eq: e, inArray: i }) =>
+          a(i(t.type, ["privacy", "terms"]), e(t.isCurrent, true)),
+        columns: { id: true, type: true },
       });
 
-      await tx.insert(userConsents).values({
-        userId: id,
-        type: "privacy",
-        legalDocumentId: policy?.id ?? null,
-        granted: true,
-        purpose:
-          "Tratamento dos dados pessoais para prestação do serviço de estudo: " +
-          "identificação, autenticação, montagem do plano de estudo e contato de suporte.",
-        ipHash: await currentIpHash(),
-        userAgent: await currentUserAgent(),
-      });
+      const currentOf = (type: "privacy" | "terms") =>
+        documents.find((document) => document.type === type)?.id ?? null;
+
+      const ipHash = await currentIpHash();
+      const userAgent = await currentUserAgent();
+
+      await tx.insert(userConsents).values([
+        {
+          userId: id,
+          type: "privacy",
+          legalDocumentId: currentOf("privacy"),
+          granted: true,
+          purpose:
+            "Tratamento dos dados pessoais para prestação do serviço de estudo: " +
+            "identificação, autenticação, montagem do plano de estudo e contato de suporte.",
+          ipHash,
+          userAgent,
+        },
+        {
+          userId: id,
+          type: "terms",
+          legalDocumentId: currentOf("terms"),
+          granted: true,
+          purpose:
+            "Aceite das condições de uso da plataforma: regras de conta, limites " +
+            "do plano contratado, uso do acervo e encerramento do serviço.",
+          ipHash,
+          userAgent,
+        },
+      ]);
 
       /**
        * Todo usuário nasce com assinatura Free ativa.
@@ -379,8 +404,32 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
+/**
+ * IP e user-agent para a trilha de auditoria do consentimento.
+ *
+ * ⚠️ NUNCA DERRUBAM O CADASTRO.
+ *
+ * `headers()` lança fora de um escopo de requisição — num script, numa tarefa
+ * agendada, num teste. Sem o `catch`, o cadastro inteiro falharia por causa de
+ * um campo OPCIONAL: a pessoa não conseguiria criar a conta porque não deu para
+ * registrar o user-agent dela. A prioridade é o inverso — a conta e o
+ * consentimento importam, o metadado é reforço.
+ *
+ * Descoberto ao escrever a verificação do consentimento, que chama
+ * `registerUser` direto e não tem requisição em volta.
+ */
+async function requestHeaders(): Promise<Headers | null> {
+  try {
+    return await headers();
+  } catch {
+    return null;
+  }
+}
+
 async function currentIp(): Promise<string | null> {
-  const store = await headers();
+  const store = await requestHeaders();
+  if (!store) return null;
+
   const forwarded = store.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0]?.trim() ?? null;
   return store.get("x-real-ip");
@@ -394,6 +443,6 @@ async function currentIpHash(): Promise<string | null> {
 }
 
 async function currentUserAgent(): Promise<string | null> {
-  const store = await headers();
-  return store.get("user-agent")?.slice(0, 500) ?? null;
+  const store = await requestHeaders();
+  return store?.get("user-agent")?.slice(0, 500) ?? null;
 }

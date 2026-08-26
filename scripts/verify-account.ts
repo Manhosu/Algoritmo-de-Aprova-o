@@ -133,6 +133,67 @@ async function main() {
 
     console.log("Percorrendo os fluxos:\n");
 
+    /* --- 0. CONSENTIMENTO NO CADASTRO ------------------------------------- */
+    /**
+     * ⚠️ O checkbox diz "Li e aceito a Política de Privacidade E os Termos de
+     * Uso". Até 25/08/2026 o sistema gravava só a política — metade da frase
+     * ficava sem lastro, e os Termos sequer existiam como página.
+     *
+     * Cada consentimento aponta para a VERSÃO do documento aceita: sem isso,
+     * "a pessoa concordou" não prova com o quê ela concordou depois que o
+     * texto muda.
+     */
+    const { registerUser } = await import("../src/server/auth/service");
+
+    const consentEmail = `${MARKER}-consent-${Date.now()}@exemplo.invalido`;
+
+    /**
+     * O `catch` é sobre o COOKIE, não sobre o cadastro.
+     *
+     * `registerUser` grava usuário, consentimentos, assinatura e funil numa
+     * transação, e SÓ DEPOIS abre a sessão — que precisa de `cookies()` e
+     * portanto de uma requisição em volta. Aqui não há requisição, então a
+     * escrita do cookie lança; o que interessa a esta verificação já foi
+     * commitado.
+     *
+     * Não tornei `setSessionCookie` tolerante de propósito: um cadastro que
+     * "dá certo" e não loga a pessoa é pior que um erro visível.
+     */
+    await registerUser({
+      name: "Aluno do Consentimento",
+      email: consentEmail,
+      whatsapp: "+5511900000002",
+      password: SENHA_ORIGINAL,
+    }).catch(() => undefined);
+
+    const registered = await db.query.users.findFirst({
+      where: (t, { eq: e }) => e(t.email, consentEmail),
+      columns: { id: true },
+    });
+
+    const consents = await db
+      .select({
+        type: schema.userConsents.type,
+        legalDocumentId: schema.userConsents.legalDocumentId,
+        granted: schema.userConsents.granted,
+      })
+      .from(schema.userConsents)
+      .where(eq(schema.userConsents.userId, registered!.id));
+
+    check(
+      "O cadastro grava os DOIS consentimentos: privacidade e termos",
+      consents.length === 2 &&
+        consents.some((c) => c.type === "privacy") &&
+        consents.some((c) => c.type === "terms"),
+      consents.map((c) => c.type).join(", "),
+    );
+
+    check(
+      "Cada consentimento aponta para a VERSÃO do documento aceita",
+      consents.length === 2 && consents.every((c) => c.legalDocumentId !== null),
+      consents.every((c) => c.legalDocumentId !== null) ? "os dois com versão" : "algum sem versão",
+    );
+
     /* --- 1. RECUPERAÇÃO DE SENHA ----------------------------------------- */
     await account.requestPasswordReset({ email });
     const resetToken = await latestToken("password_reset");

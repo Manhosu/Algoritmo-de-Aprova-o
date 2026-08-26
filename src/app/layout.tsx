@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { APP_NAME, APP_TAGLINE } from "@/config/app";
+import { env } from "@/config/env";
 
 import "./globals.css";
 
@@ -19,6 +20,15 @@ const mono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  /**
+   * ⚠️ Sai de `env.APP_URL`, nunca de constante.
+   *
+   * `metadataBase` é o que transforma "/opengraph-image" em URL absoluta. Sem
+   * ela o Next avisa e usa localhost; com ela fixa no código, o ambiente de
+   * preview anunciaria a URL de produção — e o card compartilhado de um teste
+   * apontaria para o site real.
+   */
+  metadataBase: new URL(env.APP_URL),
   title: {
     default: APP_NAME,
     template: `%s · ${APP_NAME}`,
@@ -27,6 +37,28 @@ export const metadata: Metadata = {
   applicationName: APP_NAME,
   formatDetection: { telephone: false },
   robots: { index: true, follow: true },
+  alternates: { canonical: "/" },
+
+  /**
+   * O canal principal desta cliente é o WhatsApp, e link sem card vira uma
+   * linha de texto cinza que ninguém abre. `opengraph-image.tsx` na raiz é
+   * herdado por todas as rotas, então cada página compartilhada já sai com
+   * imagem — e as que têm `title`/`description` próprios entram no card com
+   * o texto delas.
+   */
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: APP_NAME,
+    title: APP_NAME,
+    description: APP_TAGLINE,
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: APP_NAME,
+    description: APP_TAGLINE,
+  },
 };
 
 export const viewport: Viewport = {

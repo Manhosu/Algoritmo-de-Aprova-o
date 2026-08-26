@@ -154,3 +154,180 @@ Dúvidas ou exercício de direitos: [e-mail do encarregado].
 Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD).
 `,
 } as const;
+
+/**
+ * Rascunho dos Termos de Uso.
+ *
+ * ⚠️ ISTO É UM RASCUNHO TÉCNICO, NÃO UM PARECER JURÍDICO.
+ *
+ * Nasceu de um defeito encontrado em 25/08/2026: o checkbox do cadastro diz
+ * "Li e aceito a Política de Privacidade **e os Termos de Uso**", mas os Termos
+ * não existiam — o link dava 404 — e `registerUser` só gravava consentimento de
+ * `privacy`. A interface prometia dois documentos, o sistema guardava um, e o
+ * outro não estava publicado em lugar nenhum.
+ *
+ * Como a Política, entra com `isCurrent = false`: rascunho não vira contrato
+ * por acidente.
+ *
+ * Três pontos aqui descrevem decisões REAIS de arquitetura, e é por isso que
+ * este texto não é genérico:
+ *
+ *   1. o limite diário de questões por plano existe e é aplicado no servidor;
+ *   2. o conteúdo do edital é lido por IA e pode conter erro — quem confirma é
+ *      o aluno, e isso muda de quem é a responsabilidade pelo plano de estudo;
+ *   3. o Índice de Preparação NÃO é previsão de aprovação, e o texto precisa
+ *      dizer isso com todas as letras.
+ */
+export const TERMS_OF_USE_DRAFT = {
+  version: "0.1-rascunho",
+  title: "Termos de Uso",
+  content: `# Termos de Uso
+
+> **RASCUNHO — pendente de revisão jurídica.** Este texto descreve com precisão
+> o funcionamento da plataforma, mas ainda não foi validado por advogado e não
+> está publicado.
+
+**Última atualização:** [preencher na publicação]
+
+## 1. O que é esta plataforma
+
+O Algoritmo da Aprovação é uma plataforma de estudo para concursos públicos.
+A partir do edital que você envia, ela organiza o conteúdo programático,
+prioriza o que estudar a cada dia, agenda revisões e acompanha seu desempenho.
+
+**Fornecedor:** [razão social, CNPJ e endereço]
+**Contato:** [e-mail de suporte]
+
+Ao criar uma conta, você concorda com estes Termos e com a Política de
+Privacidade.
+
+## 2. Quem pode usar
+
+É preciso ter 18 anos ou mais, ou autorização de responsável legal. A conta é
+pessoal e intransferível: você é responsável por manter sua senha em sigilo e
+por tudo que acontecer na sua conta.
+
+Se suspeitar de acesso indevido, troque a senha em Configurações. Isso encerra
+as sessões abertas nos outros aparelhos imediatamente.
+
+## 3. O que você pode esperar da plataforma
+
+### 3.1 Leitura do edital
+
+O conteúdo programático é extraído do PDF por inteligência artificial. **A
+leitura pode conter erros ou omissões.** Por isso existe a tela de conferência:
+você revisa, corrige, apaga e acrescenta itens antes de confirmar.
+
+A partir da sua confirmação, o plano de estudo é montado sobre a lista que
+**você** aprovou. Conferir é parte do processo, não uma formalidade.
+
+### 3.2 O que o algoritmo faz e o que ele não faz
+
+A plataforma prioriza assuntos, sugere técnicas de estudo, agenda revisões e
+mede seu desempenho. Ela **não garante aprovação em concurso algum**.
+
+O **Índice de Preparação** mede o quanto você avançou no seu próprio plano de
+estudo. Ele **não é** probabilidade de aprovação, nota esperada nem previsão de
+resultado. Nenhum número exibido na plataforma deve ser lido assim.
+
+### 3.3 Disponibilidade
+
+Fazemos o possível para manter tudo no ar, mas o serviço pode ficar
+indisponível por manutenção, falha técnica ou interrupção de terceiros. Não há
+garantia de disponibilidade ininterrupta.
+
+## 4. Planos e limites
+
+Há um plano gratuito e planos pagos. Cada plano define limites — entre eles a
+**quantidade de questões por dia** e o **número de preparações ativas
+simultâneas**. Os limites vigentes ficam visíveis na página de planos.
+
+Atingir o limite diário de questões não bloqueia o restante da plataforma: o
+conteúdo já respondido, as revisões e o cronograma continuam acessíveis.
+
+Se você mudar para um plano com menos preparações do que já possui, **nada é
+apagado**. As preparações excedentes ficam somente leitura, e você escolhe qual
+continua ativa. Ao voltar para o plano maior, todas voltam a funcionar.
+
+## 5. Conteúdo
+
+### 5.1 Nosso
+
+Questões, comentários, materiais de estudo, o código e a marca pertencem ao
+fornecedor. Você recebe uma licença pessoal e intransferível para usá-los
+enquanto sua conta estiver ativa.
+
+**Não é permitido** copiar, redistribuir, revender, publicar ou usar o acervo
+para treinar outros sistemas.
+
+### 5.2 Seu
+
+O PDF do edital que você envia continua seu. Nós o usamos para montar o seu
+plano de estudo e o guardamos enquanto sua preparação existir.
+
+Não envie documento que contenha dado pessoal de terceiros nem material sobre o
+qual você não tenha direito de uso.
+
+## 6. Uso aceitável
+
+Não é permitido:
+
+- compartilhar sua conta ou vender acesso a ela;
+- extrair o acervo de forma automatizada (raspagem, robôs, scripts);
+- tentar burlar limites de plano, contornar autenticação ou acessar dados de
+  outras pessoas;
+- interferir no funcionamento da plataforma ou na experiência de outros alunos.
+
+Detectado o descumprimento, a conta pode ser suspensa. Em caso grave ou
+reincidente, encerrada.
+
+## 7. Pagamentos
+
+Os planos pagos são cobrados pelo meio de pagamento indicado no momento da
+contratação. A assinatura se renova automaticamente até que você a cancele.
+
+Cancelar interrompe as cobranças seguintes; o acesso continua até o fim do
+período já pago. Você tem direito de arrependimento em até 7 dias da
+contratação, nos termos do art. 49 do Código de Defesa do Consumidor.
+
+Registros de pagamento são retidos pelo prazo legal mesmo após a exclusão da
+conta — é obrigação fiscal, e está explicado na Política de Privacidade.
+
+## 8. Encerrar sua conta
+
+Você pode pedir a exclusão a qualquer momento, em Configurações.
+
+A exclusão acontece **7 dias** depois do pedido. Nesse intervalo, basta entrar
+na plataforma para cancelá-la — o simples acesso já interrompe o processo.
+
+Depois disso, seus dados pessoais são removidos de forma irreversível. O que
+resta do seu histórico deixa de ser atribuível a você e permanece apenas como
+número em estatísticas agregadas. Os detalhes estão na Política de Privacidade.
+
+## 9. Mudanças nestes Termos
+
+Podemos alterar estes Termos. Toda versão publicada fica registrada, e o aceite
+de cada pessoa aponta para a versão que estava vigente quando ela aceitou.
+
+Mudanças relevantes serão comunicadas por e-mail ou dentro da plataforma antes
+de passarem a valer.
+
+## 10. Limitação de responsabilidade
+
+A plataforma é uma ferramenta de organização e acompanhamento de estudo. O
+fornecedor não responde por resultado em concurso, por decisão de banca
+organizadora, por alteração de edital ou por conteúdo de terceiros indicado no
+edital.
+
+Nada aqui afasta direitos que o Código de Defesa do Consumidor garante a você.
+
+## 11. Lei aplicável e foro
+
+Estes Termos são regidos pela lei brasileira. Fica eleito o foro do domicílio
+do consumidor para dirimir controvérsias.
+
+---
+
+Dúvidas sobre estes Termos: [e-mail de suporte].
+`,
+} as const;

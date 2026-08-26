@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import {
+  isAdminRoute,
   isAuthRoute,
-  isPublicRoute,
+  isPrivateRoute,
   LOGIN_ROUTE,
   SESSION_COOKIE_NAME,
 } from "@/config/routes";
@@ -60,7 +61,22 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("content-security-policy", csp);
 
   const hasSessionCookie = request.cookies.has(SESSION_COOKIE_NAME);
-  const needsAuth = !isPublicRoute(pathname) && !isAuthRoute(pathname);
+
+  /**
+   * Só as rotas da área do aluno são interceptadas.
+   *
+   * ⚠️ Antes era o inverso — tudo que não fosse público virava privado. O
+   * efeito prático: um endereço com erro de digitação levava um visitante
+   * anônimo ao login em vez de a uma página de "não encontrada". Como os links
+   * circulam por WhatsApp, um caractere a mais colocava um curioso diante de um
+   * cadastro que ele não pediu.
+   *
+   * A troca é segura porque o proxy nunca foi a proteção principal: o layout de
+   * `(app)` e todas as páginas de lá exigem sessão por conta própria. Ver a nota
+   * em `config/routes.ts`.
+   */
+  const needsAuth =
+    (isPrivateRoute(pathname) || isAdminRoute(pathname)) && !isAuthRoute(pathname);
 
   if (needsAuth && !hasSessionCookie) {
     const loginUrl = new URL(LOGIN_ROUTE, request.url);
