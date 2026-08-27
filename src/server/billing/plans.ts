@@ -22,6 +22,15 @@ export type PlanView = {
   isFeatured: boolean;
   /** `null` = grátis. */
   monthlyCents: number | null;
+  /**
+   * Preço anual à vista, quando existe.
+   *
+   * ⚠️ ESTAVA CADASTRADO E ATIVO NO BANCO, E A PÁGINA NÃO MOSTRAVA. A consulta
+   * filtrava só `monthly` e descartava a linha anual em silêncio — a oferta de
+   * 50% do README (R$ 419,40 e R$ 539,40) simplesmente não existia para quem
+   * abria a página de planos.
+   */
+  annualCents: number | null;
   /** `null` = ilimitado. Nunca zero: zero significaria "não pode nenhuma". */
   dailyQuestionLimit: number | null;
   maxActivePreparations: number | null;
@@ -63,12 +72,19 @@ export async function listPublicPlans(): Promise<PlanView[]> {
       .map((price) => [price.planCode, price.amountCents]),
   );
 
+  const annualBy = new Map(
+    prices
+      .filter((price) => price.period === "annual")
+      .map((price) => [price.planCode, price.amountCents]),
+  );
+
   return rows.map((row) => ({
     code: row.code,
     name: row.name,
     tagline: row.tagline,
     isFeatured: row.isFeatured,
     monthlyCents: monthlyBy.get(row.code) ?? null,
+    annualCents: annualBy.get(row.code) ?? null,
     dailyQuestionLimit: row.dailyQuestionLimit,
     maxActivePreparations: row.maxActivePreparations,
     monthlyEditalUploadLimit: row.monthlyEditalUploadLimit,
@@ -84,6 +100,27 @@ export async function listPublicPlans(): Promise<PlanView[]> {
 export function describeLimit(value: number | null, singular: string, plural: string): string {
   if (value === null) return `${plural} ilimitadas`;
   return value === 1 ? `1 ${singular}` : `${value} ${plural}`;
+}
+
+/**
+ * Quanto o anual sai por mês, e quanto economiza.
+ *
+ * O número que convence é o EQUIVALENTE MENSAL — "R$ 419,40 por ano" exige que
+ * a pessoa divida de cabeça para comparar com os R$ 69,90 ao lado.
+ */
+export function annualSavings(
+  monthlyCents: number | null,
+  annualCents: number | null,
+): { perMonthCents: number; percentOff: number } | null {
+  if (!monthlyCents || !annualCents) return null;
+
+  const fullYear = monthlyCents * 12;
+  if (annualCents >= fullYear) return null;
+
+  return {
+    perMonthCents: Math.round(annualCents / 12),
+    percentOff: Math.round((1 - annualCents / fullYear) * 100),
+  };
 }
 
 export function formatPrice(cents: number | null): string {

@@ -1,11 +1,16 @@
 import "server-only";
 
-import { and, count, eq, isNull, ne } from "drizzle-orm";
+import { and, count, eq, isNull, ne, sql } from "drizzle-orm";
 
 import { APP_TIMEZONE } from "@/config/app";
 import { toCivilDate } from "@/modules/shared/dates";
 import { db } from "@/server/db";
-import { analyticsEvents, preparations, userFunnelProgress } from "@/server/db/schema";
+import {
+  analyticsEvents,
+  editalExtractions,
+  preparations,
+  userFunnelProgress,
+} from "@/server/db/schema";
 
 /**
  * Criação e gestão de preparações.
@@ -142,6 +147,80 @@ export async function checkPreparationLimit(userId: string): Promise<Preparation
         eq(preparations.userId, userId),
         ne(preparations.status, "archived"),
         isNull(preparations.deletedAt),
+      ),
+    );
+
+  const current = row?.total ?? 0;
+
+  return {
+    allowed: limit === null || current < limit,
+    limit,
+    current,
+    planCode,
+  };
+}
+
+/* ========================================================================== *
+ * LEITURAS DE EDITAL NO MÊS
+ * ========================================================================== */
+
+export type EditalUploadLimit = {
+  allowed: boolean;
+  /** `null` = ilimitado (Premium). */
+  limit: number | null;
+  current: number;
+  planCode: string;
+};
+
+/** Teto do Free, para quem não tem assinatura ativa. Mesmo espírito do acima. */
+const FREE_MONTHLY_EDITAL_UPLOADS = 2;
+
+/**
+ * Quantas leituras de edital o aluno já gastou neste mês.
+ *
+ * POR QUE ESTE GATE EXISTE
+ * ----------------------------------------------------------------------------
+ * A página de planos anunciava "2 leituras de edital por mês" no Free e "5" no
+ * Intermediário desde sempre — mas NENHUM código aplicava o limite. Qualquer
+ * aluno podia reprocessar edital à vontade.
+ *
+ * Não era só informação errada na página: cada leitura é uma chamada paga à
+ * API da Anthropic, com custo por documento. Um limite anunciado e não aplicado
+ * é um buraco de custo que aparece na fatura antes de aparecer em qualquer
+ * relatório.
+ *
+ * ⚠️ Conta TENTATIVAS, não sucessos. Uma extração que falhou já queimou os
+ * tokens do documento — cobrar só pelo sucesso deixaria o buraco aberto para
+ * quem tenta subir o mesmo PDF ilegível dez vezes.
+ */
+export async function checkEditalUploadLimit(userId: string): Promise<EditalUploadLimit> {
+  const subscription = await db.query.subscriptions.findFirst({
+    where: (t, { and: a, eq: e }) => a(e(t.userId, userId), e(t.status, "active")),
+    columns: { planId: true },
+    with: {
+      plan: {
+        columns: { code: true },
+        with: { limits: { columns: { monthlyEditalUploadLimit: true } } },
+      },
+    },
+  });
+
+  // ⚠️ NULL na coluna é ILIMITADO, não "ausente" — ver a nota longa em
+  // `checkPreparationLimit`, onde esse mesmo `??` já causou um bug.
+  const limits = subscription?.plan?.limits;
+  const limit = limits ? limits.monthlyEditalUploadLimit : FREE_MONTHLY_EDITAL_UPLOADS;
+  const planCode = subscription?.plan?.code ?? "free";
+
+  const [row] = await db
+    .select({ total: count() })
+    .from(editalExtractions)
+    .innerJoin(preparations, eq(preparations.id, editalExtractions.preparationId))
+    .where(
+      and(
+        eq(preparations.userId, userId),
+        // Mês corrente no fuso do produto, não nos 30 dias corridos: "por mês"
+        // é o que o aluno lê na página de planos, e ele conta o mês do calendário.
+        sql`${editalExtractions.createdAt} >= date_trunc('month', now() at time zone ${APP_TIMEZONE})`,
       ),
     );
 

@@ -3,7 +3,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { describeLimit, formatPrice, listPublicPlans } from "@/server/billing/plans";
+import {
+  annualSavings,
+  describeLimit,
+  formatPrice,
+  listPublicPlans,
+} from "@/server/billing/plans";
 import { socialMetadata } from "@/lib/metadata";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +37,7 @@ export default async function PlansPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6 sm:py-24">
-      <header className="max-w-2xl">
+      <header className="rise rise-1 max-w-2xl">
         <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">
           Planos
         </p>
@@ -45,17 +50,30 @@ export default async function PlansPage() {
         </p>
       </header>
 
-      <div className="mt-12 grid gap-4 lg:grid-cols-3">
+      <div className="reveal mt-12 grid gap-4 lg:grid-cols-3">
         {plans.map((plan) => (
           <section
             key={plan.code}
             className={cn(
-              "flex flex-col rounded-2xl border p-6 transition-colors",
+              "relative flex flex-col p-6",
               plan.isFeatured
-                ? "border-primary/60 bg-primary-soft/40 glow-ring"
-                : "border-border bg-card hover:border-primary/30",
+                ? "lift rounded-2xl border border-primary/60 bg-primary-soft/40 glow-ring"
+                : "bento-card",
             )}
           >
+            {/*
+              ⚠️ A etiqueta sai de `isFeatured`, que vem do banco — o mesmo
+              campo que decide a borda acesa. Escrever "Mais popular" fixo no
+              plano do meio criaria uma segunda fonte de verdade: no dia em que
+              a cliente destacasse outro plano, a borda mudaria de lugar e a
+              etiqueta ficaria para trás.
+            */}
+            {plan.isFeatured ? (
+              <span className="absolute -top-2.5 left-6 rounded-full border border-primary/50 bg-background px-2.5 py-0.5 text-[0.65rem] font-semibold tracking-[0.1em] text-primary uppercase">
+                Mais popular
+              </span>
+            ) : null}
+
             <h2 className="text-sm font-semibold tracking-[0.12em] text-foreground uppercase">
               {plan.name}
             </h2>
@@ -68,6 +86,27 @@ export default async function PlansPage() {
                 <span className="text-sm text-muted-foreground">/mês</span>
               ) : null}
             </p>
+
+            {/*
+              O anual, quando existe. Mostrado como EQUIVALENTE MENSAL: quem lê
+              "R$ 419,40 por ano" precisa dividir de cabeça para comparar com os
+              R$ 69,90 logo acima, e quase ninguém divide.
+            */}
+            {(() => {
+              const savings = annualSavings(plan.monthlyCents, plan.annualCents);
+              if (!savings) return null;
+
+              return (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  ou{" "}
+                  <span className="font-medium text-primary">
+                    {formatPrice(savings.perMonthCents)}/mês
+                  </span>{" "}
+                  no plano anual de {formatPrice(plan.annualCents)} — economia de{" "}
+                  {savings.percentOff}%
+                </p>
+              );
+            })()}
 
             {plan.tagline ? (
               <p className="mt-2 text-sm text-pretty text-muted-foreground">
@@ -115,10 +154,13 @@ export default async function PlansPage() {
         cartão antes de o checkout existir é o tipo de promessa que queima a
         confiança na primeira tentativa.
       */}
-      <p className="mt-10 max-w-2xl text-sm text-pretty text-muted-foreground">
+      <p className="reveal mt-10 max-w-2xl text-sm text-pretty text-muted-foreground">
         A contratação dos planos pagos está sendo finalizada. Enquanto isso, você
         pode criar sua conta no plano gratuito e usar a plataforma inteira — o
-        algoritmo, as revisões e o cronograma não têm versão reduzida.
+        algoritmo, as revisões e o cronograma não têm versão reduzida. O que muda
+        entre os planos é exatamente o que está listado acima: quantas questões
+        você pratica por dia, quantas leituras de edital faz por mês e quantas
+        preparações mantém ao mesmo tempo.
       </p>
     </div>
   );

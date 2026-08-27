@@ -31,7 +31,7 @@ import {
   type Catalog,
 } from "@/server/taxonomy/mapping";
 
-import { markFunnelStage, recordEvent } from "./service";
+import { checkEditalUploadLimit, markFunnelStage, recordEvent } from "./service";
 
 /**
  * PASSO 2 DO FLUXO DO "+": O EDITAL VIRA PLANO DE ESTUDO.
@@ -89,6 +89,24 @@ export async function receiveEdital(input: {
   });
 
   if (!preparation) return { ok: false, message: "Preparação não encontrada." };
+
+  /*
+   * O teto de leituras do mês, ANTES de gastar tokens.
+   *
+   * ⚠️ A checagem vem aqui, e não depois do upload: passar do limite só depois
+   * de o arquivo estar no Storage significaria pagar a chamada à IA para então
+   * dizer "não pode". O limite existe justamente para não gastar.
+   */
+  const uploadGate = await checkEditalUploadLimit(input.userId);
+  if (!uploadGate.allowed) {
+    return {
+      ok: false,
+      message:
+        `Seu plano permite ${uploadGate.limit} ${uploadGate.limit === 1 ? "leitura" : "leituras"} ` +
+        `de edital por mês, e você já usou ${uploadGate.current}. ` +
+        "O limite volta a zerar no primeiro dia do mês que vem — ou você pode mudar de plano.",
+    };
+  }
 
   /**
    * Reprocessar o edital APAGA o conteúdo programático e tudo que pende dele —
