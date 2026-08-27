@@ -52,6 +52,34 @@ export function QuestionCard({
   const [error, setError] = useState<string | null>(null);
   const [openedAt] = useState(() => Date.now());
 
+  /**
+   * Alternativas que o aluno descartou.
+   *
+   * O GESTO DA PROVA IMPRESSA (pedido da cliente em 26/08/2026)
+   * --------------------------------------------------------------------------
+   * Quem faz prova em papel risca as alternativas que eliminou. Sem isso, na
+   * tela, o candidato relê cinco opções a cada volta ao enunciado — inclusive
+   * as que já tinha descartado.
+   *
+   * ⚠️ RISCAR NÃO IMPEDE DE RESPONDER. É uma anotação, não uma trava: a pessoa
+   * muda de ideia no meio da questão o tempo todo, e transformar o descarte em
+   * bloqueio faria dele um clique perigoso — a pessoa deixaria de usar.
+   *
+   * ⚠️ NÃO PERSISTE, de propósito. É rascunho de raciocínio, vale enquanto a
+   * questão está aberta. Guardar no banco criaria uma tabela por gesto de
+   * rascunho e traria de volta descartes de semanas atrás.
+   */
+  const [discarded, setDiscarded] = useState<ReadonlySet<string>>(new Set());
+
+  function toggleDiscard(optionId: string) {
+    setDiscarded((current) => {
+      const next = new Set(current);
+      if (next.has(optionId)) next.delete(optionId);
+      else next.add(optionId);
+      return next;
+    });
+  }
+
   const [revealed, setRevealed] = useState<Revealed | null>(
     // Questão já respondida antes: o gabarito veio junto, porque nesse caso
     // ele não é mais segredo.
@@ -137,20 +165,55 @@ export function QuestionCard({
             const isChosen = revealed?.selectedOptionId === option.id;
             const isWrongChoice = isChosen && !isCorrect;
 
+            const isDiscarded = !revealed && discarded.has(option.id);
+
             return (
-              <li key={option.id}>
+              <li key={option.id} className="flex items-stretch gap-2">
+                {/*
+                  O botão de descartar fica FORA do botão da alternativa: um
+                  botão dentro de outro é HTML inválido, e o clique de riscar
+                  dispararia a resposta junto.
+
+                  Some depois de responder — a partir daí o gabarito está na
+                  tela e riscar não serve para mais nada.
+                */}
+                {!revealed ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleDiscard(option.id)}
+                    aria-pressed={isDiscarded}
+                    aria-label={
+                      isDiscarded
+                        ? `Desfazer descarte da alternativa ${option.label}`
+                        : `Descartar a alternativa ${option.label}`
+                    }
+                    title={isDiscarded ? "Desfazer descarte" : "Descartar alternativa"}
+                    className={cn(
+                      "flex w-10 shrink-0 items-center justify-center rounded-xl border transition-colors",
+                      "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                      isDiscarded
+                        ? "border-destructive/50 bg-destructive/10 text-destructive"
+                        : "border-border text-muted-foreground/50 hover:border-destructive/40 hover:text-destructive",
+                    )}
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                ) : null}
+
                 <button
                   type="button"
                   disabled={Boolean(revealed) || pending || blocked}
                   onClick={() => answer(option.id)}
                   className={cn(
-                    "flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors",
+                    "flex flex-1 items-start gap-3 rounded-xl border p-3 text-left transition-colors",
                     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                     !revealed && !blocked && "hover:border-primary/50 hover:bg-accent/40",
                     isCorrect && "border-success bg-success/10",
                     isWrongChoice && "border-destructive bg-destructive/10",
                     !isCorrect && !isWrongChoice && "border-border",
                     blocked && !revealed && "cursor-not-allowed opacity-60",
+                    // Descartada continua clicável: é anotação, não trava.
+                    isDiscarded && "opacity-45",
                   )}
                 >
                   <span
@@ -174,7 +237,12 @@ export function QuestionCard({
                   </span>
 
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm text-pretty text-foreground">
+                    <span
+                      className={cn(
+                        "block text-sm text-pretty text-foreground",
+                        isDiscarded && "line-through decoration-destructive/70",
+                      )}
+                    >
                       {option.content}
                     </span>
 
