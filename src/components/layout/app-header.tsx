@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { Logo, LogoSymbol } from "@/components/brand/logo";
+import { Logo } from "@/components/brand/logo";
+import { MobileNav } from "./mobile-nav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -52,6 +53,7 @@ export function AppHeader({
   avatarUrl,
   countdownLabel,
   streakDays = 0,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- volta com a tela de notificações (Marco 2)
   unreadNotifications = 0,
 }: AppHeaderProps) {
   const firstName = userName?.trim().split(/\s+/)[0] ?? null;
@@ -59,9 +61,24 @@ export function AppHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/75 backdrop-blur-xl after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-transparent after:via-primary/35 after:to-transparent">
       <div className="flex h-16 items-center gap-3 px-4 sm:h-20 sm:gap-5 sm:px-6">
+        {/*
+          O menu que dá acesso ao lado esquerdo no celular.
+          
+          A coluna lateral é `lg:flex`, então em telas menores Questões,
+          Revisões e Cronograma ficavam alcançáveis só pela barra inferior —
+          que não tem esses itens. O aluno de celular não tinha como chegar
+          neles a não ser pela URL.
+        */}
+        <MobileNav />
+
         <Link href="/inicio" className="shrink-0" aria-label="Ir para a Home">
-          <Logo width={168} className="hidden sm:block" priority />
-          <LogoSymbol size={36} className="sm:hidden" />
+          {/*
+            ⚠️ A ASSINATURA COMPLETA TAMBÉM NO CELULAR (pedido da cliente).
+            Antes só o símbolo aparecia em telas pequenas, e ela não reconhecia
+            a marca dela na própria plataforma. `mobileWidth` deixa a assinatura
+            legível sem tomar a largura toda.
+          */}
+          <Logo width={168} mobileWidth={132} priority />
         </Link>
 
 {/*
@@ -87,28 +104,14 @@ export function AppHeader({
         </div>
 
         <div className="ml-auto flex items-center gap-1 sm:gap-3">
-{/*
-            O sino aparece porque está no mockup e comunica o que o produto vai
-            ter — mas NÃO linka: a tela de notificações é do Marco 2. Um sino
-            que leva a 404 faz o aluno concluir que a plataforma quebrou.
-            Mesma regra do menu lateral e do menu do avatar.
+          {/*
+            ⚠️ O SINO SAIU (pedido da cliente em 27/08/2026).
+            
+            Ele estava no mockup e ficava apagado, sem link, porque a tela de
+            notificações é do Marco 2. Só que um ícone morto no cabeçalho não
+            comunica "vem depois": comunica que alguma coisa não funciona. Ele
+            volta junto com a tela.
           */}
-          <span
-            aria-label="Notificações (em breve)"
-            title="Em breve"
-            className="relative flex size-11 items-center justify-center rounded-full text-muted-foreground/40"
-          >
-            <Bell className="size-5" aria-hidden />
-            {unreadNotifications > 0 ? (
-              <span
-                className="absolute top-2 right-2 flex size-4 items-center justify-center rounded-full bg-destructive text-[0.6rem] font-bold text-destructive-foreground"
-                aria-hidden
-              >
-                {unreadNotifications > 9 ? "9+" : unreadNotifications}
-              </span>
-            ) : null}
-          </span>
-
           <span
             className={cn(
               "flex items-center gap-1.5 rounded-full px-2.5 py-1.5",

@@ -217,7 +217,13 @@ function MissionRow({
         </span>
         <span
           className={cn(
-            "block truncate text-sm",
+            // ⚠️ SEM `truncate` (pedido da cliente em 27/08/2026).
+            //
+            // Assunto de edital é longo: "Governo digital, processo eletrônico,
+            // assinatura digital, transparência e proteção de dados pessoais"
+            // virava "Governo digital, proc…" e o aluno não sabia o que estudar.
+            // Cortar economizava uma linha e custava a informação inteira.
+            "block text-sm text-pretty",
             // "Conforme vai cumprindo ele vai riscando" — palavras da cliente.
             done ? "text-muted-foreground line-through" : "text-foreground",
           )}

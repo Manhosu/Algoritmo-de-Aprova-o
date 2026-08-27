@@ -189,9 +189,17 @@ const FREE_MONTHLY_EDITAL_UPLOADS = 2;
  * é um buraco de custo que aparece na fatura antes de aparecer em qualquer
  * relatório.
  *
- * ⚠️ Conta TENTATIVAS, não sucessos. Uma extração que falhou já queimou os
- * tokens do documento — cobrar só pelo sucesso deixaria o buraco aberto para
- * quem tenta subir o mesmo PDF ilegível dez vezes.
+ * ⚠️ CONTA SUCESSOS, NÃO TENTATIVAS.
+ *
+ * A primeira versão contava tentativas, com o argumento de que uma extração
+ * falha já queimou os tokens do documento. Correto do ponto de vista do custo,
+ * e errado do ponto de vista de quem usa: a cliente subiu dois editais que o
+ * sistema NÃO conseguiu ler e perdeu as duas leituras do mês por uma falha
+ * nossa. Ela não recebeu nada em troca.
+ *
+ * O custo de uma leitura falha fica com a operação, que é quem pode melhorá-la.
+ * Cobrar do aluno pelo nosso defeito é a troca errada — ele desiste antes de
+ * descobrir se o produto funciona.
  */
 export async function checkEditalUploadLimit(userId: string): Promise<EditalUploadLimit> {
   const subscription = await db.query.subscriptions.findFirst({
@@ -218,6 +226,8 @@ export async function checkEditalUploadLimit(userId: string): Promise<EditalUplo
     .where(
       and(
         eq(preparations.userId, userId),
+        // Só leitura que entregou conteúdo consome a cota.
+        eq(editalExtractions.status, "succeeded"),
         // Mês corrente no fuso do produto, não nos 30 dias corridos: "por mês"
         // é o que o aluno lê na página de planos, e ele conta o mês do calendário.
         sql`${editalExtractions.createdAt} >= date_trunc('month', now() at time zone ${APP_TIMEZONE})`,

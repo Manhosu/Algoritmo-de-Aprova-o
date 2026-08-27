@@ -37,7 +37,10 @@ export function BottomNav() {
     <nav
       aria-label="Navegação rápida"
       className={cn(
-        "fixed inset-x-0 bottom-0 z-40 lg:hidden",
+        // ⚠️ Sem `lg:hidden`: a cliente pediu a barra fixa também no
+        // desktop. O botão "+" de nova preparação vive aqui, e escondê-lo em
+        // tela grande obrigava a passar por Minhas preparações.
+        "fixed inset-x-0 bottom-0 z-40",
         "border-t border-border/60 bg-card/80 backdrop-blur-xl",
         "pb-safe",
       )}

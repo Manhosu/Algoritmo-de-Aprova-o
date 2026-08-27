@@ -24,11 +24,19 @@ const LEVELS: Array<{
   dot: string;
   selected: string;
 }> = [
+  /*
+   * ⚠️ BAIXO → MEDIANO → ALTO, nesta ordem (pedido da cliente em 27/08/2026).
+   *
+   * A escala cresce da esquerda para a direita, como régua e como nota. Com
+   * "Alto" na primeira posição, o clique mais fácil e mais próximo do dedo era
+   * justamente o que o aluno menos deve marcar por reflexo — e superestimar
+   * domínio no diagnóstico envenena a priorização inteira do Motor 1.
+   */
   {
-    value: "high",
-    label: "Alto",
-    dot: "bg-success",
-    selected: "border-success bg-success/15 text-success",
+    value: "low",
+    label: "Baixo",
+    dot: "bg-destructive",
+    selected: "border-destructive bg-destructive/15 text-destructive",
   },
   {
     value: "medium",
@@ -37,10 +45,10 @@ const LEVELS: Array<{
     selected: "border-warning bg-warning/15 text-warning",
   },
   {
-    value: "low",
-    label: "Baixo",
-    dot: "bg-destructive",
-    selected: "border-destructive bg-destructive/15 text-destructive",
+    value: "high",
+    label: "Alto",
+    dot: "bg-success",
+    selected: "border-success bg-success/15 text-success",
   },
 ];
 

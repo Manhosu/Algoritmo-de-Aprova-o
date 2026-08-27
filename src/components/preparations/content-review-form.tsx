@@ -98,6 +98,49 @@ export function ContentReviewForm({ content }: { content: PlanContent }) {
     setRows((current) => current.filter((row) => row.key !== key));
   }
 
+  /**
+   * Quantas questões a disciplina inteira tem na prova.
+   *
+   * Soma os assuntos ativos. Nulo quando nenhum tem peso — que é diferente de
+   * zero: zero significaria "esta disciplina não cai".
+   */
+  function subjectWeight(subjectRows: Row[]): number | null {
+    const ativos = subjectRows.filter((row) => row.isActive && row.weight !== null);
+    if (ativos.length === 0) return null;
+    return ativos.reduce((total, row) => total + (row.weight ?? 0), 0);
+  }
+
+  /**
+   * Distribui o total da disciplina entre os assuntos ativos dela.
+   *
+   * ⚠️ O RESTO VAI PARA OS PRIMEIROS, um a um. Dividir 10 questões entre 3
+   * assuntos com `Math.floor` daria 3+3+3 e perderia uma questão — e o peso é
+   * exatamente o que o Motor 1 usa para decidir o que cai mais. Somar de volta
+   * o total é a garantia de que a divisão não inventa nem come questão.
+   */
+  function spreadWeight(subjectRows: Row[], total: number | null) {
+    const ativos = subjectRows.filter((row) => row.isActive);
+    if (ativos.length === 0) return;
+
+    const base = total === null ? null : Math.floor(total / ativos.length);
+    const resto = total === null ? 0 : total % ativos.length;
+
+    const porChave = new Map(
+      ativos.map((row, index) => [
+        row.key,
+        base === null ? null : base + (index < resto ? 1 : 0),
+      ]),
+    );
+
+    setRows((current) =>
+      current.map((row) =>
+        porChave.has(row.key)
+          ? { ...row, weight: porChave.get(row.key) ?? null, weightFromEdital: false }
+          : row,
+      ),
+    );
+  }
+
   function add(subjectId: string) {
     setRows((current) => [
       ...current,
@@ -169,12 +212,42 @@ export function ContentReviewForm({ content }: { content: PlanContent }) {
                   <span className="block text-xs text-muted-foreground">
                     {subjectRows.length}{" "}
                     {subjectRows.length === 1 ? "assunto" : "assuntos"}
+                    {subjectWeight(subjectRows) !== null
+                      ? ` · ${subjectWeight(subjectRows)} questões na prova`
+                      : null}
                   </span>
                 </span>
               </button>
 
               {isOpen ? (
                 <div className="border-t border-border px-3 pb-3">
+                  {/*
+                    O peso da disciplina, que é o número que o edital informa.
+                    Ele é dividido entre os assuntos ativos, porque é `weight`
+                    por assunto que o Motor 1 consome — a divisão acontece aqui,
+                    e não no motor, para o cálculo continuar previsível.
+                  */}
+                  <label className="my-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    Questões desta disciplina na prova
+                    <input
+                      type="number"
+                      min={0}
+                      max={500}
+                      inputMode="numeric"
+                      value={subjectWeight(subjectRows) ?? ""}
+                      onChange={(event) =>
+                        spreadWeight(
+                          subjectRows,
+                          event.target.value === "" ? null : Number(event.target.value),
+                        )
+                      }
+                      className="text-metric min-h-9 w-20 rounded-lg border border-border bg-input px-2 text-sm text-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    />
+                    <span className="text-muted-foreground/70">
+                      Em branco, o algoritmo trata os assuntos por igual.
+                    </span>
+                  </label>
+
                   <ul className="flex flex-col">
                     {subjectRows.map((row) => (
                       <li
@@ -205,30 +278,16 @@ export function ContentReviewForm({ content }: { content: PlanContent }) {
                           </button>
                         </div>
 
+                        {/*
+                          ⚠️ O CAMPO DE QUESTÕES SAIU DAQUI (pedido da cliente).
+                          
+                          Edital não informa quantas questões cada ASSUNTO tem;
+                          informa por DISCIPLINA. Pedir por assunto era pedir
+                          um número que o aluno não tem como saber, oitenta
+                          vezes seguidas. O campo agora fica no cabeçalho da
+                          disciplina e é distribuído entre os assuntos dela.
+                        */}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-0.5">
-                          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                            Questões na prova
-                            <input
-                              type="number"
-                              min={0}
-                              max={500}
-                              inputMode="numeric"
-                              value={row.weight ?? ""}
-                              onChange={(event) =>
-                                update(row.key, {
-                                  weight:
-                                    event.target.value === ""
-                                      ? null
-                                      : Number(event.target.value),
-                                })
-                              }
-                              className="text-metric min-h-9 w-20 rounded-lg border border-border bg-input px-2 text-sm text-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                            />
-                          </label>
-
-                          {row.weightFromEdital && row.weight !== null ? (
-                            <span className="text-xs text-muted-foreground">do edital</span>
-                          ) : null}
 
                           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <input

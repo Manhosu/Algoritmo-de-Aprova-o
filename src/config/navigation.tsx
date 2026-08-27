@@ -78,11 +78,16 @@ export const BOTTOM_NAV_ITEMS: NavItem[] = [
 /** Onde o botão "+" entra na barra inferior. */
 export const BOTTOM_NAV_CENTER_INDEX = 2;
 
-/** Menu do avatar, os 6 itens do README 2.2. */
+/**
+ * Menu do avatar.
+ *
+ * ⚠️ "Notificações" saiu junto com o sino do cabeçalho (pedido da cliente em
+ * 27/08/2026). A tela é do Marco 2, e um item apagado no menu comunica defeito,
+ * não "vem depois". Volta quando a tela existir.
+ */
 export const AVATAR_MENU_ITEMS = [
   { href: "/perfil", label: "Meu Perfil", icon: "user" },
   { href: "/configuracoes", label: "Configurações", icon: "settings" },
-  { href: "/notificacoes", label: "Notificações", icon: "bell" },
   { href: "/suporte", label: "Feedback & Suporte", icon: "message" },
   { href: "/ajuda", label: "Central de Ajuda", icon: "help" },
 ] as const;

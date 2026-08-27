@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { ContentReviewForm } from "@/components/preparations/content-review-form";
@@ -55,6 +56,44 @@ export default async function ContentPage({
         <Stat value={String(summary.topics)} label="Assuntos" />
         <Stat value={`${acervoPercent}%`} label="Com questões" />
       </Surface>
+
+      {/*
+        ⚠️ O AVISO MAIS IMPORTANTE DESTA TELA.
+
+        Quando o cargo digitado não existe no edital, a IA usa o mais parecido
+        (é o que o prompt manda, e é melhor que falhar por causa de um erro de
+        digitação). Só que antes ela fazia isso calada: a cliente digitou um
+        cargo inexistente, recebeu o conteúdo de outro e concluiu que o sistema
+        tinha misturado editais.
+
+        Fica ANTES da lista, e não no fim, porque quem vê o conteúdo errado
+        primeiro já começou a corrigir assunto por assunto.
+      */}
+      {content.positionMismatch ? (
+        <div className="mb-4 rounded-xl border border-warning/50 bg-warning/10 px-4 py-3">
+          <p className="text-sm text-pretty text-foreground">
+            <strong className="font-semibold">
+              Não encontramos “{content.targetPosition}” neste edital.
+            </strong>{" "}
+            O conteúdo abaixo é do cargo{" "}
+            <strong className="font-semibold">{content.positionMismatch.used}</strong>.
+          </p>
+
+          {content.positionMismatch.available.length > 0 ? (
+            <p className="mt-2 text-sm text-pretty text-muted-foreground">
+              Os cargos deste edital são: {content.positionMismatch.available.join(" · ")}.
+            </p>
+          ) : null}
+
+          <p className="mt-2 text-sm text-pretty text-muted-foreground">
+            Se o seu cargo for outro, corrija em{" "}
+            <Link href="/preparacoes" className="text-primary underline underline-offset-2">
+              Minhas preparações
+            </Link>{" "}
+            e envie o edital de novo.
+          </p>
+        </div>
+      ) : null}
 
       {summary.withoutWeight > 0 ? (
         <p className="mb-4 rounded-xl border border-border bg-surface/40 px-4 py-3 text-sm text-pretty text-muted-foreground">

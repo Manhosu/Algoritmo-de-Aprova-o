@@ -63,6 +63,7 @@ const FAKE_EXTRACTION = {
   institution: "Tribunal de Justiça de Teste",
   examBoard: "Cebraspe",
   positions: ["Analista Judiciário — Área Administrativa"],
+  matchedPosition: null,
   examDate: null,
   examDateIsEstimated: false,
   notes: null,

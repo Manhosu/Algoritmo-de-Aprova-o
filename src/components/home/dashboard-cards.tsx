@@ -323,14 +323,20 @@ export function StreakCard({
             <span
               className={cn(
                 "size-3 rounded-full",
-                day.hadActivity ? "bg-primary" : "bg-secondary",
+                day.hadActivity
+                  ? "bg-primary"
+                  : day.isFuture
+                    ? // Dia que ainda vem: mais apagado que "não estudou", para
+                      // a semana não parecer cheia de falhas na segunda-feira.
+                      "bg-secondary/40"
+                    : "bg-secondary",
                 day.isToday && "ring-2 ring-primary/50 ring-offset-2 ring-offset-card",
               )}
               // O estado já está no texto abaixo, para leitor de tela.
               aria-hidden
             />
             <span className="sr-only">
-              {day.hadActivity ? "estudou" : "sem estudo"}
+              {day.hadActivity ? "estudou" : day.isFuture ? "ainda vem" : "sem estudo"}
               {day.isToday ? ", hoje" : ""}
             </span>
           </li>

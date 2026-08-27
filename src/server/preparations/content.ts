@@ -69,6 +69,15 @@ export type PlanContent = {
   preparationId: string;
   status: (typeof preparations.$inferSelect)["status"];
   targetPosition: string;
+  /**
+   * O cargo de onde a IA tirou o conteúdo específico, quando difere do pedido.
+   *
+   * ⚠️ NULO QUANDO BATE. Só vira aviso na tela quando a IA teve de escolher
+   * outro cargo — o que ela faz por instrução do prompt, e antes fazia em
+   * silêncio. A cliente digitou um cargo inexistente, recebeu o conteúdo de
+   * outro e achou que o sistema tinha misturado editais.
+   */
+  positionMismatch: { used: string; available: string[] } | null;
   subjects: PlanSubjectView[];
   /** Resumo para o cabeçalho da tela. */
   summary: {
@@ -78,6 +87,38 @@ export type PlanContent = {
     withoutWeight: number;
   };
 };
+
+/**
+ * A IA usou o cargo que o aluno pediu?
+ *
+ * O prompt manda usar "o mais parecido" quando o cargo pedido não aparece no
+ * edital. É o comportamento certo — um erro de digitação não deve zerar a
+ * leitura —, mas o aluno precisa ficar sabendo, porque o conteúdo específico
+ * do cargo errado é o plano de estudo errado.
+ *
+ * A comparação usa `normalizeText` dos dois lados: "ANALISTA PREVIDENCIÁRIO"
+ * e "Analista Previdenciario" são o mesmo cargo, e alertar aí seria alarme
+ * falso toda vez.
+ */
+function detectPositionMismatch(
+  targetPosition: string,
+  rawResponse: unknown,
+): { used: string; available: string[] } | null {
+  if (!rawResponse || typeof rawResponse !== "object") return null;
+
+  const data = rawResponse as { matchedPosition?: unknown; positions?: unknown };
+  const used = typeof data.matchedPosition === "string" ? data.matchedPosition : null;
+
+  // Leitura antiga, feita antes do campo existir: sem informação, sem alarme.
+  if (!used) return null;
+  if (normalizeText(used) === normalizeText(targetPosition)) return null;
+
+  const available = Array.isArray(data.positions)
+    ? data.positions.filter((p): p is string => typeof p === "string")
+    : [];
+
+  return { used, available };
+}
 
 export async function getPlanContent(
   preparationId: string,
@@ -89,6 +130,22 @@ export async function getPlanContent(
   });
 
   if (!preparation) return null;
+
+  /*
+   * A extração guarda a resposta crua da IA. É de lá que sai o cargo realmente
+   * usado — não existe coluna própria porque o dado só interessa a esta tela.
+   */
+  const lastExtraction = await db.query.editalExtractions.findFirst({
+    where: (t, { and: a, eq: e }) =>
+      a(e(t.preparationId, preparationId), e(t.status, "succeeded")),
+    orderBy: (t, { desc }) => desc(t.finishedAt),
+    columns: { rawResponse: true },
+  });
+
+  const positionMismatch = detectPositionMismatch(
+    preparation.targetPosition,
+    lastExtraction?.rawResponse,
+  );
 
   const subjectRows = await db
     .select({
@@ -182,6 +239,7 @@ export async function getPlanContent(
     preparationId,
     status: preparation.status,
     targetPosition: preparation.targetPosition,
+    positionMismatch,
     subjects,
     summary: {
       subjects: subjects.length,

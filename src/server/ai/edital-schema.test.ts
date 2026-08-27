@@ -46,6 +46,7 @@ describe("editalExtractionSchema", () => {
       institution: "Tribunal de Justiça do Estado do Rio de Janeiro",
       examBoard: "FGV",
       positions: [longPosition],
+      matchedPosition: null,
       examDate: null,
       examDateIsEstimated: false,
       notes: null,
@@ -69,6 +70,7 @@ describe("clipExtraction", () => {
     institution: "x".repeat(400),
     examBoard: "y".repeat(300),
     positions: ["p".repeat(600)],
+    matchedPosition: "m".repeat(600),
     examDate: null,
     examDateIsEstimated: false,
     notes: "n".repeat(8000),
@@ -105,6 +107,7 @@ describe("clipExtraction", () => {
       institution: "TJ-RJ",
       examBoard: "FGV",
       positions: ["Analista"],
+      matchedPosition: "Analista",
       notes: null,
       subjects: [
         {

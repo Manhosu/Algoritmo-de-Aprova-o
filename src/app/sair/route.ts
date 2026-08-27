@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { LOGIN_ROUTE } from "@/config/routes";
 import {
   clearSessionCookie,
   getCurrentSession,
@@ -31,5 +30,12 @@ export async function GET(request: Request) {
 
   await clearSessionCookie();
 
-  return NextResponse.redirect(new URL(LOGIN_ROUTE, request.url));
+  /*
+   * ⚠️ VAI PARA A LANDING, NÃO PARA O LOGIN (pedido da cliente em 27/08/2026).
+   *
+   * Mandar para `/entrar` logo depois de sair parece que a saída não funcionou:
+   * a pessoa clica em "Sair" e cai num formulário de entrar. A landing é a
+   * porta de casa, e de lá o botão de login está à mão de quem quiser voltar.
+   */
+  return NextResponse.redirect(new URL("/", request.url));
 }

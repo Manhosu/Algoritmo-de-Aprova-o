@@ -125,11 +125,17 @@ export default async function PlansPage() {
                   "preparações ativas",
                 )}
               </Feature>
+              {/*
+                ⚠️ Sem "por mês" (pedido da cliente). O limite continua mensal
+                no servidor; o que mudou é o rótulo. Ela achou que "2 leituras
+                por mês" soava como cobrança recorrente de algo que o aluno faz
+                uma vez, no começo da preparação.
+              */}
               <Feature>
                 {describeLimit(
                   plan.monthlyEditalUploadLimit,
-                  "leitura de edital por mês",
-                  "leituras de edital por mês",
+                  "leitura de edital",
+                  "leituras de edital",
                 )}
               </Feature>
               <Feature>Tarefa do Dia, revisões e cronograma adaptativo</Feature>
@@ -145,6 +151,24 @@ export default async function PlansPage() {
                 {plan.monthlyCents ? "Começar no Free e migrar" : "Criar conta grátis"}
               </Link>
             </Button>
+
+            {/*
+              Botão só do anual (pedido da cliente em 27/08/2026). O desconto
+              estava numa linha de texto acima do preço, onde o olho passa reto;
+              como botão, ele vira uma escolha e não uma observação.
+            */}
+            {(() => {
+              const savings = annualSavings(plan.monthlyCents, plan.annualCents);
+              if (!savings) return null;
+
+              return (
+                <Button asChild size="lg" variant="outline" className="mt-2 border-primary/50">
+                  <Link href="/cadastrar">
+                    Quero o plano anual · {savings.percentOff}% OFF
+                  </Link>
+                </Button>
+              );
+            })()}
           </section>
         ))}
       </div>

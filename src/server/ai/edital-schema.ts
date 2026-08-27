@@ -104,6 +104,21 @@ export const editalExtractionSchema = z.object({
   positions: z.array(z.string().min(1)).max(80),
 
   /**
+   * O cargo cujo conteúdo específico foi extraído, copiado do edital.
+   *
+   * ⚠️ EXISTE PORQUE O ALUNO PRECISA SABER QUANDO ERRAMOS O CARGO.
+   *
+   * O prompt manda usar "o mais parecido" quando o cargo pedido não aparece no
+   * edital, e antes o aviso ia só para `notes`, que nenhuma tela lê. A cliente
+   * digitou um cargo inexistente, recebeu o conteúdo de outro sem nenhum
+   * alerta e concluiu que o sistema tinha misturado editais. Estava fazendo o
+   * que foi mandado — em silêncio, que é o problema.
+   *
+   * Nulo quando o aluno não informou cargo (extração de todos).
+   */
+  matchedPosition: z.string().nullable(),
+
+  /**
    * Data da prova em AAAA-MM-DD, quando o edital a informa.
    *
    * Muitos editais só dizem "data provável" ou nem isso. Nesse caso vem nulo,
@@ -152,6 +167,7 @@ export function clipExtraction(data: EditalExtraction): EditalExtraction {
     institution: data.institution ? clip(data.institution, 200) : null,
     examBoard: data.examBoard ? clip(data.examBoard, 160) : null,
     positions: data.positions.map((position) => clip(position, 200)),
+    matchedPosition: data.matchedPosition ? clip(data.matchedPosition, 200) : null,
     notes: data.notes ? clip(data.notes, 2000) : null,
     subjects: data.subjects.map((subject) => ({
       ...subject,
@@ -181,4 +197,13 @@ export type EditalTopic = z.infer<typeof editalTopicSchema>;
  * com oito especialidades, a versão anterior estourava o orçamento de saída e
  * a leitura falhava inteira.
  */
-export const EDITAL_PROMPT_VERSION = "v2";
+/**
+ * ⚠️ SOBE JUNTO COM QUALQUER MUDANÇA NO PROMPT OU NO SCHEMA.
+ *
+ * O cache de leitura só reaproveita extração da MESMA versão. Sem subir aqui,
+ * um aluno receberia hoje a resposta de um prompt antigo, sem os campos novos
+ * — e o defeito apareceria como campo vazio sem explicação.
+ *
+ * v3: `matchedPosition`, para o aluno saber de qual cargo veio o conteúdo.
+ */
+export const EDITAL_PROMPT_VERSION = "v3";

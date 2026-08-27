@@ -21,8 +21,8 @@ import { db } from "@/server/db";
 import {
   dailyTaskItems,
   dailyTasks,
-  dailyUserRollups,
   questionAttempts,
+  studyLogs,
   reviewOccurrences,
   streakDays,
   studyPlanSubjects,
@@ -82,6 +82,8 @@ export type StreakDay = {
   initial: string;
   hadActivity: boolean;
   isToday: boolean;
+  /** Dia da semana que ainda não chegou. Nem estudou, nem deixou de estudar. */
+  isFuture: boolean;
 };
 
 export type SubjectPerformance = {
@@ -186,7 +188,7 @@ export async function getHomeData(input: {
 }
 
 async function loadStats(userId: string, today: CivilDate): Promise<HomeStats> {
-  const [state, xpToday, answered, reviews, totals, todayRollup] = await Promise.all([
+  const [state, xpToday, answered, reviews, totals, reviewsDone] = await Promise.all([
     db.query.userGamificationStates.findFirst({
       where: (t, { eq: e }) => e(t.userId, userId),
       columns: {
@@ -236,23 +238,34 @@ async function loadStats(userId: string, today: CivilDate): Promise<HomeStats> {
       ),
 
     /*
-     * Os acumulados vêm dos ROLLUPS diários, não de varredura nas tabelas de
-     * origem. Somar `question_attempts` e `study_logs` inteiros a cada abertura
-     * da Home cresceria com o histórico do aluno — e a Home é a tela mais
-     * aberta do produto.
+     * ⚠️ LÊ `study_logs`, NÃO O ROLLUP DIÁRIO.
+     *
+     * A versão anterior somava `daily_user_rollups`, que um job noturno
+     * deveria preencher. Esse job não existe: em produção a tabela fica vazia
+     * para sempre, e "Horas estudadas" mostrava 0min por mais que o aluno
+     * concluísse tarefas. A cliente marcou as quatro tarefas do dia e viu zero.
+     *
+     * Somar os registros de estudo custa mais que ler um rollup, e é o preço
+     * de mostrar um número verdadeiro. Se um dia o volume incomodar, o caminho
+     * é criar o job — não voltar a ler uma tabela que ninguém escreve.
      */
     db
       .select({
-        minutes: sql<number>`coalesce(sum(${dailyUserRollups.studyMinutes}), 0)::int`,
-        reviews: sql<number>`coalesce(sum(${dailyUserRollups.reviewsCompleted}), 0)::int`,
+        minutes: sql<number>`coalesce(sum(${studyLogs.minutesSpent}), 0)::int`,
+        minutesToday: sql<number>`coalesce(sum(${studyLogs.minutesSpent}) filter (where ${studyLogs.completedDate} = ${today}), 0)::int`,
       })
-      .from(dailyUserRollups)
-      .where(eq(dailyUserRollups.userId, userId)),
+      .from(studyLogs)
+      .where(eq(studyLogs.userId, userId)),
 
-    db.query.dailyUserRollups.findFirst({
-      where: (t, { and: e, eq: is }) => e(is(t.userId, userId), is(t.rollupDate, today)),
-      columns: { studyMinutes: true, reviewsCompleted: true },
-    }),
+    db
+      .select({
+        total: count(),
+        today: sql<number>`count(*) filter (where ${reviewOccurrences.completedDate} = ${today})::int`,
+      })
+      .from(reviewOccurrences)
+      .where(
+        and(eq(reviewOccurrences.userId, userId), eq(reviewOccurrences.status, "completed")),
+      ),
   ]);
 
   return {
@@ -261,10 +274,10 @@ async function loadStats(userId: string, today: CivilDate): Promise<HomeStats> {
     questionsAnswered: answered[0]?.total ?? 0,
     questionsCorrect: answered[0]?.correct ?? 0,
     reviewsPending: reviews[0]?.total ?? 0,
-    reviewsCompleted: totals[0]?.reviews ?? 0,
-    reviewsCompletedToday: todayRollup?.reviewsCompleted ?? 0,
+    reviewsCompleted: reviewsDone[0]?.total ?? 0,
+    reviewsCompletedToday: reviewsDone[0]?.today ?? 0,
     studyMinutesTotal: totals[0]?.minutes ?? 0,
-    studyMinutesToday: todayRollup?.studyMinutes ?? 0,
+    studyMinutesToday: totals[0]?.minutesToday ?? 0,
     coinBalance: state?.coinBalance ?? 0,
     currentStreak: state?.currentStreak ?? 0,
     longestStreak: state?.longestStreak ?? 0,
@@ -286,7 +299,24 @@ const WEEKDAY_INITIALS = ["D", "S", "T", "Q", "Q", "S", "S"];
  * marcar cada um.
  */
 async function loadStreakWeek(userId: string, today: CivilDate): Promise<StreakDay[]> {
-  const first = addDays(today, -6);
+  /*
+   * ⚠️ A SEMANA COMEÇA NO DOMINGO (pedido da cliente em 27/08/2026).
+   *
+   * Antes eram os últimos 7 dias corridos, então a faixa começava num dia
+   * diferente a cada abertura: numa sexta ela lia "S T Q Q S S D", e no dia
+   * seguinte já era outra ordem. Quem olha rápido não consegue comparar o
+   * "hoje" de ontem com o de agora.
+   *
+   * Com semana civil, a régua é sempre a mesma: D S T Q Q S S. Os dias que
+   * ainda não chegaram aparecem apagados, e é assim que o aluno vê quanto
+   * ainda tem de semana pela frente.
+   *
+   * `T00:00:00` força leitura como data local: sem isso "2026-08-26" vira
+   * meia-noite UTC e, a oeste de Greenwich, o dia da semana sai errado.
+   */
+  const weekdayOfToday = new Date(`${today}T00:00:00`).getDay();
+  const sunday = addDays(today, -weekdayOfToday);
+  const saturday = addDays(sunday, 6);
 
   const rows = await db
     .select({ date: streakDays.activityDate })
@@ -294,21 +324,21 @@ async function loadStreakWeek(userId: string, today: CivilDate): Promise<StreakD
     .where(
       and(
         eq(streakDays.userId, userId),
-        sql`${streakDays.activityDate} between ${first} and ${today}`,
+        sql`${streakDays.activityDate} between ${sunday} and ${saturday}`,
       ),
     );
 
   const comAtividade = new Set(rows.map((row) => row.date as CivilDate));
 
   return Array.from({ length: 7 }, (_, index) => {
-    const date = addDays(first, index);
+    const date = addDays(sunday, index);
     return {
       date,
-      // `T00:00:00` força leitura como data local: sem isso "2026-08-26" vira
-      // meia-noite UTC e, a oeste de Greenwich, o dia da semana sai errado.
-      initial: WEEKDAY_INITIALS[new Date(`${date}T00:00:00`).getDay()],
+      initial: WEEKDAY_INITIALS[index],
       hadActivity: comAtividade.has(date),
       isToday: date === today,
+      // Dia que ainda não chegou: some diferente de dia sem estudo.
+      isFuture: date > today,
     };
   });
 }
@@ -377,16 +407,30 @@ async function loadPreparationIndex(
 }
 
 /** A série do gráfico "Evolução": os últimos 30 dias com questões respondidas. */
+/**
+ * A série do gráfico "Evolução": acerto por dia, nos últimos 30 dias.
+ *
+ * ⚠️ AGREGA `question_attempts`, NÃO O ROLLUP DIÁRIO.
+ *
+ * Antes lia `daily_user_rollups`, preenchido por um job noturno que não
+ * existe. Em produção a tabela fica vazia, então o gráfico nunca aparecia por
+ * mais que o aluno respondesse — a cliente respondeu questões no primeiro dia
+ * e viu "com alguns dias de prática, seu percentual aparece aqui".
+ *
+ * Agrupar por dia direto na origem custa mais que ler um rollup pronto, e é o
+ * preço de mostrar o gráfico desde a primeira questão.
+ */
 async function loadEvolution(userId: string): Promise<EvolutionPoint[]> {
   const rows = await db
     .select({
-      date: dailyUserRollups.rollupDate,
-      questionsAnswered: dailyUserRollups.questionsAnswered,
-      questionsCorrect: dailyUserRollups.questionsCorrect,
+      date: questionAttempts.answeredDate,
+      questionsAnswered: count(),
+      questionsCorrect: sql<number>`count(*) filter (where ${questionAttempts.isCorrect})::int`,
     })
-    .from(dailyUserRollups)
-    .where(eq(dailyUserRollups.userId, userId))
-    .orderBy(desc(dailyUserRollups.rollupDate))
+    .from(questionAttempts)
+    .where(eq(questionAttempts.userId, userId))
+    .groupBy(questionAttempts.answeredDate)
+    .orderBy(desc(questionAttempts.answeredDate))
     .limit(30);
 
   return buildEvolutionSeries(

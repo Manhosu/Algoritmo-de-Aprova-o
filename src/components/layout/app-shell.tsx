@@ -22,7 +22,9 @@ export function AppShell({
 
       <div className="flex flex-1">
         <Sidebar />
-        <main className="min-w-0 flex-1 pb-bottom-nav lg:pb-6">
+        {/* A barra é fixa em qualquer largura agora, então o respiro vale para
+            todas. Com `lg:pb-6` o último bloco ficava atrás dela no desktop. */}
+        <main className="min-w-0 flex-1 pb-bottom-nav">
           <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-6">{children}</div>
         </main>
       </div>

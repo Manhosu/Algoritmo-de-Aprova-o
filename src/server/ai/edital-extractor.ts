@@ -202,8 +202,12 @@ Extraia:
 - os CONHECIMENTOS BÁSICOS / GERAIS, que valem para todos os cargos;
 - os CONHECIMENTOS ESPECÍFICOS APENAS desse cargo.
 
-Ignore o conteúdo específico dos outros cargos. Se não encontrar esse cargo
-exato, use o mais parecido e diga qual escolheu em "notes".`
+Ignore o conteúdo específico dos outros cargos.
+
+Em "matchedPosition", copie do edital o nome EXATO do cargo cujo conteúdo
+específico você extraiu. Se o cargo pedido não aparecer no documento, use o
+mais parecido e preencha "matchedPosition" com o nome dele — é assim que o
+aluno descobre que precisa corrigir a escolha.`
     : `Extraia o conteúdo programático de todos os cargos, agrupado por disciplina.`;
 
   return `Extraia o conteúdo programático deste edital.
