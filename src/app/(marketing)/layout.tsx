@@ -13,17 +13,62 @@ import { APP_NAME, APP_TAGLINE, SUPPORT_EMAIL } from "@/config/app";
 export default function MarketingLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:h-20 sm:px-6">
-          <Link href="/" aria-label={APP_NAME}>
-            <Logo width={172} priority />
+{/*
+        Cabeçalho de vidro, em três âncoras: marca à esquerda, navegação ao
+        centro, ações à direita.
+
+        O centro é conquistado com `grid-cols-3`, não com `justify-between`:
+        as três áreas têm larguras diferentes, e com `justify-between` o menu
+        do meio se desloca conforme o tamanho dos botões da direita — fica
+        "quase centralizado", que é pior do que assumidamente à esquerda.
+
+        O fio de luz na base (o `after`) dá presença sem peso: em vez de uma
+        borda cinza reta, uma linha que acende no meio e some nas pontas, como
+        reflexo. É a diferença entre "tem uma borda ali" e "aquilo é uma
+        superfície".
+      */}
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-transparent after:via-primary/40 after:to-transparent">
+        <div className="mx-auto grid h-16 w-full max-w-6xl grid-cols-[auto_1fr_auto] items-center gap-4 px-4 sm:h-20 sm:px-6">
+          <Link
+            href="/"
+            aria-label={APP_NAME}
+            className="shrink-0 transition-opacity hover:opacity-80"
+          >
+            <Logo width={172} mobileWidth={124} priority />
           </Link>
 
-          <nav className="ml-auto flex items-center gap-2 sm:gap-3">
+          {/*
+            Some no celular em vez de virar menu-sanduíche: são dois links, e
+            um menu que esconde dois links atrás de um toque é cerimônia. Eles
+            continuam alcançáveis pelo rodapé e pela própria página.
+          */}
+          <nav
+            className="hidden items-center justify-center gap-8 lg:flex"
+            aria-label="Seções do site"
+          >
+            <Link
+              href="/#como-funciona"
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Como funciona
+            </Link>
+            <Link
+              href="/planos"
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Planos
+            </Link>
+          </nav>
+
+          <nav
+            className="col-start-3 flex items-center gap-1 sm:gap-2"
+            aria-label="Ações da conta"
+          >
             <Button asChild variant="ghost" size="sm">
               <Link href="/entrar">Entrar</Link>
             </Button>
-            <Button asChild size="sm">
+            {/* O CTA primário é o único elemento com brilho no cabeçalho. */}
+            <Button asChild size="sm" className="glow-ring">
               <Link href="/cadastrar">Criar conta</Link>
             </Button>
           </nav>
@@ -45,7 +90,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto w-full max-w-6xl px-4 pt-12 pb-28 sm:px-6 sm:pb-12">
           <div className="grid gap-8 sm:grid-cols-12">
             <div className="sm:col-span-6">
-              <Logo width={152} />
+              <Logo width={152} mobileWidth={132} />
               <p className="mt-4 max-w-xs text-sm text-pretty text-muted-foreground">
                 {APP_TAGLINE}
               </p>

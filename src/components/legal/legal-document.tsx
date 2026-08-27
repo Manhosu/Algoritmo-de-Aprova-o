@@ -16,8 +16,13 @@ import type { LegalDocumentView } from "@/server/legal/documents";
 export function LegalDocument({ document }: { document: LegalDocumentView }) {
   const blocks = parseMarkdown(document.content);
 
+  /*
+   * Aqui a entrada é só a suave do carregamento: sem vidro e sem revelar ao
+   * rolar. Texto de contrato se lê de cabo a rabo — animar parágrafo por
+   * parágrafo atrapalharia justamente quem está conferindo o que aceitou.
+   */
   return (
-    <article className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
+    <article className="rise rise-1 mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
       <header className="mb-8 border-b border-border pb-6">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{document.title}</h1>
         <p className="mt-2 text-sm text-muted-foreground">

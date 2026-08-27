@@ -24,7 +24,7 @@ export default async function ConfirmEmailPage(props: PageProps<"/confirmar-emai
 
   if (result?.ok) {
     return (
-      <Surface className="p-6 text-center sm:p-8">
+      <Surface glass className="p-6 text-center sm:p-8">
         <CheckCircle2 className="mx-auto size-10 text-success" aria-hidden />
         <h1 className="mt-4 text-xl font-semibold text-foreground">E-mail confirmado</h1>
         <p className="mt-1.5 text-sm text-pretty text-muted-foreground">

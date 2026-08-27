@@ -21,7 +21,7 @@ export function Sidebar() {
   return (
     <nav
       aria-label="Navegação principal"
-      className="hidden w-[104px] shrink-0 flex-col items-center gap-1 border-r border-border bg-sidebar py-6 lg:flex"
+      className="hidden w-[104px] shrink-0 flex-col items-center gap-1 border-r border-border/60 bg-sidebar/70 py-6 backdrop-blur-xl lg:flex"
     >
       {SIDEBAR_ITEMS.map((item) => {
         const active = isActive(pathname, item.href);

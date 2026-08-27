@@ -26,11 +26,11 @@ export const metadata: Metadata = {
 export default function NotFound() {
   return (
     <main className="flex min-h-svh flex-col items-center justify-center px-4 py-16">
-      <Link href="/" aria-label={APP_NAME} className="mb-10">
-        <Logo width={200} priority />
+      <Link href="/" aria-label={APP_NAME} className="rise rise-1 mb-10">
+        <Logo width={200} mobileWidth={156} priority />
       </Link>
 
-      <div className="w-full max-w-md text-center">
+      <div className="rise rise-2 glass-panel w-full max-w-md p-8 text-center">
         <span
           className="mx-auto mb-6 flex size-14 items-center justify-center rounded-2xl border border-primary/40 bg-primary-soft text-primary"
           aria-hidden

@@ -15,7 +15,7 @@ export default async function LoginPage(props: PageProps<"/entrar">) {
   const passwordReset = params.senha === "redefinida";
 
   return (
-    <Surface className="p-6 sm:p-8">
+    <Surface glass className="p-6 sm:p-8">
       <h1 className="text-xl font-semibold text-foreground sm:text-2xl">
         Entrar na sua conta
       </h1>

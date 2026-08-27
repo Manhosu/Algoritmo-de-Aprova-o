@@ -24,13 +24,28 @@ import { cn } from "@/lib/utils";
 type SurfaceProps = ComponentProps<"section"> & {
   /** Aplica o brilho ciano. Reservado ao card em destaque da tela. */
   glow?: boolean;
+  /**
+   * Card de vidro: translúcido, desfocado, com borda que reflete luz.
+   *
+   * ⚠️ `backdrop-filter` é caro — reserve para superfícies grandes e poucas
+   * por tela. Na área do aluno o card opaco continua sendo o padrão, porque
+   * é o do mockup aprovado e porque são muitos por tela.
+   */
+  glass?: boolean;
 };
 
-export function Surface({ className, glow = false, ...props }: SurfaceProps) {
+export function Surface({
+  className,
+  glow = false,
+  glass = false,
+  ...props
+}: SurfaceProps) {
   return (
     <section
       className={cn(
-        "rounded-2xl border border-border bg-card",
+        // O vidro traz o próprio fundo, raio e borda iluminada; somar as
+        // classes opacas por cima anularia os três.
+        glass ? "glass-panel" : "rounded-2xl border border-border bg-card",
         glow && "glow-ring",
         className,
       )}

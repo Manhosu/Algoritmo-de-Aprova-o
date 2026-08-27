@@ -80,7 +80,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">
+      {/*
+          `atmosphere` no body vale para TODOS os endpoints de uma vez: landing,
+          cadastro, área do aluno, 404. Dois focos de luz difusa presos à
+          viewport, no ciano da marca — é o que tira o fundo chapado sem
+          espalhar o efeito por cada página à mão.
+        */}
+        <body className="atmosphere flex min-h-full flex-col">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

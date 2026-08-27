@@ -38,7 +38,7 @@ export function BottomNav() {
       aria-label="Navegação rápida"
       className={cn(
         "fixed inset-x-0 bottom-0 z-40 lg:hidden",
-        "border-t border-border bg-card/95 backdrop-blur-sm",
+        "border-t border-border/60 bg-card/80 backdrop-blur-xl",
         "pb-safe",
       )}
     >

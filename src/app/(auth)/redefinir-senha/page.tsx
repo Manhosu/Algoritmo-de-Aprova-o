@@ -21,7 +21,7 @@ export default async function ResetPasswordPage(props: PageProps<"/redefinir-sen
 
   if (!token) {
     return (
-      <Surface className="p-6 sm:p-8">
+      <Surface glass className="p-6 sm:p-8">
         <h1 className="text-xl font-semibold text-foreground sm:text-2xl">
           Link incompleto
         </h1>

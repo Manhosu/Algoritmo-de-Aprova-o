@@ -382,6 +382,370 @@
   font-weight: 700;
 }
 
+/* ---------------------------------------------------------------------------
+ * ATMOSFERA, VIDRO E MOVIMENTO
+ *
+ * Camada acrescentada em 25/08/2026 para tirar do produto o aspecto de fundo
+ * chapado com caixas cinzas.
+ *
+ * ⚠️ TUDO AQUI USA A PALETA DA CLIENTE. O brilho é o ciano `--primary`, nunca
+ * roxo ou esmeralda: os seis valores do README são decisão fechada, e o mockup
+ * aprovado é o painel neon ciano. Profundidade vem de LUZ e SOMBRA, não de
+ * cores novas.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Fundo atmosférico da página.
+ *
+ * Dois focos de luz difusa presos à viewport (`fixed`), então eles não rolam
+ * junto e a sensação é de ambiente, não de textura colada no conteúdo.
+ */
+@utility atmosphere {
+  position: relative;
+  isolation: isolate;
+
+  &::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        60rem 40rem at 78% -6%,
+        color-mix(in oklab, var(--primary) 12%, transparent),
+        transparent 62%
+      ),
+      radial-gradient(
+        48rem 34rem at 6% 12%,
+        color-mix(in oklab, var(--primary) 7%, transparent),
+        transparent 60%
+      );
+  }
+}
+
+/**
+ * Cartão de vidro: translúcido, desfocado e com borda que reflete luz.
+ *
+ * A borda iluminada é um gradiente recortado por `mask` — a técnica que permite
+ * um degradê na BORDA sem pintar o miolo. Uma borda de cor sólida não consegue
+ * sugerir luz vindo de uma direção.
+ *
+ * ⚠️ `backdrop-filter` é caro. Use em superfícies grandes e poucas por tela:
+ * o cabeçalho, o card do herói. Espalhar por dezenas de elementos derruba a
+ * rolagem no celular, que é o aparelho da maioria destes alunos.
+ */
+@utility glass-panel {
+  position: relative;
+  /*
+   * ⚠️ 82%, não os 72% originais.
+   *
+   * Com 72% o brilho ciano da atmosfera atravessava o painel e clareava o
+   * fundo justamente no canto de cima, onde ficam o título e os primeiros
+   * itens — o texto perdia o chão e a tela parecia lavada. Com o desfoque
+   * finalmente funcionando (ver a nota do `backdrop-filter` abaixo), 82%
+   * devolve corpo ao texto e ainda deixa o vidro ser vidro.
+   */
+  background-color: color-mix(in oklab, var(--card) 82%, transparent);
+  /*
+   * ⚠️ SEM `-webkit-backdrop-filter` À MÃO.
+   *
+   * Escrever as duas fazia o Lightning CSS (o compilador do Tailwind v4)
+   * manter só a prefixada e DESCARTAR a padrão. O Chrome moderno ignora a
+   * prefixada, então o resultado era `backdrop-filter: none` em tudo — o
+   * cabeçalho, o mockup, o cadastro e a 404 tinham fundo translúcido e
+   * NENHUM desfoque. O prefixo, onde for preciso, é ele que acrescenta.
+   */
+  backdrop-filter: blur(16px) saturate(140%);
+  border-radius: var(--radius-xl);
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, var(--foreground) 6%, transparent) inset,
+    0 24px 60px -24px rgb(0 0 0 / 0.55);
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      140deg,
+      color-mix(in oklab, var(--primary) 45%, transparent),
+      color-mix(in oklab, var(--border) 90%, transparent) 38%,
+      transparent 70%
+    );
+    /* Recorta o gradiente para sobrar só o anel de 1px da borda. */
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+}
+
+/** Borda iluminada sem o vidro — para cards que não precisam de desfoque. */
+@utility lit-border {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    opacity: 0.7;
+    transition: opacity 240ms ease;
+    background: linear-gradient(
+      140deg,
+      color-mix(in oklab, var(--primary) 38%, transparent),
+      transparent 55%
+    );
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+
+  &:hover::after {
+    opacity: 1;
+  }
+}
+
+/**
+ * Elevação no hover: sobe um fio e acende a sombra.
+ *
+ * 2px, não 8px. O exagero é o que faz um card parecer brinquedo — o objetivo é
+ * a superfície responder ao ponteiro, não saltar da tela.
+ */
+@utility lift {
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 240ms ease,
+    border-color 240ms ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px -22px rgb(0 0 0 / 0.6);
+  }
+}
+
+/** Texto com degradê. Reservado a UMA expressão por tela. */
+@utility text-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--primary),
+    color-mix(in oklab, var(--primary) 55%, var(--foreground))
+  );
+  background-clip: text;
+  color: transparent;
+  /* Sem isto, descendentes de letra como "g" e "p" são cortados. */
+  padding-bottom: 0.08em;
+}
+
+/* ---------------------------------------------------------------------------
+ * ENTRADA E FLUTUAÇÃO
+ * ------------------------------------------------------------------------- */
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/**
+ * Entrada escalonada dos elementos da primeira dobra.
+ *
+ * Só na primeira dobra: ela já está na tela quando a página abre, então a
+ * animação acontece exatamente uma vez e não depende de rolagem.
+ */
+@utility rise {
+  animation: rise-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility rise-1 {
+  animation-delay: 60ms;
+}
+
+@utility rise-2 {
+  animation-delay: 140ms;
+}
+
+@utility rise-3 {
+  animation-delay: 220ms;
+}
+
+@utility rise-4 {
+  animation-delay: 300ms;
+}
+
+/** Flutuação lenta e contínua. Só para o card do herói. */
+@utility drift {
+  animation: drift 7s ease-in-out infinite;
+}
+
+/**
+ * Revelação ao rolar, SEM JavaScript.
+ *
+ * `animation-timeline: view()` liga o progresso da animação à posição do
+ * elemento na viewport. Zero bytes de script, zero hidratação, e nenhum risco
+ * de o conteúdo ficar invisível se o JavaScript falhar.
+ *
+ * ⚠️ Onde o navegador não suporta (Safari e Firefox, hoje), o `@supports`
+ * simplesmente não aplica nada e o conteúdo aparece normalmente. Degradar para
+ * "visível" é o comportamento certo: uma revelação que não acontece é
+ * invisível ao usuário; um conteúdo que nunca aparece é um site quebrado.
+ *
+ * Foi por isso que não entrou uma biblioteca de animação. Ela custaria uns
+ * 35 KB e um limite de cliente em cada seção para resolver o que aqui são
+ * quatro linhas de CSS.
+ */
+@utility reveal {
+  /*
+   * ⚠️ O `@supports` fica DENTRO do `@utility`, nunca em volta: o Tailwind v4
+   * recusa `@utility` aninhado, e o erro só aparece no build — typecheck e lint
+   * não compilam CSS.
+   */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      animation: rise-in linear both;
+      animation-timeline: view();
+      /*
+       * ⚠️ O intervalo é medido em `entry`, NUNCA em `cover`.
+       *
+       * `cover` mede a travessia inteira do elemento pela tela, então o
+       * progresso de um bloco parado e inteiramente visível depende do tamanho
+       * dele: um bloco de 252px numa tela de 949px fica em 21% do `cover`. Com
+       * o gatilho em `cover 22%`, o último bloco da página — que é justamente o
+       * botão de criar conta — ficava invisível por um ponto percentual em
+       * qualquer tela alta o bastante para não sobrar rolagem.
+       *
+       * `entry` mede só a entrada, e chega a 100% assim que o bloco acabou de
+       * entrar. Isto é a garantia que importa: TODO bloco inteiramente visível
+       * está com a animação concluída, independentemente da altura dele ou da
+       * tela. Nada pode ficar preso em opacidade zero.
+       */
+      animation-range: entry 0% entry 45%;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * TEXTURA E BENTO
+ *
+ * Acrescentado em 25/08/2026 na direção "Dark SaaS Premium".
+ *
+ * ⚠️ Continua tudo na paleta da cliente. `--card` (#0f1826) já é o "container
+ * um pouco mais claro que o fundo" e `--border` (#1c2b40) já é a borda de 1px
+ * discreta — usar `zinc-900` e `border-white/10` aqui só trocaria dois tokens
+ * versionados por dois valores soltos, com o mesmo resultado na tela.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Malha fina atrás da primeira dobra.
+ *
+ * Duas faixas de 1px cruzadas a cada 64px, apagadas até quase sumir, e uma
+ * máscara radial que dissolve as bordas. Sem a máscara a malha bate no fim da
+ * seção com uma linha reta e o efeito vira "tabela", não "textura".
+ */
+@utility grid-texture {
+  position: relative;
+  isolation: isolate;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      linear-gradient(
+        to right,
+        color-mix(in oklab, var(--border) 55%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in oklab, var(--border) 55%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 64px 64px;
+    mask-image: radial-gradient(70% 55% at 50% 30%, #000 20%, transparent 75%);
+  }
+}
+
+/**
+ * O card do bento.
+ *
+ * O brilho do hover é DIRECIONAL: nasce no topo do card e desce, como se a luz
+ * viesse de cima. Um brilho centrado e uniforme lê como "selecionado"; este lê
+ * como superfície sendo iluminada, que é o efeito procurado.
+ *
+ * ⚠️ Sem `backdrop-filter` aqui, de propósito. São muitos cards por tela, e o
+ * desfoque de fundo repetido oito vezes é o que derruba a rolagem no celular —
+ * que é o aparelho da maioria destes alunos. O vidro fica no cabeçalho e no
+ * mockup, que são poucos e grandes.
+ */
+@utility bento-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  transition:
+    border-color 260ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms ease;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 260ms ease;
+    background: radial-gradient(
+      120% 70% at 50% 0%,
+      color-mix(in oklab, var(--primary) 14%, transparent),
+      transparent 70%
+    );
+  }
+
+  &:hover {
+    border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+    transform: translateY(-2px);
+    box-shadow: 0 18px 44px -24px rgb(0 0 0 / 0.65);
+  }
+
+  &:hover::before {
+    opacity: 1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * MOVIMENTO REDUZIDO
+ *
+ * Vem POR ÚLTIMO de propósito: precisa vencer tudo que foi declarado acima.
+ * Enjoo por movimento é real, e o sistema operacional já sabe quem prefere não
+ * ver animação — cabe a nós obedecer.
+ * ------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

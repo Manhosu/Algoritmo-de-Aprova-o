@@ -57,7 +57,7 @@ export function AppHeader({
   const firstName = userName?.trim().split(/\s+/)[0] ?? null;
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-30 border-b border-border/60 bg-background/75 backdrop-blur-xl after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-transparent after:via-primary/35 after:to-transparent">
       <div className="flex h-16 items-center gap-3 px-4 sm:h-20 sm:gap-5 sm:px-6">
         <Link href="/inicio" className="shrink-0" aria-label="Ir para a Home">
           <Logo width={168} className="hidden sm:block" priority />

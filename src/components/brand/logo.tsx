@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { CSSProperties } from "react";
 
 import logoDark from "@/../public/brand/logo-dark.png";
 import logoLight from "@/../public/brand/logo-light.png";
@@ -26,29 +27,58 @@ import { cn } from "@/lib/utils";
  */
 
 type LogoProps = {
-  /** Largura em pixels. A altura acompanha a proporção. */
+  /** Largura em pixels a partir de `sm`. A altura acompanha a proporção. */
   width?: number;
+  /**
+   * Largura em telas pequenas. Sem isto, cai em `width`.
+   *
+   * ⚠️ EXISTE PORQUE `style={{ width }}` VENCE QUALQUER CLASSE. Enquanto a
+   * largura era um estilo em linha, passar `className="w-32 sm:w-44"` não
+   * tinha efeito nenhum — e a assinatura, que tem símbolo mais duas linhas de
+   * texto, ficava ocupando quase metade da largura de um celular.
+   */
+  mobileWidth?: number;
   className?: string;
   priority?: boolean;
 };
 
-export function Logo({ width = 220, className, priority = false }: LogoProps) {
+export function Logo({
+  width = 220,
+  mobileWidth,
+  className,
+  priority = false,
+}: LogoProps) {
   const shared = "h-auto w-full select-none";
+  const small = mobileWidth ?? width;
 
   return (
     <span
-      className={cn("inline-block", className)}
-      style={{ width }}
+      className={cn("inline-block w-(--logo-sm) sm:w-(--logo)", className)}
+      style={
+        {
+          "--logo": `${width}px`,
+          "--logo-sm": `${small}px`,
+        } as CSSProperties
+      }
       role="img"
       aria-label={APP_NAME}
     >
+      {/*
+        ⚠️ `priority` SÓ NA VERSÃO ESCURA.
+
+        As duas ficam no HTML e o CSS mostra a certa — mas com `priority` nas
+        duas o navegador pré-carregava ambas e avisava no console que uma nunca
+        foi usada, além de gastar banda de celular com uma imagem invisível.
+        O tema padrão do produto é escuro, então é essa que precisa chegar
+        primeiro; a clara carrega normalmente para quem escolheu tema claro.
+      */}
       <Image
         src={logoLight}
         alt=""
         aria-hidden
-        priority={priority}
         className={cn(shared, "dark:hidden")}
-        sizes={`${width}px`}
+        // Duas larguras reais, para o navegador não baixar a maior no celular.
+        sizes={`(max-width: 639px) ${small}px, ${width}px`}
       />
       <Image
         src={logoDark}
@@ -56,7 +86,7 @@ export function Logo({ width = 220, className, priority = false }: LogoProps) {
         aria-hidden
         priority={priority}
         className={cn(shared, "hidden dark:block")}
-        sizes={`${width}px`}
+        sizes={`(max-width: 639px) ${small}px, ${width}px`}
       />
     </span>
   );
