@@ -20,7 +20,20 @@ export type AccountFormState = {
   problems?: string[];
 };
 
-const IDLE: AccountFormState = { status: "idle" };
+/*
+ * ⚠️ ESTE ARQUIVO SÓ PODE EXPORTAR FUNÇÃO ASSÍNCRONA.
+ *
+ * Num arquivo `"use server"`, tudo que é exportado vira endpoint chamável pelo
+ * cliente. Encontrando um objeto, o Next.js falha em RUNTIME com "A 'use
+ * server' file can only export async functions, found object" e derruba a
+ * PÁGINA INTEIRA, não só a ação.
+ *
+ * Havia aqui um `const IDLE` exportado. Ele deixou a tela de Configurações
+ * respondendo erro de servidor em produção — trocar senha, trocar e-mail e
+ * excluir conta paravam juntos. O `npm run build` passa: o defeito só aparece
+ * quando alguém abre a página. E nem era usado, porque `account-forms.tsx`
+ * declara o próprio estado inicial.
+ */
 
 /* ========================================================================== *
  * RECUPERAÇÃO DE SENHA
@@ -165,7 +178,6 @@ export async function deleteAccountAction(
   redirect("/?conta=excluida");
 }
 
-export { IDLE };
 
 /* ========================================================================== *
  * CONFIRMAÇÃO DE E-MAIL
