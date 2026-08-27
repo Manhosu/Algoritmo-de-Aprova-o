@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 
 import { env } from "@/config/env";
+import { estimateCostCents, totalInputTokens } from "@/modules/ai-cost";
 
 import {
   EDITAL_PROMPT_VERSION,
@@ -75,7 +76,16 @@ const MAX_REQUEST_BYTES = 32 * 1024 * 1024;
 const MAX_PAGES_PER_REQUEST = 600;
 
 export type ExtractionUsage = {
+  /**
+   * Total de entrada: prompt + criação de cache + leitura de cache.
+   *
+   * ⚠️ NÃO É o `usage.input_tokens` da API. Ver `sumInputTokens`.
+   */
   inputTokens: number;
+  /** Tokens que criaram o cache nesta chamada — custam 1,25× a entrada. */
+  cacheCreationTokens: number;
+  /** Tokens lidos do cache — custam 0,1× a entrada. */
+  cacheReadTokens: number;
   outputTokens: number;
   estimatedCostCents: number;
   durationMs: number;
@@ -349,13 +359,35 @@ ${extracted.text}`,
     const message = await stream.finalMessage();
     const durationMs = Date.now() - startedAt;
 
-    const usage: ExtractionUsage = {
+    /**
+     * ⚠️ `usage.input_tokens` NÃO É O TOTAL DE ENTRADA.
+     *
+     * O bloco do edital vai com `cache_control: ephemeral`. Quando há cache, a
+     * API move esses tokens para `cache_creation_input_tokens` (primeira
+     * chamada) ou `cache_read_input_tokens` (repetição), e `input_tokens` fica
+     * apenas com o que sobrou do prompt.
+     *
+     * Lendo só `input_tokens`, um edital de quase 8.000 tokens era registrado
+     * como 309 — e o custo gravado saía cerca de 40% abaixo do cobrado. Bem o
+     * erro que o comentário de `estimateCostCents` diz ser o pior: subestimar
+     * some do radar de quem paga a conta.
+     */
+    const cacheCreation = message.usage.cache_creation_input_tokens ?? 0;
+    const cacheRead = message.usage.cache_read_input_tokens ?? 0;
+
+    const tokens = {
       inputTokens: message.usage.input_tokens,
+      cacheCreationTokens: cacheCreation,
+      cacheReadTokens: cacheRead,
       outputTokens: message.usage.output_tokens,
-      estimatedCostCents: estimateCostCents(
-        message.usage.input_tokens,
-        message.usage.output_tokens,
-      ),
+    };
+
+    const usage: ExtractionUsage = {
+      inputTokens: totalInputTokens(tokens),
+      cacheCreationTokens: cacheCreation,
+      cacheReadTokens: cacheRead,
+      outputTokens: message.usage.output_tokens,
+      estimatedCostCents: estimateCostCents(tokens, MODEL),
       durationMs,
       model: MODEL,
       promptVersion: EDITAL_PROMPT_VERSION,
@@ -529,31 +561,12 @@ function toBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString("base64");
 }
 
-/**
- * Custo em centavos de dólar, pelo preço do modelo em uso.
- *
- * ⚠️ A tabela é fixa no código de propósito: o custo gravado em
- * `edital_extractions` precisa refletir o que foi COBRADO na época, e um preço
- * lido de configuração mudaria o histórico retroativamente.
- */
-const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
-  "claude-opus-5": { input: 5, output: 25 },
-  "claude-sonnet-5": { input: 2, output: 10 },
-  "claude-haiku-4-5-20251001": { input: 1, output: 5 },
-};
-
-function estimateCostCents(inputTokens: number, outputTokens: number): number {
-  // Sem preço conhecido, usa o mais caro: subestimar custo é pior que
-  // superestimar, porque some do radar de quem paga a conta.
-  const price = PRICE_PER_MTOK[MODEL] ?? { input: 5, output: 25 };
-  const dollars =
-    (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
-  return Math.ceil(dollars * 100);
-}
 
 function emptyUsage(): ExtractionUsage {
   return {
     inputTokens: 0,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
     outputTokens: 0,
     estimatedCostCents: 0,
     durationMs: 0,
