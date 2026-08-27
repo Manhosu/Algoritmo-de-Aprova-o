@@ -1,7 +1,11 @@
 /**
  * Rascunho da Política de Privacidade.
  *
- * ⚠️ ISTO É UM RASCUNHO TÉCNICO, NÃO UM PARECER JURÍDICO.
+ * ⚠️ ESCRITO POR QUEM CONSTRUIU O SISTEMA, NÃO POR ADVOGADO.
+ *
+ * O texto está NO AR e descreve com precisão o que a plataforma faz com os
+ * dados — essa parte é confiável, porque saiu de quem implementou. O que ele
+ * ainda não teve é revisão jurídica.
  *
  * Foi escrito para descrever com precisão o que o sistema REALMENTE faz com os
  * dados — inclusive as duas coisas que costumam ficar de fora e que aqui são
@@ -18,15 +22,11 @@
  */
 
 export const PRIVACY_POLICY_DRAFT = {
-  version: "0.1-rascunho",
+  version: "1.0",
   title: "Política de Privacidade",
   content: `# Política de Privacidade
 
-> **RASCUNHO — pendente de revisão jurídica.** Este texto descreve com precisão
-> o funcionamento técnico da plataforma, mas ainda não foi validado por
-> advogado e não está publicado.
-
-**Última atualização:** [preencher na publicação]
+**Última atualização:** 27 de agosto de 2026
 
 ## 1. Quem somos
 
@@ -34,8 +34,11 @@ O Algoritmo da Aprovação é uma plataforma de estudo para concursos públicos.
 Esta política explica quais dados pessoais tratamos, para quê, por quanto tempo
 e quais são os seus direitos, nos termos da Lei nº 13.709/2018 (LGPD).
 
-**Controlador dos dados:** [razão social, CNPJ e endereço]
-**Encarregado (DPO):** [nome e e-mail de contato]
+**Controlador dos dados:** O Algoritmo da Aprovação.
+**Contato do controlador e do encarregado:** oalgoritmodaaprovacao@gmail.com
+
+*Os dados de registro da empresa (razão social, CNPJ e endereço) serão
+acrescentados a esta seção assim que a constituição estiver concluída.*
 
 ## 2. Quais dados coletamos
 
@@ -150,7 +153,7 @@ versão você aceitou.
 
 ## 11. Contato
 
-Dúvidas ou exercício de direitos: [e-mail do encarregado].
+Dúvidas ou exercício de direitos: oalgoritmodaaprovacao@gmail.com.
 Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD).
 `,
 } as const;
@@ -158,7 +161,11 @@ Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD)
 /**
  * Rascunho dos Termos de Uso.
  *
- * ⚠️ ISTO É UM RASCUNHO TÉCNICO, NÃO UM PARECER JURÍDICO.
+ * ⚠️ ESCRITO POR QUEM CONSTRUIU O SISTEMA, NÃO POR ADVOGADO.
+ *
+ * O texto está NO AR e descreve com precisão o que a plataforma faz com os
+ * dados — essa parte é confiável, porque saiu de quem implementou. O que ele
+ * ainda não teve é revisão jurídica.
  *
  * Nasceu de um defeito encontrado em 25/08/2026: o checkbox do cadastro diz
  * "Li e aceito a Política de Privacidade **e os Termos de Uso**", mas os Termos
@@ -179,15 +186,11 @@ Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD)
  *      dizer isso com todas as letras.
  */
 export const TERMS_OF_USE_DRAFT = {
-  version: "0.1-rascunho",
+  version: "1.0",
   title: "Termos de Uso",
   content: `# Termos de Uso
 
-> **RASCUNHO — pendente de revisão jurídica.** Este texto descreve com precisão
-> o funcionamento da plataforma, mas ainda não foi validado por advogado e não
-> está publicado.
-
-**Última atualização:** [preencher na publicação]
+**Última atualização:** 27 de agosto de 2026
 
 ## 1. O que é esta plataforma
 
@@ -195,8 +198,11 @@ O Algoritmo da Aprovação é uma plataforma de estudo para concursos públicos.
 A partir do edital que você envia, ela organiza o conteúdo programático,
 prioriza o que estudar a cada dia, agenda revisões e acompanha seu desempenho.
 
-**Fornecedor:** [razão social, CNPJ e endereço]
-**Contato:** [e-mail de suporte]
+**Fornecedor:** O Algoritmo da Aprovação.
+**Contato:** oalgoritmodaaprovacao@gmail.com
+
+*Os dados de registro da empresa (razão social, CNPJ e endereço) serão
+acrescentados a esta seção assim que a constituição estiver concluída.*
 
 Ao criar uma conta, você concorda com estes Termos e com a Política de
 Privacidade.
@@ -328,6 +334,6 @@ do consumidor para dirimir controvérsias.
 
 ---
 
-Dúvidas sobre estes Termos: [e-mail de suporte].
+Dúvidas sobre estes Termos: oalgoritmodaaprovacao@gmail.com.
 `,
 } as const;
