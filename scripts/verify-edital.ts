@@ -43,11 +43,36 @@ async function main() {
   const file = process.argv[2];
   if (!file) {
     console.error(
-      "Informe o PDF:\n  npm run verify:edital -- caminho/do/edital.pdf\n\n" +
+      "Informe o PDF:\n  npm run verify:edital -- caminho/do/edital.pdf [\"Cargo\"]\n\n" +
         "Para gerar um de exemplo:\n  npx tsx scripts/make-sample-edital.ts edital.pdf",
     );
     process.exit(1);
   }
+
+  /**
+   * O cargo é POSICIONAL, e isso já custou uma leitura paga.
+   *
+   * Chamado com `--cargo "ANALISTA PREVIDENCIÁRIO"`, o script pegava a string
+   * `--cargo` como nome do cargo. A IA não encontrou esse cargo no edital,
+   * caiu no primeiro do anexo e devolveu o conteúdo de "Auxiliar de Serviços
+   * Gerais" para quem pediu Analista — um resultado que parece bug do produto
+   * e é erro de chamada.
+   *
+   * Recusar cedo custa nada; uma chamada à Anthropic com o cargo errado custa
+   * dinheiro e leva minutos até revelar que estava errada.
+   */
+  const rawPosition = process.argv[3];
+  if (rawPosition?.startsWith("-")) {
+    console.error(
+      `"${rawPosition}" parece uma opção, não um cargo.\n\n` +
+        "O cargo é posicional:\n" +
+        '  npm run verify:edital -- edital.pdf "ANALISTA PREVIDENCIÁRIO"',
+    );
+    process.exit(1);
+  }
+
+  const targetPosition = rawPosition ?? "Analista Judiciário";
+  console.log(`Cargo informado: ${targetPosition}\n`);
 
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL não configurada.");
@@ -121,7 +146,7 @@ async function main() {
       .values({
         userId,
         // O cargo entra na leitura e é o que a torna viável num edital real.
-        targetPosition: process.argv[3] ?? "Analista Judiciário",
+        targetPosition,
         title: "Leitura de edital",
         status: "draft",
         isCurrent: true,

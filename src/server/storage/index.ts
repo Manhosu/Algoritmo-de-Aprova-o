@@ -37,6 +37,21 @@ import { env } from "@/config/env";
 
 const BUCKET = "editais";
 
+/**
+ * O acervo da cliente: mapas mentais, resumos, futuras videoaulas.
+ *
+ * Bucket SEPARADO do de editais, e igualmente PRIVADO.
+ *
+ * Separado porque o ciclo de vida é outro: edital é dado do aluno e some com a
+ * conta dele; o acervo é o ativo do produto e sobrevive a todos os alunos.
+ *
+ * ⚠️ PRIVADO, apesar de ser material de divulgação. Um bucket público com
+ * caminho previsível é o caminho mais curto para o acervo inteiro circular em
+ * grupo de mensagens — e ele é exatamente o que a cliente vende. As URLs são
+ * assinadas e expiram; o caminho usa o id do item, que não é adivinhável.
+ */
+const CONTENT_BUCKET = "acervo";
+
 /** Caminho do driver local. Fora do `public/`, de propósito: edital é do aluno. */
 const LOCAL_ROOT = resolve(process.cwd(), ".storage");
 
@@ -95,6 +110,80 @@ export async function getEditalFile(storagePath: string): Promise<Uint8Array> {
 }
 
 /* ========================================================================== *
+ * ACERVO
+ * ========================================================================== */
+
+/** Os tipos que o acervo aceita hoje. */
+export type ContentMimeType = "image/png" | "image/jpeg" | "application/pdf";
+
+export async function putContentFile(input: {
+  contentItemId: string;
+  mimeType: ContentMimeType;
+  bytes: Uint8Array;
+}): Promise<StoredFile> {
+  assertStorageReady();
+
+  const extension =
+    input.mimeType === "application/pdf" ? "pdf" : input.mimeType === "image/png" ? "png" : "jpg";
+  const storagePath = `${input.contentItemId}.${extension}`;
+
+  if (isRemoteStorageConfigured()) {
+    await putRemote(storagePath, input.bytes, {
+      bucket: CONTENT_BUCKET,
+      contentType: input.mimeType,
+    });
+  } else {
+    await putLocal(`${CONTENT_BUCKET}/${storagePath}`, input.bytes);
+  }
+
+  return { storagePath, sizeBytes: input.bytes.byteLength };
+}
+
+export async function getContentFile(storagePath: string): Promise<Uint8Array> {
+  return isRemoteStorageConfigured()
+    ? getRemote(storagePath, CONTENT_BUCKET)
+    : getLocal(`${CONTENT_BUCKET}/${storagePath}`);
+}
+
+/**
+ * URL temporária para o navegador do aluno buscar a imagem direto.
+ *
+ * Sem isto, cada mapa mental passaria pelo servidor do Next para ser servido —
+ * uma imagem de 3 MB por requisição, sem CDN, cobrada como execução. A URL
+ * assinada faz o Supabase entregar o arquivo, e ela expira.
+ *
+ * No driver local devolve a rota interna, porque não existe assinatura sem
+ * Supabase — e é só desenvolvimento.
+ */
+export async function signContentUrl(
+  storagePath: string,
+  expiresInSeconds = 3600,
+): Promise<string> {
+  if (!isRemoteStorageConfigured()) {
+    return `/api/acervo/${encodeURIComponent(storagePath)}`;
+  }
+
+  const base = env.SUPABASE_URL!.replace(/\/+$/, "");
+  const response = await fetch(
+    `${base}/storage/v1/object/sign/${CONTENT_BUCKET}/${storagePath}`,
+    {
+      method: "POST",
+      headers: { ...remoteHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: expiresInSeconds }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Falha ao assinar a URL do acervo (${response.status}): ${await safeText(response)}`,
+    );
+  }
+
+  const { signedURL } = (await response.json()) as { signedURL: string };
+  return `${base}/storage/v1${signedURL}`;
+}
+
+/* ========================================================================== *
  * CAMINHO
  * ========================================================================== */
 
@@ -137,9 +226,9 @@ async function getLocal(storagePath: string): Promise<Uint8Array> {
  * DRIVER SUPABASE STORAGE
  * ========================================================================== */
 
-function remoteUrl(storagePath: string): string {
+function remoteUrl(storagePath: string, bucket = BUCKET): string {
   const base = env.SUPABASE_URL!.replace(/\/+$/, "");
-  return `${base}/storage/v1/object/${BUCKET}/${storagePath}`;
+  return `${base}/storage/v1/object/${bucket}/${storagePath}`;
 }
 
 function remoteHeaders(): HeadersInit {
@@ -149,12 +238,16 @@ function remoteHeaders(): HeadersInit {
   };
 }
 
-async function putRemote(storagePath: string, bytes: Uint8Array): Promise<void> {
-  const response = await fetch(remoteUrl(storagePath), {
+async function putRemote(
+  storagePath: string,
+  bytes: Uint8Array,
+  options: { bucket?: string; contentType?: string } = {},
+): Promise<void> {
+  const response = await fetch(remoteUrl(storagePath, options.bucket), {
     method: "POST",
     headers: {
       ...remoteHeaders(),
-      "Content-Type": "application/pdf",
+      "Content-Type": options.contentType ?? "application/pdf",
       // Reenviar o edital sobrescreve o arquivo do mesmo documento em vez de
       // falhar com "já existe".
       "x-upsert": "true",
@@ -164,16 +257,16 @@ async function putRemote(storagePath: string, bytes: Uint8Array): Promise<void> 
 
   if (!response.ok) {
     throw new Error(
-      `Falha ao gravar o edital no Storage (${response.status}): ${await safeText(response)}`,
+      `Falha ao gravar no Storage (${response.status}): ${await safeText(response)}`,
     );
   }
 }
 
-async function getRemote(storagePath: string): Promise<Uint8Array> {
-  const response = await fetch(remoteUrl(storagePath), { headers: remoteHeaders() });
+async function getRemote(storagePath: string, bucket = BUCKET): Promise<Uint8Array> {
+  const response = await fetch(remoteUrl(storagePath, bucket), { headers: remoteHeaders() });
   if (!response.ok) {
     throw new Error(
-      `Falha ao ler o edital no Storage (${response.status}): ${await safeText(response)}`,
+      `Falha ao ler no Storage (${response.status}): ${await safeText(response)}`,
     );
   }
   return new Uint8Array(await response.arrayBuffer());

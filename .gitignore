@@ -58,3 +58,19 @@ next-env.d.ts
 # Editais usados em teste. Ficam na maquina de quem testa.
 *.pdf
 !public/**/*.pdf
+
+# Material do acervo baixado do Drive da cliente, para importacao.
+#
+# ⚠️ Sao 87 MB de PNG e JPG que ja foram para o bucket `acervo` do Supabase.
+# O repositorio nao e o lugar de guardar o acervo: ele cresceria a cada
+# remessa dela, o clone ficaria lento para sempre (git nao esquece blob) e
+# haveria duas copias do mesmo material podendo divergir.
+#
+# Depois de importar, a pasta local pode ser apagada.
+drive-download-*/
+Mapas Mentais-*/
+Português-*/
+
+# Planilhas de conteudo enviadas pela cliente. Mesma razao: o dado ja esta
+# no banco depois da importacao, e a planilha e so o transporte.
+*.xlsx
