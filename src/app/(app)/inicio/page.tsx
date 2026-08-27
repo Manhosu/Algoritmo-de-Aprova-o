@@ -12,7 +12,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { DailyMissions, type DailyMission } from "@/components/daily-task/daily-missions";
-import { EmptyState, Metric, SectionTitle, Surface } from "@/components/shared/surface";
+import {
+  BestTechniqueCard,
+  EvolutionCard,
+  LevelCard,
+  PreparationIndexCard,
+  QuickAccess,
+  ReviewsTodayCard,
+  StatsStrip,
+  StreakCard,
+  SubjectPerformanceCard,
+} from "@/components/home/dashboard-cards";
+import { EmptyState, SectionTitle, Surface } from "@/components/shared/surface";
 import { Button } from "@/components/ui/button";
 import { APP_TAGLINE } from "@/config/app";
 import type { LinkableTechnique } from "@/lib/deep-links";
@@ -41,14 +52,13 @@ export default async function HomePage() {
   if (!context.hasAvailability) redirect("/boas-vindas");
 
   const preparation = context.currentPreparation;
+  const firstName = context.user.name?.trim().split(/\s+/)[0] || null;
 
   return (
     <div className="flex flex-col gap-4">
       <header className="sm:hidden">
         <h1 className="text-lg font-semibold text-foreground">
-          {context.user.name?.trim().split(/\s+/)[0]
-            ? `Olá, ${context.user.name.trim().split(/\s+/)[0]}!`
-            : "Olá!"}
+          {firstName ? `Olá, ${firstName}!` : "Olá!"}
         </h1>
         <p className="text-sm text-balance text-muted-foreground">{APP_TAGLINE}</p>
       </header>
@@ -94,6 +104,7 @@ export default async function HomePage() {
           preparationId={preparation.id}
           preparationTitle={preparation.title}
           userId={context.user.id}
+          firstName={firstName}
         />
       )}
     </div>
@@ -194,14 +205,29 @@ async function ActiveDashboard({
   preparationId,
   preparationTitle,
   userId,
+  firstName,
 }: {
   preparationId: string;
   preparationTitle: string;
   userId: string;
+  firstName: string | null;
 }) {
   await ensureGamificationState(userId);
   const home = await getHomeData({ userId, preparationId });
 
+  /*
+   * O ARRANJO DO MOCKUP.
+   *
+   * Duas colunas a partir de `lg`: a larga carrega o que o aluno lê (nível,
+   * métricas, desempenho, evolução) e a estreita carrega o que ele FAZ hoje
+   * (sequência, missões, revisões).
+   *
+   * ⚠️ No celular vira uma coluna só, e a ORDEM MUDA: as missões sobem para
+   * logo depois das métricas. O mockup é de tela grande, onde a coluna da
+   * direita está sempre à vista; empilhado, seguir a ordem visual dele
+   * empurraria a tarefa do dia — que é a razão de o aluno abrir o app — para
+   * depois de dois gráficos.
+   */
   return (
     <>
       {/* O título é o caminho para trocar de preparação (README 1.10). Era o
@@ -218,31 +244,42 @@ async function ActiveDashboard({
         </Link>
       </Surface>
 
-      <Surface className="grid grid-cols-2 gap-y-5 py-5 sm:grid-cols-4">
-        <Metric
-          label="XP Total"
-          value={formatNumber(home.stats.totalXp)}
-          hint={`+${formatNumber(home.stats.xpToday)} hoje`}
-          hintTone={home.stats.xpToday > 0 ? "positive" : "neutral"}
-        />
-        <Metric
-          label="Questões"
-          value={formatNumber(home.stats.questionsAnswered)}
-          hint="respondidas"
-        />
-        <Metric
-          label="Revisões"
-          value={formatNumber(home.stats.reviewsPending)}
-          hint="para hoje"
-        />
-        <Metric
-          label="Sequência"
-          value={formatNumber(home.stats.currentStreak)}
-          hint={home.stats.currentStreak === 1 ? "dia" : "dias"}
-        />
-      </Surface>
+      <LevelCard level={home.level} firstName={firstName} />
 
-      <MissionsCard home={home} />
+      <StatsStrip stats={home.stats} />
+
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="flex flex-col gap-4 lg:col-span-8">
+          {/* No celular as missões vêm primeiro; no desktop, na coluna da direita. */}
+          <div className="lg:hidden">
+            <MissionsCard home={home} />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SubjectPerformanceCard subjects={home.subjects} />
+            <PreparationIndexCard index={home.preparationIndex} />
+          </div>
+
+          <EvolutionCard points={home.evolution} />
+          <BestTechniqueCard best={home.bestTechnique} />
+        </div>
+
+        <div className="flex flex-col gap-4 lg:col-span-4">
+          <StreakCard
+            currentStreak={home.stats.currentStreak}
+            longestStreak={home.stats.longestStreak}
+            week={home.streakWeek}
+          />
+
+          <div className="hidden lg:block">
+            <MissionsCard home={home} />
+          </div>
+
+          <ReviewsTodayCard reviews={home.reviewsToday} />
+        </div>
+      </div>
+
+      <QuickAccess />
     </>
   );
 }
@@ -316,6 +353,3 @@ function MissionsCard({ home }: { home: HomeData }) {
   return <DailyMissions missions={missions} completionBonusXp={home.xp.dailyGoal} />;
 }
 
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("pt-BR").format(value);
-}
