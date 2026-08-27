@@ -371,6 +371,37 @@ async function main() {
       semImagem.length === 0 ? `${publicas.length} páginas` : `sem imagem: ${semImagem.join(", ")}`,
     );
 
+    /* --- 7b. o CSP não pode bloquear o próprio JavaScript do site ----------- *
+     *
+     * ⚠️ ESTA VERIFICAÇÃO NASCEU DE UM SITE QUEBRADO EM PRODUÇÃO.
+     *
+     * O CSP exigia nonce (`script-src 'nonce-X' 'strict-dynamic'`), mas a
+     * landing, o cadastro e o login são prerenderizados no build — o HTML deles
+     * nasce sem nonce. O navegador bloqueava os 15 scripts da página: nada de
+     * tema, nada de cadastro, nada de login. A página abria e não funcionava.
+     *
+     * Nenhuma verificação pegou, porque todas buscam o HTML e conferem TEXTO —
+     * nenhuma executa script. Esta compara as duas pontas: se o CSP entregue
+     * exige nonce, então todo `<script>` do HTML precisa trazer um.
+     */
+    const respCsp = await fetch(`${BASE}/`);
+    const htmlCsp = await respCsp.text();
+    const csp = respCsp.headers.get("content-security-policy") ?? "";
+
+    const scriptSrc = csp.split(";").find((d) => d.trim().startsWith("script-src")) ?? "";
+    const cspExigeNonce = scriptSrc.includes("nonce-");
+    const scripts = htmlCsp.match(/<script\b[^>]*>/g) ?? [];
+    const scriptsSemNonce = scripts.filter((tag) => !tag.includes("nonce=")).length;
+
+    const cspOk = !cspExigeNonce || scriptsSemNonce === 0;
+    record(
+      "O CSP não bloqueia o JavaScript da própria aplicação",
+      cspOk,
+      cspExigeNonce
+        ? `CSP exige nonce e ${scriptsSemNonce} de ${scripts.length} scripts não têm`
+        : `${scripts.length} scripts, CSP sem exigência de nonce`,
+    );
+
     /* --- 8. logout revoga a sessão no banco -------------------------------- */
     res = await fetch(`${BASE}/sair`, { headers: { cookie }, redirect: "manual" });
     const [session] = await sql<Array<{ revoked_at: Date | null }>>`

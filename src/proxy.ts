@@ -30,20 +30,50 @@ import {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
 
   /**
-   * `strict-dynamic` faz o navegador confiar nos scripts que os scripts com
-   * nonce carregarem, que é o que o Next.js precisa para hidratar sem liberar
-   * 'unsafe-inline' geral.
+   * ⚠️ SEM NONCE E SEM `strict-dynamic`. ELES DERRUBARAM O SITE INTEIRO.
    *
-   * Em desenvolvimento o Turbopack usa `eval`, por isso 'unsafe-eval' entra só
-   * ali. Em produção não entra.
+   * O QUE ACONTECEU (26/08/2026, encontrado no domínio de produção)
+   * --------------------------------------------------------------------------
+   * O CSP anterior era `script-src 'self' 'nonce-X' 'strict-dynamic'`, gerando
+   * um nonce por requisição. Correto para páginas renderizadas a cada acesso —
+   * e incompatível com as nossas.
+   *
+   * A landing, o cadastro, o login e a recuperação de senha são PRERENDERIZADAS
+   * NO BUILD. O HTML delas nasce ali, sem nonce nenhum, e é servido do CDN.
+   * O proxy então carimbava um nonce novo em cada resposta, que não
+   * correspondia a script nenhum do HTML. Com `strict-dynamic`, o `'self'`
+   * deixa de valer — então o navegador bloqueava TODOS os 15 scripts da página.
+   *
+   * O efeito em produção era o site sem JavaScript algum: o tema não aplicava
+   * (a plataforma abria clara, não no painel neon da cliente), o cadastro não
+   * enviava, o login não enviava, nada interativo respondia. A página abria,
+   * parecia quase certa, e não funcionava.
+   *
+   * Nenhuma das nossas verificações pegou: o smoke test busca o HTML por HTTP e
+   * confere o conteúdo, mas não EXECUTA script; e em desenvolvimento tudo é
+   * dinâmico, então o nonce casava.
+   *
+   * POR QUE `'unsafe-inline'` É ACEITÁVEL AQUI
+   * --------------------------------------------------------------------------
+   * O Next.js injeta os dados de hidratação como script inline. Sem nonce, a
+   * única forma de executá-los é liberar inline — e navegador nenhum aceita as
+   * duas coisas juntas: havendo nonce, `'unsafe-inline'` é ignorado.
+   *
+   * O risco que `'unsafe-inline'` abre é o de um XSS conseguir executar script
+   * injetado. Nós não temos por onde: não existe um único
+   * `dangerouslySetInnerHTML` no projeto (o documento jurídico é montado por um
+   * parser próprio justamente por isso), e o React escapa tudo por padrão.
+   *
+   * O resto do CSP continua fechado: `default-src 'self'`, `object-src 'none'`,
+   * `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`. Script
+   * de terceiro continua barrado — o que caiu foi só a exigência de nonce.
    */
   const csp = [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
     // O Tailwind e o next/font injetam estilo inline; não há como evitar.
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' blob: data: https:`,
@@ -56,9 +86,12 @@ export function proxy(request: NextRequest) {
     `upgrade-insecure-requests`,
   ].join("; ");
 
+  /*
+   * O `x-nonce` some junto: ele existia para o Next.js carimbar os scripts, e
+   * não há mais nonce para carimbar. Deixá-lo aqui sugeriria a quem lê depois
+   * que o mecanismo continua em uso.
+   */
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("content-security-policy", csp);
 
   const hasSessionCookie = request.cookies.has(SESSION_COOKIE_NAME);
 
