@@ -72,12 +72,92 @@ describe("projectSchedule — horizonte", () => {
     expect(projecao.summary.daysRemaining).toBe(90);
   });
 
-  it("não desenha semanas vazias depois de distribuir tudo", () => {
-    // 600 minutos cabem em pouco mais de uma semana; não faz sentido desenhar
-    // 12 semanas em branco.
+  it("usa TODO o período até a prova, e a última semana tem conteúdo", () => {
+    /**
+     * ⚠️ ESTE TESTE MUDOU DE LADO EM 28/08/2026, e o motivo importa.
+     *
+     * Ele exigia o contrário — "não desenha semanas vazias depois de distribuir
+     * tudo" — porque o plano era guloso: enchia os primeiros dias até o teto e
+     * parava quando o conteúdo acabava.
+     *
+     * Era esse o defeito que a cliente relatou. Com prova em outubro ela via
+     * quatro ou cinco assuntos empilhados nos primeiros dias, o plano
+     * terminando em meados de setembro, e adiar a prova não mudava nada.
+     *
+     * Agora o conteúdo é espalhado por todo o período. A última semana ainda
+     * precisa ter conteúdo — plano que termina cedo continua sendo erro; o que
+     * mudou é que ele termina PERTO DA PROVA, não perto de hoje.
+     */
     const projecao = projectSchedule(input());
-    expect(projecao.weeks.length).toBeLessThan(5);
+
+    const semanasNoHorizonte = Math.ceil(projecao.summary.daysRemaining / 7);
+    expect(projecao.weeks.length).toBeGreaterThan(semanasNoHorizonte - 2);
     expect(projecao.weeks.at(-1)!.topics.length).toBeGreaterThan(0);
+  });
+
+  it("com MAIS tempo, distribui MENOS conteúdo por dia", () => {
+    /**
+     * O pedido da cliente, no formato dela: "se restam 20 dias, distribui os
+     * temas pelos 20 dias; se restam 100, pelos 100, com carga diária menor".
+     *
+     * O mesmo conteúdo, dois horizontes. O teste compara os minutos planejados
+     * na PRIMEIRA semana, que é onde o plano guloso concentrava tudo.
+     */
+    const curto = projectSchedule(input({ examDate: d("2026-09-15") }));
+    const longo = projectSchedule(input({ examDate: d("2026-12-15") }));
+
+    expect(curto.weeks[0].plannedMinutes).toBeGreaterThan(longo.weeks[0].plannedMinutes);
+  });
+
+  it("distribui o conteúdo INTEIRO, por mais longo que seja o prazo", () => {
+    // Espalhar não pode virar esquecer: a soma do que foi planejado tem que
+    // continuar sendo tudo o que havia para estudar.
+    const pendentes = [topic("a", 200), topic("b", 200), topic("c", 200)];
+    const projecao = projectSchedule(input({
+      examDate: d("2026-12-15"),
+      pendingTopics: pendentes,
+    }));
+
+    const planejado = projecao.weeks.reduce((soma, semana) => soma + semana.plannedMinutes, 0);
+    expect(planejado).toBe(600);
+  });
+
+  it("quando NÃO cabe, volta a usar cada minuto disponível", () => {
+    /**
+     * O ritmo é um espalhador, não um freio. Se o conteúdo não cabe até a
+     * prova, segurar o passo seria garantir que ele não caiba — a resposta
+     * certa é encher os dias e dizer o que ficará de fora, que é o papel de
+     * `topicsAtRisk`.
+     */
+    const projecao = projectSchedule(
+      input({ pendingTopics: Array.from({ length: 100 }, (_, i) => topic(`t${i}`, 120)) }),
+    );
+
+    expect(projecao.feasibility.fits).toBe(false);
+    expect(projecao.weeks[0].plannedMinutes).toBe(projecao.weeks[0].availableMinutes);
+  });
+
+  it("não pica o conteúdo em blocos curtos demais para estudar", () => {
+    /**
+     * ⚠️ Espalhar por proporção pura daria três minutos por dia num horizonte
+     * longo. Três minutos não é uma sessão de estudo — o tempo se acumula e o
+     * estudo sai em blocos, mais espaçados.
+     *
+     * O piso é `defaultStudyBlockMinutes`, o mesmo que a Tarefa do Dia usa.
+     */
+    const projecao = projectSchedule(input({
+      examDate: d("2026-12-15"),
+      pendingTopics: [topic("a", 60)],
+    }));
+
+    const diasComEstudo = projecao.weeks
+      .flatMap((semana) => semana.days)
+      .filter((dia) => dia.topics.length > 0);
+
+    for (const dia of diasComEstudo) {
+      const minutos = dia.topics.reduce((soma, t) => soma + t.minutes, 0);
+      expect(minutos, `${dia.date} recebeu um bloco curto demais`).toBeGreaterThanOrEqual(15);
+    }
   });
 });
 

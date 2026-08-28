@@ -156,6 +156,31 @@ export function projectSchedule(input: ProjectScheduleInput): ScheduleProjection
   });
 
   /* --- distribuição por semana --------------------------------------------- */
+
+  /**
+   * O RITMO: que fração do tempo livre de cada dia o estudo novo ocupa.
+   *
+   * ⚠️ ANTES O PLANO ERA GULOSO, e era esse o defeito. Ele enchia cada dia até
+   * o teto, na ordem de prioridade, e parava quando o conteúdo acabava. Com
+   * prova em outubro, o aluno via quatro ou cinco assuntos empilhados nos
+   * primeiros dias, o plano terminando em meados de setembro e três semanas
+   * vazias depois — e adiar a prova não mudava nada, porque a data nunca
+   * entrava na conta da distribuição.
+   *
+   * Agora entra: `necessário ÷ disponível até a prova` espalha o mesmo conteúdo
+   * por todo o período. Vinte dias dão carga alta; cem dias dão carga baixa,
+   * com o mesmo conteúdo. Foi o pedido da cliente, e é também o que o produto
+   * promete — "a projeção do que falta com o tempo que você tem".
+   *
+   * Preso em 1 quando NÃO CABE: aí a resposta certa é usar cada minuto
+   * disponível, e é `topicsAtRisk` que diz o que ficará de fora.
+   *
+   * A ORDEM DE PRIORIDADE NÃO MUDA. O ritmo altera quanto entra por dia, nunca
+   * quem entra primeiro — a fila continua ordenada pelo Motor 1.
+   */
+  const pace =
+    totalAvailable > 0 ? Math.min(1, requiredMinutes / totalAvailable) : 1;
+
   const weeks = buildWeeks({
     today: input.today,
     horizonEnd,
@@ -163,6 +188,8 @@ export function projectSchedule(input: ProjectScheduleInput): ScheduleProjection
     minutesByWeekday,
     reviewMinutesPerDay: input.averageReviewMinutesPerDay,
     pendingTopics: input.pendingTopics,
+    pace,
+    minBlockMinutes: input.scheduleParams.defaultStudyBlockMinutes,
   });
 
   return {
@@ -280,6 +307,15 @@ function buildWeeks(args: {
   minutesByWeekday: Map<number, number>;
   reviewMinutesPerDay: number;
   pendingTopics: PendingTopic[];
+  /**
+   * Que fração da capacidade diária o estudo novo ocupa, de 0 a 1.
+   *
+   * É o que faz o plano TERMINAR NA PROVA em vez de terminar cedo. Ver a nota
+   * em `projectSchedule`.
+   */
+  pace: number;
+  /** Abaixo disto não é sessão de estudo; o dia vira folga e o tempo acumula. */
+  minBlockMinutes: number;
 }): ScheduleWeek[] {
   const weeks: ScheduleWeek[] = [];
 
@@ -290,6 +326,17 @@ function buildWeeks(args: {
 
   let cursor = 0;
   let queueIndex = 0;
+
+  /**
+   * Sobra fracionária do ritmo, carregada de um dia para o outro.
+   *
+   * Com muito tempo até a prova, `dia × pace` dá poucos minutos — dois, três.
+   * Estudar três minutos não é estudar. Em vez de picar o conteúdo assim, o
+   * tempo se acumula e o estudo acontece em blocos de verdade, mais espaçados:
+   * é o que a cliente pediu com "quanto maior o tempo disponível, menor a
+   * quantidade de conteúdos por dia".
+   */
+  let carry = 0;
 
   while (cursor < args.daysRemaining) {
     const startDate = addDays(args.today, cursor);
@@ -317,11 +364,53 @@ function buildWeeks(args: {
     for (let i = 0; i < daysInWeek; i++) {
       const date = addDays(startDate, i);
       const dayMinutes = args.minutesByWeekday.get(weekdayOf(date)) ?? 0;
-      let dayBudget = Math.max(0, dayMinutes - args.reviewMinutesPerDay);
+      const dayCapacity = Math.max(0, dayMinutes - args.reviewMinutesPerDay);
+
+      carry += dayCapacity * args.pace;
+
+      /*
+        O dia só recebe conteúdo quando o acumulado dá um bloco de verdade —
+        ou quando o que falta já cabe no acumulado, que é o fim da fila.
+      */
+      const restante = queue
+        .slice(queueIndex)
+        .reduce((soma, topico) => soma + Math.max(0, topico.left), 0);
+
+      /*
+        ⚠️ TETO DO DIA — sem ele, espalhar não reduz a carga diária.
+
+        O acumulado cresce nos dias de folga e, ao abrir um dia, despejaria
+        tudo de uma vez: com prova em cem dias o aluno recebia os mesmos três
+        assuntos num dia só, apenas mais espaçados. Não era o que a cliente
+        pediu.
+
+        Com o teto, horizonte longo dá UM bloco por dia de estudo, bem
+        distribuído; horizonte curto sobe o teto junto com o ritmo, até o dia
+        inteiro quando o conteúdo não cabe.
+      */
+      const tetoDoDia = Math.max(args.minBlockMinutes, Math.round(dayCapacity * args.pace));
+
+      const abreDia = carry >= args.minBlockMinutes || (restante > 0 && restante <= carry);
+      let dayBudget = abreDia
+        ? Math.min(Math.floor(carry), dayCapacity, tetoDoDia)
+        : 0;
+      carry -= dayBudget;
 
       const dayTopics: ScheduleDay["topics"] = [];
 
-      while (dayBudget > 0 && queueIndex < queue.length) {
+      /*
+        ⚠️ NADA DE FATIA CURTA DEMAIS.
+
+        Um bloco de 30 minutos cabe um assunto de 27 e sobram 3 — que viravam
+        o começo do assunto seguinte. Três minutos de um tema não ensinam nada
+        e ainda fazem o dia parecer ter dois assuntos.
+
+        O que não for usado volta para o acumulado e reaparece no próximo dia
+        de estudo, então nenhum minuto se perde.
+      */
+      const fatiaMinima = Math.ceil(args.minBlockMinutes / 2);
+
+      while (dayBudget >= fatiaMinima && queueIndex < queue.length) {
         const topic = queue[queueIndex];
         if (topic.left <= 0) {
           queueIndex++;
@@ -340,9 +429,12 @@ function buildWeeks(args: {
         if (topic.left <= 0) queueIndex++;
       }
 
+      // Sobra do teto que não virou estudo: volta para o acumulado.
+      carry += dayBudget;
+
       days.push({
         date,
-        availableMinutes: Math.max(0, dayMinutes - args.reviewMinutesPerDay),
+        availableMinutes: dayCapacity,
         topics: dayTopics,
       });
 
