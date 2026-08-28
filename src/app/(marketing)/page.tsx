@@ -13,15 +13,31 @@ import Link from "next/link";
 import { StickyCta } from "@/components/marketing/sticky-cta";
 import { Button } from "@/components/ui/button";
 import { APP_DESCRIPTION, APP_TAGLINE } from "@/config/app";
-import { LANDING } from "@/content/landing";
 import { socialMetadata } from "@/lib/metadata";
+import { getLandingCopy } from "@/server/content/landing";
 
-export const metadata: Metadata = {
-  title: LANDING.seo.title,
-  description: APP_DESCRIPTION,
-  // ⚠️ `socialMetadata` e não um `openGraph` à mão — ver a nota em lib/metadata.
-  ...socialMetadata({ title: LANDING.seo.socialTitle, path: "/" }),
-};
+/**
+ * ⚠️ ESTÁTICA, E ATUALIZADA POR INVALIDAÇÃO — não a cada visita.
+ *
+ * A copy vem do banco, mas a porta da rua não pode pagar uma consulta por
+ * visitante. `force-static` faz a leitura acontecer na geração; publicar um
+ * texto novo chama `revalidatePath("/")` e regenera a página.
+ *
+ * O resultado é o melhor dos dois: a cliente publica e vê a mudança em
+ * segundos, e o visitante continua recebendo HTML do cache da borda.
+ */
+export const dynamic = "force-static";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getLandingCopy();
+
+  return {
+    title: copy.seo.title,
+    description: APP_DESCRIPTION,
+    // ⚠️ `socialMetadata` e não um `openGraph` à mão — ver a nota em lib/metadata.
+    ...socialMetadata({ title: copy.seo.socialTitle, path: "/" }),
+  };
+}
 
 /**
  * Landing page pública (README 1.3).
@@ -92,7 +108,10 @@ const DIFFERENTIAL_CARDS = [
   { key: "schedule", icon: <CalendarClock /> },
 ] as const;
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // O nome curto mantém o resto do arquivo legível: são trinta referências.
+  const LANDING = await getLandingCopy();
+
   return (
     <>
       {/* ==================================================================== *
@@ -377,7 +396,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <StickyCta />
+      {/* Componente de cliente: recebe o texto por prop, não consegue buscá-lo. */}
+      <StickyCta label={LANDING.stickyCta.label} note={LANDING.stickyCta.note} />
     </>
   );
 }

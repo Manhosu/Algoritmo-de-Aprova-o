@@ -1,0 +1,82 @@
+{
+  "seo": {
+    "title": "Estude o que importa, na ordem certa",
+    "socialTitle": "Pare de decidir o que estudar. Comece a estudar."
+  },
+  "hero": {
+    "eyebrow": "Para quem estuda para concurso",
+    "titleLine1": "Pare de decidir o que estudar.",
+    "titleLine2": "Comece a estudar.",
+    "subtitle": "Você sobe o edital do seu concurso. A partir dele, a plataforma monta seu plano de estudo e o reajusta a cada questão que você responde. Sem planilha, sem cronograma que envelhece na primeira semana.",
+    "primaryCta": "Começar agora, é grátis",
+    "secondaryCta": "Ver como funciona",
+    "note": "Não pedimos cartão para começar."
+  },
+  "mockup": {
+    "title": "Sua tarefa de hoje",
+    "badge": "1h disponível",
+    "tasks": [
+      { "label": "Estude", "value": "Mapa Mental — Crase", "done": true },
+      { "label": "Pratique", "value": "Questões — Crase", "done": true },
+      { "label": "Estude", "value": "Concordância verbal", "done": false },
+      { "label": "Revise", "value": "Atos administrativos", "done": false }
+    ],
+    "footnote": "Montada pelo algoritmo a partir do seu edital, do seu diagnóstico e do tempo que você tem hoje."
+  },
+  "howItWorks": {
+    "eyebrow": "Como funciona",
+    "title": "Do PDF do edital à tarefa de hoje",
+    "subtitle": "Quatro passos, uma vez só. Depois disso o trabalho de decidir deixa de ser seu.",
+    "steps": {
+      "upload": {
+        "title": "Você sobe o edital",
+        "body": "Um PDF. A IA lê o documento inteiro e organiza o conteúdo programático em disciplinas e assuntos."
+      },
+      "review": {
+        "title": "Você confere",
+        "body": "Corrige, acrescenta e remove o que quiser. Onde o edital informa o peso de cada tema, ele já vem preenchido."
+      },
+      "diagnosis": {
+        "title": "Faz o diagnóstico",
+        "body": "Marca o que domina e o que não domina. Leva poucos minutos e é o ponto de partida do algoritmo."
+      },
+      "daily": {
+        "title": "E abre o app todo dia",
+        "body": "A Tarefa do Dia já está pronta: o que estudar, com qual técnica e quais questões praticar."
+      }
+    }
+  },
+  "differential": {
+    "eyebrow": "O diferencial",
+    "title": "Não é um banco de questões com cronograma em cima",
+    "subtitle": "As questões são o sensor, não o produto. O que a plataforma faz é decidir por você — e mudar de ideia quando os seus resultados mudam.",
+    "engines": {
+      "title": "Dois motores, não um",
+      "body": "Um decide o que estudar hoje cruzando cinco sinais: seu desempenho, o peso no edital, a proximidade da prova, há quanto tempo você não vê o assunto e onde estão suas lacunas. O outro cuida das revisões, em trilho próprio.",
+      "metrics": [
+        { "value": "5", "label": "sinais de priorização" },
+        { "value": "24h→90d", "label": "ciclo de revisão" },
+        { "value": "1", "label": "decisão por dia" }
+      ]
+    },
+    "cards": {
+      "review": {
+        "title": "Revisão que não depende da sua memória",
+        "body": "Todo conteúdo estudado volta em 24 horas, 7, 30, 60 e 90 dias. Se você atrasar, ela não some — acumula, e o intervalo seguinte conta do dia em que você realmente revisou."
+      },
+      "schedule": {
+        "title": "Cronograma que se refaz sozinho",
+        "body": "Ele muda quando você responde questões ou conclui um estudo. E avisa quando o conteúdo que falta não cabe no tempo que você tem até a prova."
+      }
+    }
+  },
+  "closing": {
+    "title": "Sua próxima sessão de estudo já está decidida.",
+    "cta": "Criar minha conta grátis",
+    "note": "Leva menos de um minuto. Você pode apagar sua conta quando quiser."
+  },
+  "stickyCta": {
+    "label": "Começar agora, é grátis",
+    "note": "Não pedimos cartão."
+  }
+}

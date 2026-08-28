@@ -290,6 +290,39 @@ async function main() {
       `${res.status}`,
     );
 
+    /* --- a área administrativa ---------------------------------------------
+     *
+     * O aluno comum não pode entrar. E, do outro lado, o admin não pode cair
+     * num 404: `AFTER_ADMIN_LOGIN_REDIRECT` manda para `/admin` logo depois do
+     * login, e por um tempo não havia página nenhuma nesse endereço — quem
+     * entrasse com a senha certa via "Essa página não existe".
+     */
+    for (const rota of ["/admin", "/admin/textos"]) {
+      res = await fetch(`${BASE}${rota}`, { headers: { cookie }, redirect: "manual" });
+      record(
+        `${rota} recusa aluno comum sem devolver 404`,
+        res.status === 307 && (res.headers.get("location") ?? "").includes("/inicio"),
+        `${res.status} → ${res.headers.get("location") ?? "—"}`,
+      );
+    }
+
+    await sql`update users set role = 'admin' where id = ${userId}`;
+
+    for (const [rota, marcador] of [
+      ["/admin", "Textos do site"],
+      ["/admin/textos", "Publicar no site"],
+    ] as const) {
+      res = await fetch(`${BASE}${rota}`, { headers: { cookie } });
+      html = await res.text();
+      record(
+        `${rota} abre para admin`,
+        res.ok && html.includes(marcador),
+        `${res.status}`,
+      );
+    }
+
+    await sql`update users set role = 'student' where id = ${userId}`;
+
     res = await fetch(`${BASE}/recuperar-senha`);
     html = await res.text();
     record(

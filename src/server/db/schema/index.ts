@@ -53,3 +53,6 @@ export * from "./engagement";
 
 /* Eventos, funil materializado e execução de jobs --------------------------*/
 export * from "./analytics";
+
+/* Texto do site editável pela cliente, versionado --------------------------*/
+export * from "./site-content";
