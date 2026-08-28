@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LANDING } from "@/content/landing";
 import { cn } from "@/lib/utils";
 
 /**
@@ -52,13 +53,13 @@ export function StickyCta() {
     >
       <Button asChild size="lg" className="w-full" tabIndex={visible ? undefined : -1}>
         <Link href="/cadastrar">
-          Começar agora, é grátis
+          {LANDING.stickyCta.label}
           <ArrowRight aria-hidden />
         </Link>
       </Button>
 
       <p className="pt-2 pb-3 text-center text-xs text-muted-foreground">
-        Não pedimos cartão.
+        {LANDING.stickyCta.note}
       </p>
     </div>
   );

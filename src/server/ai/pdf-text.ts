@@ -45,12 +45,25 @@ const CONTENT_MARKER =
   /conte[úu]do\s+program[áa]tico|objetos?\s+de\s+avalia[çc][ãa]o|programa\s+das?\s+provas?/i;
 
 /**
- * Cabeçalho de anexo, para saber onde o conteúdo programático TERMINA.
+ * Cabeçalho de anexo DE VERDADE: "ANEXO" em caixa alta, no início da linha.
  *
- * O `^` com flag multilinha importa: "conforme o Anexo II" no meio de um
- * parágrafo não é um cabeçalho, e cortar ali perderia metade do programa.
+ * ⚠️ A CAIXA ALTA É O QUE SEPARA CABEÇALHO DE CITAÇÃO, e não é preciosismo.
+ *
+ * O extrator de PDF quebra linha onde o layout mandar, então "…divulgada
+ * conforme o\nAnexo II. A relação será…" vira uma linha que COMEÇA com
+ * "Anexo II" e passa por cabeçalho. Os editais da VUNESP estão cheios disso:
+ * no de Guararema havia um falso na página 11, no da Câmara de Assis havia
+ * três, nas páginas 8, 17 e 27.
+ *
+ * Em todo edital que vimos o cabeçalho real vem em caixa alta ("ANEXO I –
+ * CONTEÚDO PROGRAMÁTICO") e a citação vem capitalizada ("Anexo II."). Por isso
+ * existem duas expressões: a forte manda, e a fraca só entra como queda para
+ * não regredir uma banca que escreva o cabeçalho de outro jeito.
  */
-const ANNEX_HEADING = /^\s*ANEXO\s+([IVXLCDM]+|\d+)\b/im;
+const STRONG_ANNEX_HEADING = /^\s*ANEXO\s+([IVXLCDM]+|\d+)\b/m;
+
+/** Qualquer citação de anexo, cabeçalho ou não. Só usada como queda. */
+const ANY_ANNEX_HEADING = /^\s*ANEXO\s+([IVXLCDM]+|\d+)\b/im;
 
 export type PdfTextResult = {
   /** Texto escolhido para mandar à IA. Vazio quando não há camada de texto. */
@@ -127,25 +140,65 @@ export async function extractEditalText(pdf: Uint8Array): Promise<PdfTextResult>
   };
 }
 
+/** A linha de cabeçalho de anexo da página, se houver. */
+function annexHeadingLine(page: string): string | null {
+  for (const linha of page.split(/\r?\n/)) {
+    if (STRONG_ANNEX_HEADING.test(linha)) return linha;
+  }
+  return null;
+}
+
 /**
  * Acha o intervalo de páginas do conteúdo programático.
  *
- * Começa na primeira página que menciona o conteúdo programático e termina no
- * próximo cabeçalho de ANEXO diferente daquele em que começou. No edital do
- * TJ-RJ isso deu páginas 34 a 72, parando exatamente antes do "ANEXO II –
- * REQUISITOS E ATRIBUIÇÕES DOS CARGOS".
+ * ONDE COMEÇA — E POR QUE NÃO É A PRIMEIRA MENÇÃO
+ * ----------------------------------------------------------------------------
+ * ⚠️ COMEÇAR NA PRIMEIRA PÁGINA QUE *MENCIONA* O CONTEÚDO PROGRAMÁTICO ESTÁ
+ * ERRADO, e do pior jeito: o corpo do edital cita o anexo muito antes de ele
+ * existir ("a prova será elaborada de acordo com o conteúdo programático
+ * constante do Anexo II"). O corte então começava na citação e terminava no
+ * cabeçalho do anexo verdadeiro — mandando à IA as páginas ERRADAS e parando
+ * uma página antes do conteúdo real.
+ *
+ * Foi o que derrubou os dois editais da VUNESP que a cliente testou:
+ *
+ *   Guararema        citação na pág. 13, anexo na pág. 29 → mandava 13–28
+ *   Câmara de Assis  citação na pág. 17, anexo na pág. 41 → mandava 17–26
+ *
+ * Nos dois casos a IA recebeu texto administrativo e nenhuma disciplina. Para
+ * ela o edital simplesmente não tinha conteúdo programático.
+ *
+ * A âncora certa é o CABEÇALHO do anexo que fala de conteúdo programático —
+ * "ANEXO I – CONTEÚDO PROGRAMÁTICO". Só quando não existe cabeçalho assim é
+ * que voltamos à primeira menção, que é o comportamento antigo.
+ *
+ * ONDE TERMINA
+ * ----------------------------------------------------------------------------
+ * No próximo cabeçalho de anexo com numeral diferente. No edital do TJ-RJ isso
+ * deu páginas 34 a 72, parando exatamente antes do "ANEXO II – REQUISITOS E
+ * ATRIBUIÇÕES DOS CARGOS".
  *
  * Devolve `null` quando não encontra — e aí manda-se o edital inteiro, que é o
- * comportamento seguro: cortar errado perderia conteúdo do aluno em silêncio.
+ * comportamento seguro: cortar errado perde conteúdo do aluno em silêncio.
  */
-function findContentRange(pages: string[]): { from: number; to: number } | null {
-  const from = pages.findIndex((page) => CONTENT_MARKER.test(page));
+export function findContentRange(pages: string[]): { from: number; to: number } | null {
+  // 1ª escolha: o cabeçalho de anexo que fala de conteúdo programático.
+  let from = pages.findIndex((page) => {
+    const heading = annexHeadingLine(page);
+    return heading !== null && CONTENT_MARKER.test(heading);
+  });
+
+  // Queda: a primeira menção, como antes. Vale para edital sem anexo nomeado,
+  // em que o programa vem no corpo do texto.
+  if (from === -1) from = pages.findIndex((page) => CONTENT_MARKER.test(page));
   if (from === -1) return null;
 
-  const startingAnnex = pages[from].match(ANNEX_HEADING)?.[1];
+  const startingAnnex =
+    pages[from].match(STRONG_ANNEX_HEADING)?.[1] ??
+    pages[from].match(ANY_ANNEX_HEADING)?.[1];
 
   for (let index = from + 1; index < pages.length; index += 1) {
-    const heading = pages[index].match(ANNEX_HEADING);
+    const heading = pages[index].match(STRONG_ANNEX_HEADING);
     if (heading && heading[1] !== startingAnnex) {
       return { from, to: index };
     }
