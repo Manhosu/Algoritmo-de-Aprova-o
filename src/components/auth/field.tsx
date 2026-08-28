@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 type FieldProps = ComponentProps<"input"> & {
   label: string;
-  /** Texto de apoio permanente, tipo "mínimo de 10 caracteres". */
+  /** Texto de apoio permanente, tipo o mínimo de caracteres de uma senha. */
   hint?: ReactNode;
   /** Mensagem de erro. Presente = campo inválido. */
   error?: string | null;

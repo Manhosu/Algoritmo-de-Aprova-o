@@ -2,6 +2,8 @@ import "server-only";
 
 import { hash, verify } from "@node-rs/argon2";
 
+import { PASSWORD_MIN_LENGTH } from "@/config/app";
+
 /**
  * Hashing de senha.
  *
@@ -70,8 +72,14 @@ export async function verifyPassword(
 
 export type PasswordCheck = { ok: boolean; problems: string[] };
 
-/** Comprimento mínimo. Acima do mínimo, o tamanho vale mais que a complexidade. */
-const MIN_LENGTH = 10;
+/**
+ * Comprimento mínimo. Acima do mínimo, o tamanho vale mais que a complexidade.
+ *
+ * ⚠️ O NÚMERO VEM DE `config/app.ts`, e não daqui. Este arquivo é `server-only`
+ * e as telas não conseguem importar dele — se o mínimo morasse aqui, o texto na
+ * tela seria uma cópia escrita à mão, livre para discordar da regra.
+ */
+const MIN_LENGTH = PASSWORD_MIN_LENGTH;
 const MAX_LENGTH = 200;
 
 /**

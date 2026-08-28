@@ -52,3 +52,24 @@ export const SUPPORT_EMAIL = "oalgoritmodaaprovacao@gmail.com";
  * outra coisa.
  */
 export const OTHER_EXAM_BOARD = "__outra__";
+
+/**
+ * Comprimento mínimo da senha.
+ *
+ * ⚠️ MORA AQUI, E NÃO EM `server/auth/password.ts`, POR UM MOTIVO ESPECÍFICO:
+ * aquele arquivo é `server-only`, então as telas não conseguem importar dele.
+ * A regra ficava duplicada — o número no servidor e a frase "Pelo menos 10
+ * caracteres" escrita à mão em TRÊS componentes de tela.
+ *
+ * Duplicada, ela sai de sincronia na primeira mudança, e o modo de falha é
+ * cruel com o aluno: a tela promete um mínimo, o servidor recusa por outro, e
+ * a mensagem de erro contradiz o texto que ele acabou de ler.
+ *
+ * Era 10. Passou a 8 a pedido da cliente (27/08/2026): ela propôs 6, que sai da
+ * faixa recomendada pelo NIST para senha escolhida por pessoa; 8 é o piso do
+ * NIST e foi o meio-termo aprovado.
+ */
+export const PASSWORD_MIN_LENGTH = 8;
+
+/** O texto da regra na tela. Sai do mesmo número que o servidor aplica. */
+export const PASSWORD_HINT = `Pelo menos ${PASSWORD_MIN_LENGTH} caracteres. Uma frase é mais segura e mais fácil de lembrar.`;

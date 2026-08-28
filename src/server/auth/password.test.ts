@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { PASSWORD_MIN_LENGTH } from "@/config/app";
+
 import { checkPasswordStrength } from "./password";
 
 /**
@@ -19,7 +21,26 @@ describe("checkPasswordStrength", () => {
   it("recusa senha curta", () => {
     const resultado = checkPasswordStrength("abc123");
     expect(resultado.ok).toBe(false);
-    expect(resultado.problems.join(" ")).toContain("10 caracteres");
+    // O número sai de `PASSWORD_MIN_LENGTH`, não escrito à mão: a versão
+    // anterior deste teste fixava "10 caracteres" e reprovava por motivo
+    // errado quando a cliente pediu 8.
+    expect(resultado.problems.join(" ")).toContain(`${PASSWORD_MIN_LENGTH} caracteres`);
+  });
+
+  it("recusa exatamente um caractere abaixo do mínimo, e aceita no mínimo", () => {
+    /**
+     * A fronteira é onde o erro de `<` contra `<=` se esconde.
+     *
+     * ⚠️ Nada de "aaaaaaaa" aqui: caractere único repetido cai na regra de
+     * baixo e o teste passaria a reprovar pelo motivo errado, sem medir a
+     * fronteira que se propôs a medir.
+     */
+    const alfabeto = "abcdefghijklmnopqrstuvwxyz";
+    const noLimite = alfabeto.slice(0, PASSWORD_MIN_LENGTH);
+    const umAbaixo = alfabeto.slice(0, PASSWORD_MIN_LENGTH - 1);
+
+    expect(checkPasswordStrength(umAbaixo).ok).toBe(false);
+    expect(checkPasswordStrength(noLimite).ok).toBe(true);
   });
 
   it("RECUSA SENHA DE LISTA DE VAZAMENTO, mesmo que pareça complexa", () => {

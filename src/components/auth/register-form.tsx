@@ -7,6 +7,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { PASSWORD_HINT } from "@/config/app";
 
 import { registerAction, type AuthFormState } from "./actions";
 import { Field, FormError } from "./field";
@@ -81,7 +82,7 @@ export function RegisterForm() {
           type="password"
           autoComplete="new-password"
           required
-          hint="Pelo menos 10 caracteres. Uma frase é mais segura e mais fácil de lembrar."
+          hint={PASSWORD_HINT}
           error={errors?.password}
         />
 

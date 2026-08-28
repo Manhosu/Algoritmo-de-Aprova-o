@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 
 import { Field, FormError } from "@/components/auth/field";
 import { Button } from "@/components/ui/button";
+import { PASSWORD_HINT } from "@/config/app";
 
 import {
   changeEmailAction,
@@ -112,7 +113,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         type="password"
         autoComplete="new-password"
         required
-        hint="Pelo menos 10 caracteres. Uma frase é mais segura e mais fácil de lembrar."
+        hint={PASSWORD_HINT}
       />
 
       <Submit pending={pending} label="Salvar nova senha" />
@@ -150,7 +151,7 @@ export function ChangePasswordForm() {
         type="password"
         autoComplete="new-password"
         required
-        hint="Pelo menos 10 caracteres."
+        hint={PASSWORD_HINT}
       />
 
       <Submit pending={pending} label="Alterar senha" />
