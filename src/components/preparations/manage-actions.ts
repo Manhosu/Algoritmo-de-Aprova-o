@@ -79,6 +79,7 @@ export async function updateExamDetailsAction(
   const modo = String(formData.get("dataModo") ?? "unknown");
   const data = String(formData.get("dataProva") ?? "").trim();
   const banca = String(formData.get("banca") ?? "").trim();
+  const bancaOutra = String(formData.get("bancaOutra") ?? "").trim().slice(0, 120);
 
   const result = await updateExamDetails({
     userId: session.user.id,
@@ -87,6 +88,7 @@ export async function updateExamDetailsAction(
     institution: String(formData.get("orgao") ?? "") || null,
     // "Outra" não tem id para gravar: vira nulo, como "não sei".
     examBoardId: banca && banca !== OTHER_EXAM_BOARD ? banca : null,
+    examBoardOther: banca === OTHER_EXAM_BOARD && bancaOutra ? bancaOutra : null,
     examDate: modo === "unknown" || !data ? null : data,
     examDateIsEstimated: modo === "estimated",
   });

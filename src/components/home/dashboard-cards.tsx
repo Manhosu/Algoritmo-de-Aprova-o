@@ -470,6 +470,21 @@ function EvolutionChart({ points }: { points: EvolutionPoint[] }) {
 
   const last = points[points.length - 1];
 
+  /**
+   * Até cinco datas, sempre incluindo a primeira e a última.
+   *
+   * O passo é calculado sobre os índices para as marcas ficarem espaçadas por
+   * igual; com menos de cinco pontos, todas aparecem.
+   */
+  const MAX_MARCAS = 5;
+  const passo = Math.max(1, Math.ceil((points.length - 1) / (MAX_MARCAS - 1)));
+  const datasVisiveis = [
+    ...new Set([
+      ...Array.from({ length: points.length }, (_, i) => i).filter((i) => i % passo === 0),
+      points.length - 1,
+    ]),
+  ].sort((a, b) => a - b);
+
   return (
     <figure className="mt-4">
       <svg
@@ -525,9 +540,42 @@ function EvolutionChart({ points }: { points: EvolutionPoint[] }) {
             fill="var(--primary)"
           />
         ))}
+
+        {/*
+          ⚠️ AS DATAS, MAS NÃO TODAS.
+
+          A cliente pediu a data de cada ponto. Com trinta dias, trinta rótulos
+          de "28/08" em 640px se sobrepõem e viram um borrão — que é pior que
+          não ter data. Então aparecem no máximo cinco, espaçadas por igual, e
+          a última é sempre uma delas: é a que o olho procura.
+
+          `datasVisiveis` decide quais; o resto do eixo fica limpo.
+        */}
+        {datasVisiveis.map((index) => (
+          <text
+            key={points[index].date}
+            x={x(index)}
+            y={height - 6}
+            textAnchor={
+              index === 0 ? "start" : index === points.length - 1 ? "end" : "middle"
+            }
+            className="fill-[var(--muted-foreground)] text-[10px]"
+          >
+            {formatEixo(points[index].date)}
+          </text>
+        ))}
       </svg>
     </figure>
   );
+}
+
+/** "28/08" — só dia e mês; o ano não muda dentro de trinta dias. */
+function formatEixo(date: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
 }
 
 /* ========================================================================== *

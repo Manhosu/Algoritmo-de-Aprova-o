@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ExamDetailsForm } from "@/components/preparations/exam-details-form";
 import type { ExamBoardOption } from "@/components/preparations/new-preparation-form";
+import { OTHER_EXAM_BOARD } from "@/config/app";
 import { LOGIN_ROUTE } from "@/config/routes";
 import { getStudentContext } from "@/server/auth/current-user";
 import { db } from "@/server/db";
@@ -42,6 +43,7 @@ export default async function ExamDetailsPage({
       targetPosition: true,
       institution: true,
       examBoardId: true,
+      examBoardOther: true,
       examDate: true,
       examDateIsEstimated: true,
     },
@@ -73,7 +75,8 @@ export default async function ExamDetailsPage({
         initial={{
           cargo: preparation.targetPosition,
           orgao: preparation.institution ?? "",
-          banca: preparation.examBoardId ?? "",
+          banca: preparation.examBoardId ?? (preparation.examBoardOther ? OTHER_EXAM_BOARD : ""),
+          bancaOutra: preparation.examBoardOther ?? "",
           dataProva: preparation.examDate ?? "",
           estimada: preparation.examDateIsEstimated,
         }}

@@ -42,17 +42,23 @@ export type NavItem = {
 };
 
 /**
- * Menu lateral, na ordem exata do README 2.2.
+ * Menu lateral.
  *
- * Os dois últimos não estão no mockup e foram acrescentados pela cliente:
- * Cronograma Adaptativo e Entenda o Algoritmo.
+ * A ordem saiu do README 2.2 e mudou a pedido da cliente em 28/08/2026:
+ * Cronograma Adaptativo subiu para logo abaixo de Home.
+ *
+ * ⚠️ O CRITÉRIO É FREQUÊNCIA DE USO, não a ordem do fluxo de cadastro. O aluno
+ * abre o cronograma quase toda sessão, e ele estava embaixo de dois itens
+ * apagados ("em breve") — o olho batia primeiro no que não funciona.
+ *
+ * Estudos e Entenda o Algoritmo continuam desabilitados até o Marco 2.
  */
 export const SIDEBAR_ITEMS: NavItem[] = [
   { href: "/inicio", label: "Home", icon: <Home /> },
-  { href: "/estudos", label: "Estudos", icon: <BookOpen />, soon: true },
+  { href: "/cronograma", label: "Cronograma Adaptativo", icon: <Compass /> },
   { href: "/questoes", label: "Questões", icon: <CircleHelp /> },
   { href: "/revisoes", label: "Revisões", icon: <RefreshCw /> },
-  { href: "/cronograma", label: "Cronograma Adaptativo", icon: <Compass /> },
+  { href: "/estudos", label: "Estudos", icon: <BookOpen />, soon: true },
   {
     href: "/entenda-o-algoritmo",
     label: "Entenda o Algoritmo",

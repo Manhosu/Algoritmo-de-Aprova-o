@@ -25,8 +25,15 @@ import {
 } from "@/components/home/dashboard-cards";
 import { EmptyState, SectionTitle, Surface } from "@/components/shared/surface";
 import { Button } from "@/components/ui/button";
-import { APP_TAGLINE } from "@/config/app";
+import { APP_TAGLINE, APP_TIMEZONE } from "@/config/app";
+import { examCountdown } from "@/modules/metrics";
+import { toCivilDate } from "@/modules/shared/dates";
 import type { LinkableTechnique } from "@/lib/deep-links";
+import {
+  nextStep,
+  type NextStep,
+  type NextStepIcon,
+} from "@/modules/onboarding/next-step";
 import { getStudentContext } from "@/server/auth/current-user";
 import { LOGIN_ROUTE } from "@/config/routes";
 import { ensureGamificationState, getHomeData, type HomeData } from "@/server/home/dashboard";
@@ -53,59 +60,59 @@ export default async function HomePage() {
 
   const preparation = context.currentPreparation;
   const firstName = context.user.name?.trim().split(/\s+/)[0] || null;
+  const pendente = nextStep(preparation);
+
+  const countdown = preparation
+    ? examCountdown(
+        toCivilDate(new Date(), APP_TIMEZONE),
+        preparation.examDate,
+        preparation.examDateIsEstimated,
+      )
+    : null;
 
   return (
     <div className="flex flex-col gap-4">
+      {/*
+        ⚠️ A CONTAGEM APARECE AQUI PORQUE O CABEÇALHO NÃO A MOSTRA NO CELULAR.
+
+        Em 390px o cabeçalho fica só com o símbolo da marca — a saudação e a
+        linha "faltam X dias" não cabem ao lado do streak e do avatar. A cliente
+        notou a diferença: no computador a contagem aparecia, no celular não.
+
+        A linha vive aqui, onde há largura inteira, e substitui a tagline quando
+        existe data: quantos dias faltam é informação, a tagline é decoração.
+      */}
       <header className="sm:hidden">
         <h1 className="text-lg font-semibold text-foreground">
           {firstName ? `Olá, ${firstName}!` : "Olá!"}
         </h1>
-        <p className="text-sm text-balance text-muted-foreground">{APP_TAGLINE}</p>
+        <p className="text-sm text-balance text-muted-foreground">
+          {countdown?.daysLeft !== null && countdown ? countdown.label : APP_TAGLINE}
+        </p>
       </header>
 
-      {preparation === null ? (
-        <NoPreparation />
-      ) : preparation.status === "draft" ? (
-        <ResumeStep
-          title="Falta enviar o edital"
-          body="Sua preparação foi criada, mas ainda não recebeu o PDF do edital. É a partir dele que o plano é montado."
-          href={`/preparacoes/${preparation.id}/edital`}
-          cta="Enviar o edital"
-          icon={<FileUp />}
-        />
-      ) : preparation.status === "extracting" ? (
-        <Processing preparationId={preparation.id} />
-      ) : preparation.status === "review_pending" ? (
-        <ResumeStep
-          title="Confira o que a IA leu"
-          body="O conteúdo programático foi extraído do seu edital. Antes de continuar, corrija o que estiver errado e preencha os pesos que faltarem."
-          href={`/preparacoes/${preparation.id}/conteudo`}
-          cta="Revisar o conteúdo"
-          icon={<ListChecks />}
-        />
-      ) : preparation.status === "diagnosis_pending" ? (
-        <ResumeStep
-          title="Falta o diagnóstico"
-          body="Diga o quanto você domina cada disciplina. São poucos cliques, e é o ponto de partida do algoritmo."
-          href={`/preparacoes/${preparation.id}/diagnostico`}
-          cta="Fazer o diagnóstico"
-          icon={<Target />}
-        />
-      ) : preparation.status === "failed" ? (
-        <ResumeStep
-          title="Não conseguimos ler seu edital"
-          body="A leitura do PDF falhou. Envie o arquivo de novo, de preferência a versão original do site da banca."
-          href={`/preparacoes/${preparation.id}/edital`}
-          cta="Enviar outro arquivo"
-          icon={<FileUp />}
-        />
-      ) : (
+      {/*
+        ⚠️ O TEXTO VEM DE `modules/onboarding/next-step`, e a APRESENTAÇÃO fica
+        aqui. A decisão de qual é o próximo passo era um `if` gigante só desta
+        tela, e as outras (Cronograma, Revisões) não tinham como saber: quem
+        clicava em Cronograma antes de subir o edital recebia um botão de volta
+        para cá em vez do caminho.
+
+        A Home mantém a apresentação própria porque ela é diferente de verdade:
+        superfície acesa, botão grande e, no estado de leitura, uma tela que se
+        atualiza sozinha.
+      */}
+      {pendente === null ? (
         <ActiveDashboard
-          preparationId={preparation.id}
-          preparationTitle={preparation.title}
+          preparationId={preparation!.id}
+          preparationTitle={preparation!.title}
           userId={context.user.id}
           firstName={firstName}
         />
+      ) : pendente.icon === "processing" ? (
+        <Processing step={pendente} preparationId={preparation!.id} />
+      ) : (
+        <ResumeStep step={pendente} />
       )}
     </div>
   );
@@ -115,39 +122,19 @@ export default async function HomePage() {
  * ESTADOS
  * ========================================================================== */
 
-function NoPreparation() {
-  return (
-    <Surface glow>
-      <EmptyState
-        icon={<FileUp />}
-        title="Comece pelo edital"
-        description="Suba o PDF do concurso que você vai fazer. A partir dele o sistema monta seu plano de estudo e passa a decidir o que você estuda cada dia."
-        action={
-          <Button asChild size="lg" className="mt-2">
-            <Link href="/preparacoes/nova">
-              Criar minha preparação
-              <ArrowRight aria-hidden />
-            </Link>
-          </Button>
-        }
-      />
-    </Surface>
-  );
-}
+/** Os ícones que a Home usa para cada intenção de `nextStep`. */
+const ICONES: Record<NextStepIcon, React.ReactNode> = {
+  create: <FileUp />,
+  upload: <FileUp />,
+  review: <ListChecks />,
+  diagnosis: <Target />,
+  processing: <Loader2 className="animate-spin" />,
+};
 
-function ResumeStep({
-  title,
-  body,
-  href,
-  cta,
-  icon,
-}: {
-  title: string;
-  body: string;
-  href: string;
-  cta: string;
-  icon: React.ReactNode;
-}) {
+function ResumeStep({ step }: { step: NextStep }) {
+  const { title, body, href, cta } = step;
+  const icon = ICONES[step.icon];
+
   return (
     <Surface glow>
       <EmptyState
@@ -175,14 +162,14 @@ function ResumeStep({
  * WebSocket para um evento que acontece uma vez por preparação seria caro
  * demais para o ganho.
  */
-function Processing({ preparationId }: { preparationId: string }) {
+function Processing({ step, preparationId }: { step: NextStep; preparationId: string }) {
   return (
     <Surface glow>
       <meta httpEquiv="refresh" content="6" />
       <EmptyState
         icon={<Loader2 className="animate-spin" />}
-        title="Lendo seu edital"
-        description="A IA está identificando as disciplinas e os assuntos. Costuma levar menos de um minuto — pode deixar esta tela aberta."
+        title={step.title}
+        description={`${step.body} Pode deixar esta tela aberta.`}
         action={
           <p className="mt-1 text-xs text-muted-foreground">
             Preparação {preparationId.slice(0, 8)}

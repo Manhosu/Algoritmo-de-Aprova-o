@@ -20,6 +20,8 @@ type SearchParams = {
   banca?: string;
   disciplina?: string;
   assunto?: string;
+  /** Item da Tarefa do Dia que trouxe o aluno até aqui. */
+  tarefa?: string;
   dificuldade?: string;
   naoRespondidas?: string;
   pagina?: string;
@@ -99,7 +101,17 @@ export default async function QuestionsPage({
           />
         </Surface>
       ) : (
-        <QuestionList questions={result.questions} limit={result.limit} />
+        <QuestionList
+          questions={result.questions}
+          limit={result.limit}
+          /*
+            ⚠️ O id vem da URL e NÃO é confiável aqui — quem confere o dono é
+            `advanceTaskItem`, no servidor, dentro da transação da resposta.
+            Validar na tela seria conferir no lugar errado: a resposta pode ser
+            enviada sem passar por ela.
+          */
+          dailyTaskItemId={isUuid(params.tarefa) ? params.tarefa! : null}
+        />
       )}
 
       {pageCount > 1 ? (

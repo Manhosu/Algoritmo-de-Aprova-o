@@ -16,6 +16,7 @@ type Initial = {
   cargo: string;
   orgao: string;
   banca: string;
+  bancaOutra: string;
   dataProva: string;
   estimada: boolean;
 };
@@ -44,6 +45,8 @@ export function ExamDetailsForm({
     { ok: false } as { ok: boolean; message?: string },
   );
 
+  const [banca, setBanca] = useState(initial.banca);
+
   const [dateMode, setDateMode] = useState<DateMode>(
     initial.dataProva ? (initial.estimada ? "estimated" : "known") : "unknown",
   );
@@ -70,7 +73,8 @@ export function ExamDetailsForm({
         <select
           id="banca"
           name="banca"
-          defaultValue={initial.banca}
+          value={banca}
+          onChange={(e) => setBanca(e.target.value)}
           className={cn(
             // Mesmo tratamento do formulário de criação: sem `bg-input` e sem
             // pintar as `option`, o navegador abre a lista em branco e o texto
@@ -88,6 +92,17 @@ export function ExamDetailsForm({
           ))}
           <option value={OTHER_EXAM_BOARD}>Outra banca</option>
         </select>
+
+        {/* Mesmo campo do formulário de criação — ver a nota lá. */}
+        {banca === OTHER_EXAM_BOARD ? (
+          <Field
+            label="Qual é a banca?"
+            name="bancaOutra"
+            defaultValue={initial.bancaOutra}
+            hint="Como aparece no edital. Ainda não temos questões dela, mas guardamos o nome."
+            maxLength={120}
+          />
+        ) : null}
       </div>
 
       <fieldset className="flex flex-col gap-2">

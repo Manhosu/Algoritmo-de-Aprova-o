@@ -30,10 +30,11 @@ export async function createPreparationAction(
   const cargo = String(formData.get("cargo") ?? "").trim();
   const orgao = String(formData.get("orgao") ?? "").trim();
   const banca = String(formData.get("banca") ?? "").trim();
+  const bancaOutra = String(formData.get("bancaOutra") ?? "").trim().slice(0, 120);
   const dataModo = String(formData.get("dataModo") ?? "unknown");
   const dataProva = String(formData.get("dataProva") ?? "").trim();
 
-  const values = { cargo, orgao, banca, dataProva };
+  const values = { cargo, orgao, banca, bancaOutra, dataProva };
 
   if (cargo.length < 3) {
     return {
@@ -65,6 +66,9 @@ export async function createPreparationAction(
     // "Outra" é banca conhecida do aluno e desconhecida da nossa lista:
     // vira nulo na coluna, igual a "não sei", porque não há id para gravar.
     examBoardId: banca && banca !== OTHER_EXAM_BOARD ? banca : null,
+    // O nome digitado só vale quando ele escolheu "Outra". Guardá-lo junto com
+    // um `examBoardId` real deixaria dois valores contraditórios na mesma linha.
+    examBoardOther: banca === OTHER_EXAM_BOARD && bancaOutra ? bancaOutra : null,
     examDate,
     examDateIsEstimated: isEstimated,
   });

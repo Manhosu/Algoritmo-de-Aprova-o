@@ -40,12 +40,14 @@ export function QuestionCard({
   question,
   index,
   blocked,
+  dailyTaskItemId,
   onAnswered,
 }: {
   question: QuestionView;
   index: number;
   /** Limite diário atingido: dá para ler, não dá para responder. */
   blocked: boolean;
+  dailyTaskItemId?: string | null;
   onAnswered?: () => void;
 }) {
   const [pending, startTransition] = useTransition();
@@ -105,6 +107,9 @@ export function QuestionCard({
         questionId: question.id,
         optionId,
         timeSpentSeconds: Math.round((Date.now() - openedAt) / 1000),
+        // Presente só quando o aluno chegou pelo link da Tarefa do Dia. É o
+        // que risca a linha "Pratique" e credita o XP dela.
+        dailyTaskItemId,
       });
 
       if (!result.ok) {

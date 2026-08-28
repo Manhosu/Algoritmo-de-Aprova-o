@@ -10,6 +10,7 @@ import {
   canonicalTopics,
   dailyQuestionUsage,
   dailyTaskItems,
+  dailyTasks,
   examBoards,
   questionAttempts,
   questionOptions,
@@ -554,7 +555,7 @@ export async function answerQuestion(input: {
     });
 
     if (input.dailyTaskItemId) {
-      await advanceTaskItem(tx, input.dailyTaskItemId, now);
+      await advanceTaskItem(tx, input.dailyTaskItemId, input.userId, now);
     }
 
     /**
@@ -655,8 +656,20 @@ type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 async function advanceTaskItem(
   tx: Transaction,
   itemId: string,
+  userId: string,
   now: Date,
 ): Promise<void> {
+  /**
+   * ⚠️ O `userId` NO WHERE NÃO É ZELO EXTRA — é o que fecha o buraco.
+   *
+   * O id do item chega pela URL (`/questoes?tarefa=…`), que é o que faz a
+   * linha "Pratique" da Tarefa do Dia se riscar quando o aluno responde. Sem
+   * amarrar ao dono, qualquer pessoa logada poderia colar o id de outra e
+   * fechar a tarefa dela — e ganhar o XP na conta errada.
+   *
+   * Durante um tempo isso não era alcançável, porque nada passava o id adiante.
+   * Passou a ser no momento em que a URL começou a carregá-lo.
+   */
   const [item] = await tx
     .select({
       id: dailyTaskItems.id,
@@ -666,7 +679,8 @@ async function advanceTaskItem(
       target: dailyTaskItems.targetQuestionCount,
     })
     .from(dailyTaskItems)
-    .where(eq(dailyTaskItems.id, itemId))
+    .innerJoin(dailyTasks, eq(dailyTasks.id, dailyTaskItems.dailyTaskId))
+    .where(and(eq(dailyTaskItems.id, itemId), eq(dailyTasks.userId, userId)))
     .limit(1);
 
   if (!item || item.status === "completed") return;

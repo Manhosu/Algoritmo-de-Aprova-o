@@ -126,7 +126,7 @@ async function main() {
     html = await res.text();
     record(
       "Home abre e convida a criar a preparação",
-      res.ok && html.includes("Comece pelo edital"),
+      res.ok && html.includes("Comece pela sua preparação"),
       `${res.status}`,
     );
 
@@ -260,6 +260,29 @@ async function main() {
       "nenhum isCorrect no payload",
     );
 
+    /*
+     * ⚠️ ANTES DE ATIVAR: as telas que dependem do plano precisam MANDAR o
+     * aluno para o passo que falta, e não só dizer que estão vazias.
+     *
+     * A cliente clicou em Cronograma antes de subir o edital e recebeu um botão
+     * de volta para a Home — dois cliques para descobrir que faltava um PDF.
+     * Ela chamou de link quebrado. Aqui a preparação está em `diagnosis_pending`,
+     * então as duas telas devem apontar para o diagnóstico.
+     */
+    for (const rota of ["/cronograma", "/revisoes"]) {
+      res = await fetch(`${BASE}${rota}`, { headers: { cookie } });
+      html = await res.text();
+      record(
+        `${rota} manda para o passo que falta, e não para a Home`,
+        res.ok &&
+          html.includes("Falta o diagnóstico") &&
+          html.includes(`/preparacoes/${preparationId}/diagnostico`),
+        `${res.status}`,
+      );
+    }
+
+    await sql`update preparations set status = 'active' where id = ${preparationId}`;
+
     res = await fetch(`${BASE}/revisoes`, { headers: { cookie } });
     html = await res.text();
     record(
@@ -270,6 +293,8 @@ async function main() {
 
     res = await fetch(`${BASE}/cronograma`, { headers: { cookie } });
     record("Tela de cronograma renderiza", res.ok, `${res.status}`);
+
+    await sql`update preparations set status = 'diagnosis_pending' where id = ${preparationId}`;
 
     res = await fetch(`${BASE}/preparacoes`, { headers: { cookie } });
     html = await res.text();

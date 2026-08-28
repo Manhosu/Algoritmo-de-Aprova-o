@@ -26,6 +26,8 @@ export type CreatePreparationInput = {
   targetPosition: string;
   institution?: string | null;
   examBoardId?: string | null;
+  /** Nome digitado quando a banca não está na lista. Só com `examBoardId` nulo. */
+  examBoardOther?: string | null;
   examDate?: string | null;
   examDateIsEstimated?: boolean;
 };
@@ -60,6 +62,7 @@ export async function createPreparation(
         title: input.targetPosition.trim().slice(0, 160),
         institution: input.institution?.trim() || null,
         examBoardId: input.examBoardId || null,
+        examBoardOther: input.examBoardId ? null : input.examBoardOther?.trim() || null,
         examDate: input.examDate || null,
         examDateIsEstimated: input.examDateIsEstimated ?? false,
         status: "draft",

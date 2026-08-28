@@ -109,8 +109,29 @@ export function studyLink(input: StudyLinkInput): string | null {
 }
 
 /** Destino do item de PRÁTICA: o banco de questões, já filtrado no assunto. */
-export function practiceLink(topicSlug?: string | null): string | null {
-  return routeIfImplemented(withTopic(QUESTIONS_ROUTE, topicSlug), QUESTIONS_ROUTE);
+export function practiceLink(
+  topicSlug?: string | null,
+  dailyTaskItemId?: string | null,
+): string | null {
+  /**
+   * ⚠️ O `?tarefa=` É O QUE FAZ A LINHA "PRATIQUE" SE RISCAR.
+   *
+   * Sem ele, o aluno abria as questões pelo link da missão, respondia, e a
+   * tarefa continuava aberta: o XP daquela linha nunca entrava na soma do dia.
+   * A cliente descreveu exatamente isso — "aparece clicável e mostra os +10XP,
+   * porém não tem como validar".
+   *
+   * Quem lê o parâmetro é a tela de questões, que o repassa a cada resposta.
+   * O servidor confere que o item é do próprio aluno antes de avançar.
+   */
+  const base = withTopic(QUESTIONS_ROUTE, topicSlug);
+  if (!dailyTaskItemId) return routeIfImplemented(base, QUESTIONS_ROUTE);
+
+  const separador = base.includes("?") ? "&" : "?";
+  return routeIfImplemented(
+    `${base}${separador}tarefa=${encodeURIComponent(dailyTaskItemId)}`,
+    QUESTIONS_ROUTE,
+  );
 }
 
 /** Destino de uma revisão: a prática do assunto, marcada como revisão. */

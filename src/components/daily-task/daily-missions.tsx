@@ -137,7 +137,7 @@ export function DailyMissions({ missions, completionBonusXp }: DailyMissionsProp
                 icon={<Target />}
                 action="Pratique"
                 label={`Questões — ${mission.topicName}`}
-                href={practiceLink(mission.topicSlug)}
+                href={practiceLink(mission.topicSlug, mission.practice.itemId)}
                 item={mission.practice}
               />
             ) : (

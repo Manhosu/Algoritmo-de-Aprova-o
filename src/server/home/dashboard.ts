@@ -197,6 +197,7 @@ async function loadStats(userId: string, today: CivilDate): Promise<HomeStats> {
         currentStreak: true,
         longestStreak: true,
         coinBalance: true,
+        lastActivityDate: true,
       },
     }),
 
@@ -280,9 +281,34 @@ async function loadStats(userId: string, today: CivilDate): Promise<HomeStats> {
     studyMinutesTotal: totals[0]?.minutes ?? 0,
     studyMinutesToday: totals[0]?.minutesToday ?? 0,
     coinBalance: state?.coinBalance ?? 0,
-    currentStreak: state?.currentStreak ?? 0,
+    /*
+     * ⚠️ A SEQUÊNCIA GRAVADA PODE ESTAR VENCIDA.
+     *
+     * `current_streak` só é recalculado quando o aluno FAZ alguma coisa
+     * (`markActivity`). Quem estudou trinta dias, sumiu por três e abriu o app
+     * continuava lendo "30 dias" — o número mais motivador da tela, mentindo.
+     *
+     * A conta aqui é a leitura honesta: a sequência vale enquanto a última
+     * atividade for hoje ou ontem. Hoje ainda não conta como quebra, porque o
+     * dia não acabou; anteontem, sim.
+     */
+    currentStreak: streakAindaVale(state?.lastActivityDate ?? null, today)
+      ? (state?.currentStreak ?? 0)
+      : 0,
     longestStreak: state?.longestStreak ?? 0,
   };
+}
+
+/**
+ * A sequência gravada ainda vale hoje?
+ *
+ * Vale se a última atividade foi hoje (o dia está em curso) ou ontem (a
+ * sequência continua viva até a virada). Qualquer coisa mais antiga já quebrou,
+ * e o banco ainda não sabe porque ninguém tocou no registro desde então.
+ */
+function streakAindaVale(lastActivity: string | null, today: CivilDate): boolean {
+  if (!lastActivity) return false;
+  return lastActivity === today || lastActivity === addDays(today, -1);
 }
 
 /* ========================================================================== *

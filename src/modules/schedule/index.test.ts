@@ -118,8 +118,23 @@ describe("projectSchedule — viabilidade", () => {
 
     expect(projecao.feasibility.fits).toBe(false);
     // O mais prioritário nunca é o primeiro a ser cortado.
-    expect(projecao.feasibility.topicsAtRisk).not.toContain("critico");
-    expect(projecao.feasibility.topicsAtRisk).toContain("baixo");
+    expect(projecao.feasibility.topicsAtRisk).not.toContain("Assunto critico");
+    expect(projecao.feasibility.topicsAtRisk).toContain("Assunto baixo");
+
+    /**
+     * ⚠️ NOME, NÃO ID — e é por isso que esta asserção existe separada.
+     *
+     * A versão anterior deste teste checava `toContain("baixo")`, que passava
+     * com o ID `"baixo"` E com o nome `"Assunto baixo"`. O campo carregava o
+     * `planTopicId`, e a tela mostrava uma lista de UUIDs para o aluno debaixo
+     * de "Não cabem antes da prova". O tipo é `string[]` dos dois jeitos, então
+     * nem o TypeScript nem o teste reclamaram.
+     */
+    for (const nome of projecao.feasibility.topicsAtRisk) {
+      expect(nome, "topicsAtRisk vai direto para a tela: precisa ser nome").toMatch(
+        /^Assunto /,
+      );
+    }
   });
 
   it("confirma quando cabe", () => {

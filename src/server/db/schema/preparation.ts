@@ -81,6 +81,22 @@ export const preparations = pgTable(
     examBoardId: uuid().references(() => examBoards.id, { onDelete: "set null" }),
 
     /**
+     * O nome da banca quando ela NÃO está na nossa lista.
+     *
+     * O seletor tem a opção "Outra banca", e até aqui ela só zerava o
+     * `examBoardId` -- o aluno escolhia "Outra" e o que ele sabia se perdia.
+     *
+     * ⚠️ ESTE CAMPO NÃO FILTRA QUESTÃO. Ele existe por dois motivos: devolver
+     * ao aluno o que ele informou, e medir DEMANDA -- várias preparações
+     * apontando para a mesma banca de fora da lista é o sinal de qual cadastrar
+     * em seguida, no mesmo espírito da fila de mapeamento de assuntos.
+     *
+     * Preenchido só quando `examBoardId` é nulo; os dois juntos seriam
+     * contraditórios.
+     */
+    examBoardOther: varchar({ length: 120 }),
+
+    /**
      * Data da prova. Alimenta o sinal de URGÊNCIA do Motor 1 e o
      * "Faltam X dias para a prova" da Home.
      *

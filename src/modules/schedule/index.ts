@@ -91,7 +91,14 @@ export type Feasibility = {
   fits: boolean;
   /** Quantos minutos por dia a mais seriam necessários. Zero quando cabe. */
   extraMinutesPerDayNeeded: number;
-  /** Assuntos que não cabem no horizonte, do menos prioritário para cima. */
+  /**
+   * NOMES dos assuntos que não cabem, do menos prioritário para cima.
+   *
+   * ⚠️ NOME, NÃO ID. Este campo é lido direto na tela, e por um tempo ele
+   * carregava `planTopicId`: o aluno via uma lista de UUIDs debaixo de "Não
+   * cabem antes da prova". O tipo é `string[]` dos dois jeitos, então nada
+   * reclamou — nem o TypeScript, nem os testes.
+   */
   topicsAtRisk: string[];
   message: string;
 };
@@ -205,7 +212,7 @@ function assessFeasibility(args: {
       loadRatio: Infinity,
       fits: false,
       extraMinutesPerDayNeeded: daysRemaining > 0 ? Math.ceil(requiredMinutes / daysRemaining) : 0,
-      topicsAtRisk: args.pendingTopics.map((t) => t.planTopicId),
+      topicsAtRisk: args.pendingTopics.map((t) => t.topicName),
       message:
         "Nenhum tempo de estudo informado. Preencha sua disponibilidade para o " +
         "cronograma poder ser montado.",
@@ -240,7 +247,7 @@ function assessFeasibility(args: {
   const atRisk: string[] = [];
   for (const topic of byPriority) {
     if (budget >= topic.remainingMinutes) budget -= topic.remainingMinutes;
-    else atRisk.push(topic.planTopicId);
+    else atRisk.push(topic.topicName);
   }
 
   const deficit = requiredMinutes - availableMinutes;

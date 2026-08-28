@@ -1,11 +1,13 @@
-import { AlertTriangle, CalendarRange, CheckCircle2, ChevronDown } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { PendingStep } from "@/components/shared/pending-step";
 import { EmptyState, Metric, Surface } from "@/components/shared/surface";
 import { Button } from "@/components/ui/button";
 import { LOGIN_ROUTE } from "@/config/routes";
+import { nextStep } from "@/modules/onboarding/next-step";
 import { getStudentContext } from "@/server/auth/current-user";
 import { getSchedule } from "@/server/engine/schedule";
 
@@ -26,24 +28,19 @@ export default async function SchedulePage() {
 
   const preparation = context.currentPreparation;
 
-  if (!preparation || preparation.status !== "active") {
+  const pendente = nextStep(preparation);
+
+  if (pendente) {
     return (
       <div className="mx-auto w-full max-w-2xl py-4">
-        <Surface>
-          <EmptyState
-            icon={<CalendarRange />}
-            title="Seu cronograma aparece quando a preparação estiver pronta"
-            description="Ele é montado a partir do seu edital, do seu diagnóstico e do tempo que você tem por semana."
-            action={
-              <Button asChild className="mt-2">
-                <Link href="/inicio">Continuar de onde parei</Link>
-              </Button>
-            }
-          />
-        </Surface>
+        <PendingStep step={pendente} />
       </div>
     );
   }
+
+  // `nextStep` devolve nulo só quando a preparação está ativa, mas o
+  // TypeScript não sabe disso — daí a guarda.
+  if (!preparation) return null;
 
   const schedule = await getSchedule({
     userId: context.user.id,
@@ -53,6 +50,24 @@ export default async function SchedulePage() {
   if (!schedule) redirect("/inicio");
 
   const { feasibility, summary } = schedule;
+
+  /*
+    Quantos dias sobram entre o fim do conteúdo e a prova.
+
+    `horizonEnd` é a data da prova (ou o horizonte projetado); a última semana
+    termina quando o conteúdo acaba, que costuma ser antes. A diferença é a
+    folga — e é ela que explica por que adiar a prova não empurra a última
+    semana.
+  */
+  const ultimoDia = schedule.weeks.at(-1)?.endDate ?? schedule.horizonStart;
+  const sobra = Math.max(
+    0,
+    Math.round(
+      (Date.parse(`${schedule.horizonEnd}T12:00:00Z`) -
+        Date.parse(`${ultimoDia}T12:00:00Z`)) /
+        86_400_000,
+    ),
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 py-4">
@@ -219,7 +234,20 @@ export default async function SchedulePage() {
                   </ol>
                 </details>
 
-                <ul className="flex flex-col gap-1.5">
+                {/*
+                  ⚠️ SOME QUANDO O "VER POR DIA" ESTÁ ABERTO.
+
+                  As duas visões mostram o mesmo conteúdo, uma agrupada por dia
+                  e outra somada na semana. Abertas juntas, a cliente lia a
+                  lista por dia e logo abaixo os mesmos assuntos de novo: "no
+                  final ele se mistura com os conteúdos novamente".
+
+                  É CSS puro (`details[open] ~ &`) e não estado de React: a
+                  alternativa exigiria transformar cada semana em componente de
+                  cliente para guardar um booleano que o próprio `<details>` já
+                  guarda.
+                */}
+                <ul className="flex flex-col gap-1.5 [details[open]~&]:hidden">
                   {week.topics.map((topic) => (
                     <li
                       key={topic.planTopicId}
@@ -240,25 +268,27 @@ export default async function SchedulePage() {
         </ol>
       )}
 
-      {feasibility.topicsAtRisk.length > 0 ? (
-        <Surface className="p-4 sm:p-5">
-          <p className="text-sm font-medium text-foreground">
-            Não cabem antes da prova
-          </p>
-          <p className="mt-1 text-sm text-pretty text-muted-foreground">
-            No ritmo atual, estes assuntos ficam de fora. Eles são os de menor
-            prioridade — o algoritmo protege primeiro o que mais cai e o que você
-            menos domina.
-          </p>
-          <ul className="mt-3 flex flex-col gap-1">
-            {feasibility.topicsAtRisk.slice(0, 8).map((topic) => (
-              <li key={topic} className="truncate text-sm text-muted-foreground">
-                · {topic}
-              </li>
-            ))}
-          </ul>
-        </Surface>
+      {/*
+        ⚠️ POR QUE O CRONOGRAMA ACABA ANTES DA PROVA.
+
+        As semanas param quando o conteúdo pendente acaba — semanas vazias só
+        poluiriam a tela. Só que, sem dizer isso, mudar a data da prova parece
+        não fazer efeito: a cliente adiou a prova, viu o mesmo último dia e
+        concluiu que o cronograma não atualizou.
+
+        A linha só aparece quando há folga de verdade, e diz o que fazer com
+        ela.
+      */}
+      {schedule.weeks.length > 0 && schedule.hasExamDate && sobra > 0 ? (
+        <p className="text-sm text-pretty text-muted-foreground">
+          O conteúdo que falta termina em{" "}
+          <span className="text-foreground">{formatDay(ultimoDia)}</span>, antes
+          da sua prova. {sobra === 1 ? "Sobra 1 dia" : `Sobram ${sobra} dias`} para
+          revisar e aprofundar — e o cronograma se estende sozinho se você
+          acrescentar assuntos ou atrasar algum estudo.
+        </p>
       ) : null}
+
     </div>
   );
 }

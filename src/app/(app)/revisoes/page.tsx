@@ -3,8 +3,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { ReviewCard } from "@/components/reviews/review-card";
+import { PendingStep } from "@/components/shared/pending-step";
 import { EmptyState, Metric, Surface } from "@/components/shared/surface";
 import { LOGIN_ROUTE } from "@/config/routes";
+import { nextStep } from "@/modules/onboarding/next-step";
 import { getStudentContext } from "@/server/auth/current-user";
 import { getReviewsToday } from "@/server/engine/review";
 
@@ -21,6 +23,21 @@ export const metadata: Metadata = { title: "Revisões" };
 export default async function ReviewsPage() {
   const context = await getStudentContext();
   if (!context) redirect(LOGIN_ROUTE);
+
+  /*
+    Sem plano montado não existe revisão nenhuma, e a tela dizia isso de um
+    jeito que não ajudava: "as revisões nascem quando você conclui um estudo".
+    Verdade, e sem caminho — o estudo depende do edital, que ainda não subiu.
+  */
+  const pendente = nextStep(context.currentPreparation);
+
+  if (pendente) {
+    return (
+      <div className="mx-auto w-full max-w-2xl py-4">
+        <PendingStep step={pendente} />
+      </div>
+    );
+  }
 
   const reviews = await getReviewsToday({
     userId: context.user.id,

@@ -21,9 +21,12 @@ import { QuestionCard } from "./question-card";
 export function QuestionList({
   questions,
   limit,
+  dailyTaskItemId,
 }: {
   questions: QuestionView[];
   limit: DailyLimit;
+  /** Item da Tarefa do Dia que trouxe o aluno, quando veio por lá. */
+  dailyTaskItemId?: string | null;
 }) {
   const router = useRouter();
   const [used, setUsed] = useState(limit.used);
@@ -47,6 +50,7 @@ export function QuestionList({
           question={question}
           index={index}
           blocked={blocked && question.previousAttempt === null}
+          dailyTaskItemId={dailyTaskItemId}
           onAnswered={() => {
             setUsed((current) => current + 1);
             // Atualiza a Home e o contador do servidor sem descartar o que já

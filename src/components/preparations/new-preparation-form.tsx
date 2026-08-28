@@ -32,6 +32,7 @@ export type ExamBoardOption = { id: string; shortName: string; name: string };
 export function NewPreparationForm({ examBoards }: { examBoards: ExamBoardOption[] }) {
   const [state, formAction, pending] = useActionState(createPreparationAction, INITIAL);
   const [dateMode, setDateMode] = useState<"known" | "estimated" | "unknown">("unknown");
+  const [banca, setBanca] = useState(state.values?.banca ?? "");
   const errors = state.status === "error" ? state.fieldErrors : undefined;
 
   return (
@@ -64,7 +65,8 @@ export function NewPreparationForm({ examBoards }: { examBoards: ExamBoardOption
         <select
           id="banca"
           name="banca"
-          defaultValue={state.values?.banca ?? ""}
+          value={banca}
+          onChange={(e) => setBanca(e.target.value)}
           className={cn(
             /*
              * ⚠️ `bg-input` E NÃO `bg-transparent` (pedido da cliente).
@@ -98,6 +100,28 @@ export function NewPreparationForm({ examBoards }: { examBoards: ExamBoardOption
         <p className="text-xs text-muted-foreground">
           Opcional. Você continua praticando questões de outras bancas.
         </p>
+
+        {/*
+          ⚠️ O CAMPO SÓ EXISTE COM "Outra banca" SELECIONADA.
+
+          Antes, escolher "Outra" apenas zerava a banca e o que o aluno sabia se
+          perdia. A cliente cobrou o campo: ela escolhia "Outra" e ficava sem
+          onde escrever.
+
+          Ele não filtra questão -- serve para devolver o nome ao aluno e para
+          medir qual banca de fora da lista mais aparece, que é o sinal de qual
+          cadastrar em seguida.
+        */}
+        {banca === OTHER_EXAM_BOARD ? (
+          <Field
+            label="Qual é a banca?"
+            name="bancaOutra"
+            defaultValue={state.values?.bancaOutra ?? ""}
+            hint="Como aparece no edital. Ainda não temos questões dela, mas guardamos o nome."
+            error={errors?.bancaOutra}
+            maxLength={120}
+          />
+        ) : null}
       </div>
 
       <fieldset className="flex flex-col gap-2">

@@ -1,0 +1,1 @@
+ALTER TABLE "preparations" ADD COLUMN "exam_board_other" varchar(120);

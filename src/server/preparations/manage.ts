@@ -222,6 +222,7 @@ export async function updateExamDetails(input: {
   targetPosition: string;
   institution: string | null;
   examBoardId: string | null;
+  examBoardOther: string | null;
   examDate: string | null;
   examDateIsEstimated: boolean;
 }): Promise<{ ok: boolean; message?: string }> {
@@ -249,6 +250,9 @@ export async function updateExamDetails(input: {
       title: targetPosition.slice(0, 160),
       institution: input.institution?.trim() || null,
       examBoardId: input.examBoardId || null,
+      // Os dois juntos seriam contraditórios: ou a banca está na lista, ou
+      // o aluno digitou o nome dela.
+      examBoardOther: input.examBoardId ? null : input.examBoardOther?.trim() || null,
       examDate: input.examDate,
       examDateIsEstimated: input.examDateIsEstimated,
       updatedAt: new Date(),
