@@ -817,6 +817,16 @@ async function main() {
      * um concurso que o aluno abandonou seria uma dívida que não existe mais, e
      * estragaria a aderência dele na preparação que importa.
      */
+    const pendentesAntes = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(schema.reviewOccurrences)
+      .where(
+        and(
+          eq(schema.reviewOccurrences.preparationId, preparationId),
+          eq(schema.reviewOccurrences.status, "scheduled"),
+        ),
+      );
+
     const archived = await manage.archivePreparation({ userId, preparationId });
     check("Encerrar a preparação funciona", archived.ok, archived.ok ? "ok" : archived.reason);
 
@@ -872,6 +882,40 @@ async function main() {
       "Reabrir funciona quando há vaga",
       reopened.ok,
       reopened.ok ? "ok" : reopened.message!,
+    );
+
+    /**
+     * ⚠️ REABRIR TEM QUE DEVOLVER O QUE ENCERRAR TIROU.
+     *
+     * Encerrar cancela as revisões pendentes, e isso está certo. Mas por um
+     * tempo reabrir devolvia só o `status = active`: o aluno recuperava a
+     * preparação com o ciclo de revisões morto, e nada na tela dizia — a lista
+     * "Revisões para hoje" ficava vazia para sempre.
+     *
+     * A cliente perdeu assim as quatro revisões de 24 horas dos estudos que
+     * tinha acabado de concluir. Encerrou, reabriu minutos depois, e no dia
+     * seguinte não havia revisão nenhuma. O resto da tela funcionava, o que
+     * tornava o defeito mais difícil de acreditar do que de reproduzir.
+     *
+     * O par encerrar/reabrir é o tipo de simetria que só um teste que faz os
+     * DOIS lados protege. Havia checagem para o cancelamento; não havia para a
+     * volta.
+     */
+    const pendentesDepois = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(schema.reviewOccurrences)
+      .where(
+        and(
+          eq(schema.reviewOccurrences.preparationId, preparationId),
+          eq(schema.reviewOccurrences.status, "scheduled"),
+        ),
+      );
+
+    check(
+      "Reabrir RESTAURA as revisões que o encerramento cancelou",
+      (pendentesAntes[0]?.total ?? 0) > 0 &&
+        (pendentesDepois[0]?.total ?? 0) === (pendentesAntes[0]?.total ?? 0),
+      `${pendentesAntes[0]?.total} antes → ${pendentesDepois[0]?.total} depois`,
     );
 
     /* --- 25. CACHE DE EXTRAÇÃO ENTRE ALUNOS ------------------------------- */

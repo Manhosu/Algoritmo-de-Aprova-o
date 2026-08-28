@@ -364,11 +364,29 @@ export async function archivePreparation(input: {
  *
  * O gate é conferido AQUI e não só na tela: quem encerrou uma para criar outra
  * no plano Free não pode reabrir a primeira e ficar com duas.
+ *
+ * ⚠️ REABRIR PRECISA DESFAZER O QUE ENCERRAR FEZ — E POR MUITO TEMPO NÃO FAZIA.
+ *
+ * `archivePreparation` cancela as revisões pendentes, e com razão: não se cobra
+ * revisão de um concurso abandonado. Só que reabrir devolvia `status = active`
+ * e mais nada. O aluno recuperava a preparação com o ciclo de revisões MORTO, e
+ * nada na tela dizia isso — "Revisões para hoje" simplesmente ficava vazia para
+ * sempre.
+ *
+ * Foi assim que a cliente perdeu as quatro revisões de 24 horas dos estudos que
+ * ela tinha acabado de concluir: encerrou a preparação, reabriu minutos depois,
+ * e no dia seguinte não havia revisão nenhuma. O resto da tela funcionava, o
+ * que tornava o defeito mais difícil de acreditar do que de reproduzir.
+ *
+ * O `canceled_at = archived_at` é o que separa as revisões que ESTE
+ * encerramento matou das canceladas por outro motivo — o encerramento carimba
+ * as duas colunas com o mesmo instante. Restaurar tudo que está cancelado
+ * ressuscitaria também revisão de assunto que o aluno tirou do plano.
  */
 export async function reopenPreparation(input: {
   userId: string;
   preparationId: string;
-}): Promise<{ ok: boolean; message?: string }> {
+}): Promise<{ ok: boolean; message?: string; restoredReviews?: number }> {
   const gate = await checkPreparationLimit(input.userId);
   if (!gate.allowed) {
     return {
@@ -379,20 +397,56 @@ export async function reopenPreparation(input: {
     };
   }
 
-  const now = new Date();
-
-  const result = await db
-    .update(preparations)
-    .set({ status: "active", archivedAt: null, updatedAt: now })
+  // Lido ANTES de reabrir: o `update` zera `archivedAt`, e é ele que identifica
+  // quais revisões voltar.
+  const [alvo] = await db
+    .select({ archivedAt: preparations.archivedAt })
+    .from(preparations)
     .where(
       and(
         eq(preparations.id, input.preparationId),
         eq(preparations.userId, input.userId),
         eq(preparations.status, "archived"),
       ),
-    );
+    )
+    .limit(1);
 
-  return result.count > 0
-    ? { ok: true }
-    : { ok: false, message: "Preparação não encontrada." };
+  if (!alvo) return { ok: false, message: "Preparação não encontrada." };
+
+  const now = new Date();
+
+  const restoredReviews = await db.transaction(async (tx) => {
+    await tx
+      .update(preparations)
+      .set({ status: "active", archivedAt: null, updatedAt: now })
+      .where(eq(preparations.id, input.preparationId));
+
+    if (!alvo.archivedAt) return 0;
+
+    const restored = await tx
+      .update(reviewOccurrences)
+      .set({ status: "scheduled", canceledAt: null })
+      .where(
+        and(
+          eq(reviewOccurrences.preparationId, input.preparationId),
+          eq(reviewOccurrences.status, "canceled"),
+          eq(reviewOccurrences.canceledAt, alvo.archivedAt),
+          /*
+            O assunto precisa continuar no plano. Se ele foi desativado entre o
+            encerramento e a reabertura, a revisão não deve voltar — seria
+            cobrar conteúdo que o aluno tirou de propósito.
+          */
+          sql`exists (
+            select 1 from ${studyPlanTopics}
+            where ${studyPlanTopics.id} = ${reviewOccurrences.planTopicId}
+              and ${studyPlanTopics.isActive} = true
+              and ${studyPlanTopics.deletedAt} is null
+          )`,
+        ),
+      );
+
+    return restored.count;
+  });
+
+  return { ok: true, restoredReviews };
 }
