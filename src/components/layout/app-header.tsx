@@ -148,7 +148,7 @@ function AvatarMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="neon-hover rounded-full transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         aria-label="Abrir menu da conta"
       >
         <Avatar className="size-10 border-2 border-primary/60">

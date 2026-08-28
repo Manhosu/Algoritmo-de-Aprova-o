@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, lte, ne, sql } from "drizzle-orm";
 
 import { APP_TIMEZONE } from "@/config/app";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/modules/gamification";
 import {
   buildEvolutionSeries,
+  computePreparationIndex,
   findBestTechnique,
   type BestTechnique,
   type EvolutionPoint,
@@ -386,24 +387,119 @@ async function loadSubjectPerformance(preparationId: string): Promise<SubjectPer
  * versionado pela configuração do motor que o produziu (`engineConfigId`), e
  * recalcular na leitura mostraria um número que ninguém registrou.
  */
+/**
+ * O Índice de Preparação, calculado AGORA.
+ *
+ * ⚠️ NÃO LÊ MAIS `preparation_metrics`.
+ *
+ * Aquela tabela é preenchida por um job diário que não existe, então o card
+ * ficava permanentemente vazio: a cliente fez o diagnóstico, respondeu questões
+ * e continuou vendo "o índice aparece depois dos seus primeiros dias".
+ *
+ * ⚠️ E COMEÇA PELO DIAGNÓSTICO (pedido dela em 27/08/2026).
+ *
+ * Antes de existir questão respondida, `current_mastery_score` É o diagnóstico:
+ * o motor o inicializa com a percepção do aluno e migra para o desempenho real
+ * conforme ele pratica. Usar essa média como sinal de acerto no começo dá ao
+ * card um valor honesto desde o primeiro dia — e ele se corrige sozinho, sem
+ * nenhum tratamento especial, porque é a mesma coluna que o desempenho depois
+ * sobrescreve.
+ *
+ * Continua devolvendo `null` quando não há nem diagnóstico: aí não existe
+ * estado de preparação nenhum para medir.
+ */
 async function loadPreparationIndex(
   preparationId: string,
 ): Promise<{ value: number; label: string } | null> {
-  const [row, config] = await Promise.all([
-    db.query.preparationMetrics.findFirst({
-      where: (t, { eq: is }) => is(t.preparationId, preparationId),
-      orderBy: (t, { desc }) => desc(t.metricDate),
-      columns: { preparationIndex: true },
-    }),
+  const [estado, tarefas, config] = await Promise.all([
+    db
+      .select({
+        assuntos: count(),
+        iniciados: sql<number>`count(*) filter (where ${topicStates.coverageStatus} <> 'not_started')::int`,
+        respondidas: sql<number>`coalesce(sum(${topicStates.questionsAnswered}), 0)::int`,
+        corretas: sql<number>`coalesce(sum(${topicStates.questionsCorrect}), 0)::int`,
+        dominioMedio: sql<number>`coalesce(avg(${topicStates.currentMasteryScore}), 0)::float`,
+        comDiagnostico: sql<number>`count(*) filter (where ${topicStates.initialMastery} is not null)::int`,
+      })
+      .from(topicStates)
+      .where(eq(topicStates.preparationId, preparationId)),
+
+    db
+      .select({
+        total: count(),
+        concluidos: sql<number>`count(*) filter (where ${dailyTaskItems.status} = 'completed')::int`,
+      })
+      .from(dailyTaskItems)
+      .innerJoin(dailyTasks, eq(dailyTasks.id, dailyTaskItems.dailyTaskId))
+      .where(eq(dailyTasks.preparationId, preparationId)),
+
     getActiveConfig("preparation_index"),
   ]);
 
-  if (row?.preparationIndex == null) return null;
+  const e = estado[0];
+  if (!e || e.assuntos === 0) return null;
 
-  const value = Math.round(row.preparationIndex);
-  const band = config.value.bands.find((b) => value >= b.min && value <= b.max);
+  // Sem diagnóstico e sem prática, não há o que medir.
+  if (e.comDiagnostico === 0 && e.respondidas === 0) return null;
 
-  return { value, label: band?.label ?? config.value.bands[0].label };
+  const pct = (parte: number, total: number) => (total === 0 ? 0 : (parte / total) * 100);
+
+  const index = computePreparationIndex({
+    coveragePercent: pct(e.iniciados, e.assuntos),
+    // Com prática, o acerto real manda. Sem, vale o domínio informado.
+    accuracyPercent:
+      e.respondidas > 0 ? pct(e.corretas, e.respondidas) : e.dominioMedio * 100,
+    reviewAdherencePercent: await loadReviewAdherence(preparationId),
+    taskCompletionPercent: pct(tarefas[0]?.concluidos ?? 0, tarefas[0]?.total ?? 0),
+    config: config.value,
+  });
+
+  return { value: index.value, label: index.label };
+}
+
+/**
+ * Quanto das revisões vencidas o aluno cumpriu.
+ *
+ * O QUE ENTRA NA CONTA
+ * ----------------------------------------------------------------------------
+ * Denominador: tudo que JÁ VENCEU (`due_date <= hoje`) e não foi cancelado.
+ * Numerador: o que ele concluiu. Pulada conta contra, e agendada que passou da
+ * data também — é exatamente a revisão atrasada, o caso que o índice existe
+ * para capturar.
+ *
+ * `canceled` fica de fora dos dois lados: a revisão foi embora porque o assunto
+ * saiu do plano ou a preparação encerrou, e cobrar do aluno uma revisão que o
+ * próprio sistema retirou seria medir dívida que não existe.
+ *
+ * ⚠️ NÃO EXISTE ESTADO `missed`. O enum tem quatro valores — `scheduled`,
+ * `completed`, `skipped`, `canceled` (`db/schema/enums.ts`). A primeira versão
+ * desta consulta filtrava por `in ('completed', 'missed')` dentro de um
+ * template `sql`, que passa por fora do TypeScript: compilou, passou no lint e
+ * derrubou a Home inteira com 500 em produção — `invalid input value for enum
+ * review_occurrence_status`. Comparar enum aqui é com a coluna tipada, nunca
+ * com string solta.
+ *
+ * Sem revisão vencida ainda, devolve 100: um aluno que nunca teve revisão não
+ * está devendo nenhuma, e começar com zero puxaria o índice para baixo por uma
+ * dívida que não existe.
+ */
+async function loadReviewAdherence(preparationId: string): Promise<number> {
+  const [row] = await db
+    .select({
+      total: count(),
+      concluidas: sql<number>`count(*) filter (where ${reviewOccurrences.status} = 'completed')::int`,
+    })
+    .from(reviewOccurrences)
+    .where(
+      and(
+        eq(reviewOccurrences.preparationId, preparationId),
+        ne(reviewOccurrences.status, "canceled"),
+        lte(reviewOccurrences.dueDate, sql`current_date`),
+      ),
+    );
+
+  if (!row || row.total === 0) return 100;
+  return (row.concluidas / row.total) * 100;
 }
 
 /** A série do gráfico "Evolução": os últimos 30 dias com questões respondidas. */

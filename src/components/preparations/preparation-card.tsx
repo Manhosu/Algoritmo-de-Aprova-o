@@ -1,6 +1,7 @@
 "use client";
 
-import { Archive, Check, Loader2, Pencil, RotateCcw, X } from "lucide-react";
+import { Archive, CalendarClock, Check, Loader2, Pencil, RotateCcw, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -225,6 +226,18 @@ export function PreparationCard({
               <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
                 <Pencil aria-hidden />
                 Renomear
+              </Button>
+
+              {/*
+                Cargo, banca e data. Fica aqui porque é onde o aluno vem quando
+                quer mexer na preparação — e a data da prova era o campo que ele
+                preenchia sem saber e não tinha como corrigir depois.
+              */}
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/preparacoes/${preparation.id}/dados`}>
+                  <CalendarClock aria-hidden />
+                  Dados da prova
+                </Link>
               </Button>
 
               <Button

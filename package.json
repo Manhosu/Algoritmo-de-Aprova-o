@@ -30,6 +30,7 @@
     "deletions:run": "tsx --conditions=react-server scripts/run-deletions.ts",
     "verify:account": "tsx --conditions=react-server scripts/verify-account.ts",
     "verify:edital": "tsx --conditions=react-server scripts/verify-edital.ts",
+    "measure:answer": "tsx --conditions=react-server scripts/measure-answer.ts",
     "cost": "tsx --conditions=react-server scripts/estimate-cost.ts",
     "compare:models": "tsx --conditions=react-server scripts/compare-models.ts"
   },

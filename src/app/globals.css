@@ -329,6 +329,27 @@
     @apply font-sans;
     /* Evita o "pulo" de layout quando a barra de rolagem aparece */
     scrollbar-gutter: stable;
+
+    /*
+     * ⚠️ TEXTO MAIOR EM TODA A PLATAFORMA (pedido da cliente em 27/08/2026).
+     *
+     * Mexer na raiz, e não em cada `text-sm` espalhado por sessenta arquivos:
+     * o Tailwind dimensiona tudo em `rem`, então subir a raiz de 16px para
+     * 17px no celular e 17.6px no desktop cresce texto, espaçamento e altura
+     * de botão na mesma proporção. Ajustar classe por classe quebraria o
+     * ritmo entre título e corpo, e uma tela ficaria fora do compasso da
+     * outra na primeira distração.
+     *
+     * Quem estuda para concurso passa horas nesta tela. Uma diferença de 1px
+     * na raiz é pequena de ver e grande de ler.
+     */
+    font-size: 106.25%;
+  }
+
+  @media (min-width: 640px) {
+    html {
+      font-size: 110%;
+    }
   }
 
   body {
@@ -355,9 +376,18 @@
   margin-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Reserva o espaço da barra inferior fixa no conteúdo rolável */
+/*
+ * Reserva o espaço da barra inferior fixa no conteúdo rolável.
+ *
+ * ⚠️ A FOLGA EXTRA NÃO É ENFEITE. A cliente relatou a barra "aparecendo um
+ * pouco cortada conforme movimenta a tela": no celular, a barra de endereço do
+ * navegador encolhe e cresce durante a rolagem, e a área segura muda junto. Sem
+ * folga, o último bloco encosta na barra em alguns quadros dessa transição.
+ */
 @utility pb-bottom-nav {
-  padding-bottom: calc(var(--spacing-bottom-nav) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(
+    var(--spacing-bottom-nav) + env(safe-area-inset-bottom, 0px) + 0.75rem
+  );
 }
 
 /* Card padrão do produto: borda sutil + brilho no tema escuro */
@@ -736,6 +766,32 @@
 
   &:hover::before {
     opacity: 1;
+  }
+}
+
+/**
+ * Brilho ciano ao passar o mouse (pedido da cliente em 27/08/2026).
+ *
+ * ⚠️ Fica no `:hover` de PONTEIRO FINO, nunca no toque. No celular o navegador
+ * simula hover no primeiro toque e o brilho fica grudado no botão até a pessoa
+ * tocar em outro lugar — parece que ficou travado.
+ *
+ * `box-shadow` e não `filter`: sombra não força uma nova camada de composição
+ * em cada botão da tela, e são muitos por tela na área do aluno.
+ */
+@utility neon-hover {
+  /*
+   * ⚠️ O `@media` fica DENTRO do `@utility`, nunca em volta — o Tailwind v4
+   * recusa `@utility` aninhado, e o erro só aparece no build. É a segunda vez
+   * que este arquivo tropeça nisso; há teste em `globals.test.ts` para o caso
+   * irmão do `reveal`.
+   */
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      box-shadow:
+        0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent),
+        0 0 18px -4px color-mix(in oklab, var(--primary) 60%, transparent);
+    }
   }
 }
 

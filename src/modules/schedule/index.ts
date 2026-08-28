@@ -55,12 +55,30 @@ export type ProjectScheduleInput = {
   fallbackHorizonDays?: number;
 };
 
+/** Um dia dentro da semana, com o que cabe nele. */
+export type ScheduleDay = {
+  date: CivilDate;
+  /** Minutos livres depois de descontar a reserva de revisão. */
+  availableMinutes: number;
+  topics: Array<{ planTopicId: string; topicName: string; minutes: number }>;
+};
+
 export type ScheduleWeek = {
   startDate: CivilDate;
   endDate: CivilDate;
   availableMinutes: number;
   plannedMinutes: number;
   topics: Array<{ planTopicId: string; topicName: string; minutes: number }>;
+  /**
+   * A mesma distribuição, quebrada por dia.
+   *
+   * ⚠️ RESPEITA A DISPONIBILIDADE DE CADA DIA, e é por isso que a divisão não
+   * é o total da semana dividido por sete: quem estuda 30min na terça e 4h no
+   * sábado receberia terças impossíveis e sábados ociosos. Dia sem
+   * disponibilidade fica na lista com zero minutos, para o aluno ver que é
+   * folga e não esquecimento do sistema.
+   */
+  days: ScheduleDay[];
 };
 
 export type Feasibility = {
@@ -278,25 +296,56 @@ function buildWeeks(args: {
       availableMinutes += Math.max(0, dayMinutes - args.reviewMinutesPerDay);
     }
 
+    /*
+     * Distribui DIA A DIA, e não a semana inteira de uma vez.
+     *
+     * Percorrendo cada dia com o seu próprio orçamento, o mesmo laço produz a
+     * lista da semana e a de cada dia — sem uma segunda passada que poderia
+     * divergir da primeira e mostrar totais diferentes na mesma tela.
+     */
+    const days: ScheduleDay[] = [];
     const topics: ScheduleWeek["topics"] = [];
     let budget = availableMinutes;
 
-    while (budget > 0 && queueIndex < queue.length) {
-      const topic = queue[queueIndex];
-      if (topic.left <= 0) {
-        queueIndex++;
-        continue;
+    for (let i = 0; i < daysInWeek; i++) {
+      const date = addDays(startDate, i);
+      const dayMinutes = args.minutesByWeekday.get(weekdayOf(date)) ?? 0;
+      let dayBudget = Math.max(0, dayMinutes - args.reviewMinutesPerDay);
+
+      const dayTopics: ScheduleDay["topics"] = [];
+
+      while (dayBudget > 0 && queueIndex < queue.length) {
+        const topic = queue[queueIndex];
+        if (topic.left <= 0) {
+          queueIndex++;
+          continue;
+        }
+
+        const minutes = Math.min(dayBudget, topic.left);
+        dayTopics.push({
+          planTopicId: topic.planTopicId,
+          topicName: topic.topicName,
+          minutes,
+        });
+        topic.left -= minutes;
+        dayBudget -= minutes;
+        budget -= minutes;
+        if (topic.left <= 0) queueIndex++;
       }
 
-      const minutes = Math.min(budget, topic.left);
-      topics.push({
-        planTopicId: topic.planTopicId,
-        topicName: topic.topicName,
-        minutes,
+      days.push({
+        date,
+        availableMinutes: Math.max(0, dayMinutes - args.reviewMinutesPerDay),
+        topics: dayTopics,
       });
-      topic.left -= minutes;
-      budget -= minutes;
-      if (topic.left <= 0) queueIndex++;
+
+      // O mesmo assunto pode aparecer em dias seguidos; na visão da semana ele
+      // é uma linha só, com os minutos somados.
+      for (const item of dayTopics) {
+        const existente = topics.find((t) => t.planTopicId === item.planTopicId);
+        if (existente) existente.minutes += item.minutes;
+        else topics.push({ ...item });
+      }
     }
 
     weeks.push({
@@ -305,6 +354,7 @@ function buildWeeks(args: {
       availableMinutes,
       plannedMinutes: availableMinutes - budget,
       topics,
+      days,
     });
 
     cursor += daysInWeek;

@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarRange, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CalendarRange, CheckCircle2, ChevronDown } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -100,6 +100,33 @@ export default async function SchedulePage() {
               {feasibility.message}
             </p>
 
+            {/*
+              ⚠️ OS ASSUNTOS EM RISCO, POR NOME.
+              
+              `topicsAtRisk` sempre foi calculado pelo motor e nunca chegou à
+              tela: o aluno lia "o plano não cabe" sem saber o que ficaria de
+              fora. A cliente cobrou isso — e é a diferença entre um aviso
+              que assusta e um que deixa decidir o que sacrificar.
+            */}
+            {!feasibility.fits && feasibility.topicsAtRisk.length > 0 ? (
+              <div className="mt-3 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2.5">
+                <p className="text-xs font-semibold tracking-wide text-foreground uppercase">
+                  Não cabem antes da prova
+                </p>
+                <ul className="mt-1.5 flex flex-col gap-1">
+                  {feasibility.topicsAtRisk.map((nome) => (
+                    <li key={nome} className="text-sm text-pretty text-muted-foreground">
+                      {nome}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-pretty text-muted-foreground">
+                  São os de menor prioridade. Estudando mais por dia, eles voltam
+                  para o plano.
+                </p>
+              </div>
+            ) : null}
+
             {!feasibility.fits ? (
               <Button asChild variant="outline" size="sm" className="mt-3">
                 <Link href="/boas-vindas?editar=1">Ajustar meu tempo de estudo</Link>
@@ -138,13 +165,67 @@ export default async function SchedulePage() {
                   de {formatHours(week.availableMinutes)} disponíveis
                 </p>
 
+                {/*
+                  Os dias vêm dentro de `<details>`, fechado por padrão.
+                  
+                  A cliente pediu para clicar na semana e ver a divisão por dia.
+                  Fechado, porque doze semanas abertas de uma vez viram uma
+                  parede de texto — e o que ela quer saber primeiro é o total da
+                  semana. `<details>` faz isso sem JavaScript e já vem com o
+                  teclado e o leitor de tela funcionando.
+                */}
+                <details className="group">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-primary marker:content-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                    <ChevronDown
+                      className="size-4 transition-transform group-open:rotate-180"
+                      aria-hidden
+                    />
+                    Ver por dia
+                  </summary>
+
+                  <ol className="mt-3 flex flex-col gap-2.5 border-t border-border/60 pt-3">
+                    {week.days.map((day) => (
+                      <li key={day.date}>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-xs font-semibold text-foreground">
+                            {formatDay(day.date)}
+                          </span>
+                          <span className="text-metric text-xs text-muted-foreground">
+                            {day.availableMinutes === 0
+                              ? "folga"
+                              : `${day.availableMinutes}min`}
+                          </span>
+                        </div>
+
+                        {day.topics.length > 0 ? (
+                          <ul className="mt-1 flex flex-col gap-1 pl-3">
+                            {day.topics.map((topic) => (
+                              <li
+                                key={topic.planTopicId}
+                                className="flex items-baseline gap-3 text-sm"
+                              >
+                                <span className="min-w-0 flex-1 text-pretty text-muted-foreground">
+                                  {topic.topicName}
+                                </span>
+                                <span className="text-metric shrink-0 text-xs text-muted-foreground">
+                                  {topic.minutes}min
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+
                 <ul className="flex flex-col gap-1.5">
                   {week.topics.map((topic) => (
                     <li
                       key={topic.planTopicId}
-                      className="flex items-center gap-3 text-sm"
+                      className="flex items-baseline gap-3 text-sm"
                     >
-                      <span className="min-w-0 flex-1 truncate text-foreground">
+                      <span className="min-w-0 flex-1 text-pretty text-foreground">
                         {topic.topicName}
                       </span>
                       <span className="text-metric shrink-0 text-xs text-muted-foreground">
@@ -186,6 +267,18 @@ function formatHours(minutes: number): string {
   if (minutes < 60) return `${minutes}min`;
   const hours = minutes / 60;
   return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1).replace(".", ",")}h`;
+}
+
+/** "Seg, 01/09" — o dia da semana importa mais que a data no cronograma. */
+function formatDay(date: string): string {
+  const format = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "UTC",
+  });
+  const texto = format.format(new Date(`${date}T12:00:00Z`));
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 function formatRange(start: string, end: string): string {

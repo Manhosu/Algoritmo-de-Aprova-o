@@ -71,6 +71,15 @@ export default async function SettingsPage() {
           <Button asChild variant="outline" size="sm">
             <Link href="/preparacoes">Minhas preparações</Link>
           </Button>
+
+          {/*
+            A cliente procurou por "Dados da Prova" aqui, nas Configurações, e
+            não achou. O caminho existe no card da preparação; este atalho leva
+            ao mesmo lugar, a partir de onde ela olhou primeiro.
+          */}
+          <Button asChild variant="outline" size="sm">
+            <Link href="/preparacoes">Cargo, banca e data da prova</Link>
+          </Button>
         </div>
       </Surface>
 

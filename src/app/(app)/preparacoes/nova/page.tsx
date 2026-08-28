@@ -9,7 +9,7 @@ import {
 import { Surface } from "@/components/shared/surface";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/server/auth/guards";
-import { db } from "@/server/db";
+import { listSelectableBoards } from "@/server/preparations/boards";
 import { checkPreparationLimit } from "@/server/preparations/service";
 
 export const metadata: Metadata = { title: "Nova preparação" };
@@ -29,11 +29,7 @@ export default async function NewPreparationPage() {
     return <PlanLimitReached limit={gate.limit ?? 1} current={gate.current} />;
   }
 
-  const boards = await db.query.examBoards.findMany({
-    where: (t, { eq }) => eq(t.isActive, true),
-    columns: { id: true, shortName: true, name: true },
-    orderBy: (t, { asc }) => [asc(t.sortOrder), asc(t.shortName)],
-  });
+  const boards = await listSelectableBoards();
 
   return (
     <div className="mx-auto w-full max-w-lg py-2">

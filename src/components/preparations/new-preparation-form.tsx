@@ -6,6 +6,7 @@ import { useActionState, useState } from "react";
 import { Field, FormError } from "@/components/auth/field";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { OTHER_EXAM_BOARD } from "@/config/app";
 import { cn } from "@/lib/utils";
 
 import { createPreparationAction, type PreparationFormState } from "./actions";
@@ -65,8 +66,20 @@ export function NewPreparationForm({ examBoards }: { examBoards: ExamBoardOption
           name="banca"
           defaultValue={state.values?.banca ?? ""}
           className={cn(
-            "h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground",
-            "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+            /*
+             * ⚠️ `bg-input` E NÃO `bg-transparent` (pedido da cliente).
+             *
+             * Com fundo transparente, o navegador pinta a LISTA aberta com o
+             * branco padrão dele e as opções ficavam texto claro sobre fundo
+             * claro. Ela relatou "ficou difícil de enxergar a seleção da
+             * banca" — não era a caixa fechada, era a lista aberta.
+             *
+             * O `[&>option]` alcança as opções, que o Chrome no Windows pinta
+             * com a cor do sistema quando o `select` não define a sua.
+             */
+            "h-11 rounded-lg border border-input bg-input px-3 text-sm text-foreground",
+            "[&>option]:bg-card [&>option]:text-foreground",
+            "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
           )}
         >
           <option value="">Não sei ainda</option>
@@ -75,6 +88,12 @@ export function NewPreparationForm({ examBoards }: { examBoards: ExamBoardOption
               {board.shortName} — {board.name}
             </option>
           ))}
+          {/*
+            "Outra" existe porque a lista tem nove bancas e o Brasil tem
+            centenas. Sem esta opção, quem presta concurso de banca municipal
+            precisava escolher uma banca errada ou deixar em branco.
+          */}
+          <option value={OTHER_EXAM_BOARD}>Outra banca</option>
         </select>
         <p className="text-xs text-muted-foreground">
           Opcional. Você continua praticando questões de outras bancas.

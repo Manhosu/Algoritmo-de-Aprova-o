@@ -584,3 +584,65 @@ describe("splitBudgetAcrossPreparations", () => {
     expect([...divisao.values()].reduce((a, b) => a + b, 0)).toBe(97);
   });
 });
+
+describe("desempate pelo acervo", () => {
+  /**
+   * A cliente pediu que o motor "priorize também o que tem no acervo", para o
+   * aluno não esbarrar em assunto sem questão enquanto o conteúdo é produzido.
+   *
+   * ⚠️ Como DESEMPATE, nunca como sexto sinal ponderado: o edital continua
+   * mandando. Estes dois testes fixam exatamente essa fronteira.
+   */
+  it("entre assuntos equivalentes, escolhe primeiro o que tem questão", () => {
+    const plano = generateDailyTask(
+      input({
+        availableMinutes: 45,
+        topics: [
+          topic({
+            planTopicId: "sem-acervo",
+            topicName: "Sem material",
+            availableQuestionCount: 0,
+            isMapped: false,
+          }),
+          topic({
+            planTopicId: "com-acervo",
+            topicName: "Com material",
+            availableQuestionCount: 90,
+          }),
+        ],
+      }),
+    );
+
+    expect(plano.blocks[0].planTopicId).toBe("com-acervo");
+  });
+
+  it("NÃO passa por cima do peso do edital", () => {
+    /*
+     * O assunto sem acervo cai muito mais na prova. Se o acervo virasse sinal
+     * ponderado, ele perderia a vez — e o aluno estudaria o secundário porque
+     * era o que estava pronto do nosso lado.
+     */
+    const plano = generateDailyTask(
+      input({
+        availableMinutes: 45,
+        topics: [
+          topic({
+            planTopicId: "pesado-sem-acervo",
+            topicName: "Cai muito, sem material",
+            weight: 40,
+            availableQuestionCount: 0,
+            isMapped: false,
+          }),
+          topic({
+            planTopicId: "leve-com-acervo",
+            topicName: "Cai pouco, com material",
+            weight: 1,
+            availableQuestionCount: 200,
+          }),
+        ],
+      }),
+    );
+
+    expect(plano.blocks[0].planTopicId).toBe("pesado-sem-acervo");
+  });
+});

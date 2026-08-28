@@ -96,6 +96,35 @@ describe("camada de movimento", () => {
     expect(semAlternativa).toEqual([]);
   });
 
+  it("nunca aninha `@utility` dentro de outra regra", () => {
+    /**
+     * ⚠️ O TAILWIND V4 RECUSA `@utility` ANINHADO, E SÓ NO BUILD.
+     *
+     * Escrever `@media (…) { @utility x { … } }` parece natural e derruba o
+     * build inteiro com "`@utility` cannot be nested". `tsc` e `eslint` não
+     * olham CSS, então o erro aparece tarde — e me pegou duas vezes neste
+     * mesmo arquivo: primeiro no `reveal`, depois no `neon-hover`.
+     *
+     * A forma correta é o contrário: `@utility x { @media (…) { … } }`.
+     */
+    // Sem os comentários, que contêm chaves de exemplo — inclusive as deste
+    // bloco aqui, que descrevem justamente a forma proibida.
+    const css = CSS.replace(/\/\*[\s\S]*?\*\//g, "");
+
+    let profundidade = 0;
+    const aninhados: string[] = [];
+
+    for (let i = 0; i < css.length; i += 1) {
+      if (css[i] === "{") profundidade += 1;
+      else if (css[i] === "}") profundidade -= 1;
+      else if (css.startsWith("@utility", i) && profundidade > 0) {
+        aninhados.push(css.slice(i, css.indexOf("{", i) + 1).trim());
+      }
+    }
+
+    expect(aninhados, "`@utility` dentro de outra regra quebra o build").toEqual([]);
+  });
+
   it("mantém o bloco de movimento reduzido como última palavra do arquivo", () => {
     // Ele precisa vencer tudo que foi declarado antes; declarado no meio, a
     // camada de atmosfera passaria por cima em parte das regras.

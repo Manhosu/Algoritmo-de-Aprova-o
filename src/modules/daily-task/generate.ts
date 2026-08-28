@@ -159,7 +159,35 @@ export function generateDailyTask(input: GenerateDailyTaskInput): DailyTaskPlan 
       return { topic, priority };
     })
     .sort((a, b) => {
-      if (b.priority.score !== a.priority.score) return b.priority.score - a.priority.score;
+      /*
+       * ⚠️ O ACERVO É CRITÉRIO DE DESEMPATE, NÃO UM SEXTO SINAL.
+       *
+       * A cliente pediu que o motor "priorize também o que tem no acervo",
+       * para o aluno não esbarrar em assunto sem questão enquanto o conteúdo
+       * ainda está sendo produzido.
+       *
+       * Só que os cinco sinais e seus pesos são a especificação do motor, e
+       * estão no README com percentuais fechados. Transformar disponibilidade
+       * de material em sinal ponderado mudaria o que o produto promete: o
+       * assunto que mais cai no edital passaria atrás de um assunto secundário
+       * só porque produzimos questão dele antes. Isso é organizar o estudo do
+       * aluno pela nossa conveniência.
+       *
+       * Como DESEMPATE, o efeito é o desejado sem esse custo: entre assuntos
+       * que o algoritmo considera igualmente prioritários, vence o que o aluno
+       * consegue praticar hoje. Quem manda continua sendo o edital.
+       *
+       * A comparação usa uma folga de 0,01 no score porque ele é float: dois
+       * assuntos "empatados" costumam diferir na décima casa, e uma igualdade
+       * exata quase nunca acontece.
+       */
+      const diferenca = b.priority.score - a.priority.score;
+      if (Math.abs(diferenca) > 0.01) return diferenca;
+
+      const acervoA = a.topic.isMapped ? a.topic.availableQuestionCount : 0;
+      const acervoB = b.topic.isMapped ? b.topic.availableQuestionCount : 0;
+      if (acervoA !== acervoB) return acervoB - acervoA;
+
       // Desempate estável: sem isso, dois assuntos empatados alternariam de
       // posição entre execuções e a tarefa pareceria mudar sozinha.
       return a.topic.planTopicId < b.topic.planTopicId ? -1 : 1;

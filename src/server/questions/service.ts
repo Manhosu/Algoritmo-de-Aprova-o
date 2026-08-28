@@ -431,27 +431,49 @@ export async function answerQuestion(input: {
   const now = input.now ?? new Date();
   const today = toCivilDate(now, APP_TIMEZONE);
 
-  const limit = await getDailyLimit(input.userId, today);
+  /*
+   * ⚠️ AS QUATRO LEITURAS VÃO JUNTAS (pedido da cliente em 27/08/2026).
+   *
+   * Elas eram sequenciais: limite, questão, alternativas e configuração de XP,
+   * uma esperando a anterior. Nenhuma depende do resultado da outra, e cada
+   * ida ao banco custa uma volta de rede — quatro em fila é o que a cliente
+   * sentiu como "demora um pouco para computar a resposta".
+   *
+   * Em paralelo, o custo passa a ser o da mais lenta, não a soma. São quatro
+   * consultas simultâneas, bem abaixo do teto do pooler de sessão (ver a
+   * medição em server/db/index.ts).
+   *
+   * A configuração de XP entra aqui, fora da transação: ela não muda no meio
+   * da resposta, e segurar a conexão por uma leitura de configuração é
+   * desperdício.
+   *
+   * `findPlanTopic` fica DE FORA porque depende do `canonicalTopicId` da
+   * questão — só dá para buscá-lo depois de saber qual é o assunto dela.
+   */
+  const [limit, question, options] = await Promise.all([
+    getDailyLimit(input.userId, today),
+
+    db.query.questions.findFirst({
+      where: (t, { and: a, eq: e, isNull: n }) =>
+        a(e(t.id, input.questionId), e(t.status, "published"), n(t.deletedAt)),
+      columns: { id: true, explanation: true, canonicalTopicId: true },
+    }),
+
+    db
+      .select({
+        id: questionOptions.id,
+        isCorrect: questionOptions.isCorrect,
+        explanation: questionOptions.explanation,
+      })
+      .from(questionOptions)
+      .where(eq(questionOptions.questionId, input.questionId)),
+  ]);
+
   if (limit.reached) {
     return { ok: false, reason: "limit_reached", limit };
   }
 
-  const question = await db.query.questions.findFirst({
-    where: (t, { and: a, eq: e, isNull: n }) =>
-      a(e(t.id, input.questionId), e(t.status, "published"), n(t.deletedAt)),
-    columns: { id: true, explanation: true, canonicalTopicId: true },
-  });
-
   if (!question) return { ok: false, reason: "not_found", limit };
-
-  const options = await db
-    .select({
-      id: questionOptions.id,
-      isCorrect: questionOptions.isCorrect,
-      explanation: questionOptions.explanation,
-    })
-    .from(questionOptions)
-    .where(eq(questionOptions.questionId, input.questionId));
 
   const chosen = options.find((option) => option.id === input.optionId);
   const correct = options.find((option) => option.isCorrect);
@@ -468,15 +490,13 @@ export async function answerQuestion(input: {
    * algo que o aluno já dominou. A ligação é feita pelo assunto canônico, que
    * é a ponte que o casamento construiu.
    */
-  const planTopicId =
+  const [planTopicId, xp] = await Promise.all([
     input.planTopicId ??
-    (question.canonicalTopicId && input.preparationId
-      ? await findPlanTopic(input.preparationId, question.canonicalTopicId)
-      : null);
-
-  // A configuração de XP é lida FORA da transação: ela não muda no meio, e
-  // segurar a conexão por uma leitura de configuração é desperdício.
-  const xp = await xpEntriesFor("question", isCorrect);
+      (question.canonicalTopicId && input.preparationId
+        ? findPlanTopic(input.preparationId, question.canonicalTopicId)
+        : Promise.resolve(null)),
+    xpEntriesFor("question", isCorrect),
+  ]);
 
   await db.transaction(async (tx) => {
     await tx
@@ -588,7 +608,32 @@ export async function answerQuestion(input: {
     optionExplanations: Object.fromEntries(
       options.map((option) => [option.id, option.explanation]),
     ),
-    limit: await getDailyLimit(input.userId, today),
+    /*
+     * O consumo DEPOIS desta resposta, calculado — não relido do banco.
+     *
+     * Era `await getDailyLimit(...)` aqui, e `getDailyLimit` são DUAS consultas
+     * em série (assinatura e depois consumo). Isso custava duas voltas de rede
+     * para reconstruir um número que já está em mãos: o limite não muda no meio
+     * de uma resposta, e a transação acabou de somar exatamente 1 ao consumo.
+     *
+     * É a mesma aritmética que já governa a gravação de `limit_reached_at`
+     * logo acima (`limit.used + 1 >= limit.limit`), então derivar aqui não
+     * inventa regra nova — usa a que já está escrita.
+     *
+     * ⚠️ Duas respostas simultâneas do mesmo aluno leem `used` igual e cada uma
+     * relata `used + 1`. O CONTADOR NO BANCO continua certo, porque lá a soma é
+     * `questions_answered + 1` no próprio SQL; o que pode ficar um passo atrás
+     * é só o número exibido, até o próximo carregamento. Reler não resolveria
+     * isso de verdade — resolveria por acaso, e ao preço de duas voltas em toda
+     * resposta.
+     */
+    limit: {
+      limit: limit.limit,
+      used: limit.used + 1,
+      remaining: limit.limit === null ? null : Math.max(0, limit.limit - (limit.used + 1)),
+      reached: limit.limit !== null && limit.used + 1 >= limit.limit,
+      planCode: limit.planCode,
+    },
   };
 }
 

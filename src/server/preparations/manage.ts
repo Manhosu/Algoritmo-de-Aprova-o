@@ -2,6 +2,8 @@ import "server-only";
 
 import { and, count, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
+import { APP_TIMEZONE } from "@/config/app";
+import { toCivilDate } from "@/modules/shared/dates";
 import { db } from "@/server/db";
 import {
   preparations,
@@ -185,6 +187,72 @@ export async function renamePreparation(input: {
   const result = await db
     .update(preparations)
     .set({ title, updatedAt: new Date() })
+    .where(
+      and(
+        eq(preparations.id, input.preparationId),
+        eq(preparations.userId, input.userId),
+        isNull(preparations.deletedAt),
+      ),
+    );
+
+  return result.count > 0 ? { ok: true } : { ok: false, message: "Preparação não encontrada." };
+}
+
+/**
+ * Atualiza os dados da prova: cargo, órgão, banca e data.
+ *
+ * POR QUE ISSO PRECISOU EXISTIR
+ * ----------------------------------------------------------------------------
+ * O aluno informa cargo, banca e data no passo 1 e nunca mais podia mexer. A
+ * cliente marcou "ainda não sei a data", o sistema projetou o cronograma para
+ * 30/09 e ela ficou presa a essa data — sem forma de corrigir depois de
+ * descobrir a data real.
+ *
+ * A data da prova é o sinal de URGÊNCIA do Motor 1. Uma data errada distorce a
+ * priorização de todos os dias seguintes, e era justamente o campo que o aluno
+ * mais tende a preencher errado no começo, quando ainda não saiu o edital.
+ *
+ * ⚠️ NÃO MEXE NO CONTEÚDO PROGRAMÁTICO. Trocar o cargo aqui muda o rótulo e a
+ * urgência; o conteúdo já extraído continua o mesmo, porque reprocessar o
+ * edital é decisão do aluno e custa uma leitura do plano dele.
+ */
+export async function updateExamDetails(input: {
+  userId: string;
+  preparationId: string;
+  targetPosition: string;
+  institution: string | null;
+  examBoardId: string | null;
+  examDate: string | null;
+  examDateIsEstimated: boolean;
+}): Promise<{ ok: boolean; message?: string }> {
+  const targetPosition = input.targetPosition.trim().slice(0, 200);
+  if (targetPosition.length < 2) {
+    return { ok: false, message: "Informe o cargo que você vai prestar." };
+  }
+
+  /*
+   * Data no passado é recusada aqui, e não só no formulário: com ela, a
+   * urgência do Motor 1 satura e o cronograma tenta espremer o edital inteiro
+   * em zero dia. A tela é sugestão; o servidor é a garantia.
+   */
+  if (input.examDate) {
+    const hoje = toCivilDate(new Date(), APP_TIMEZONE);
+    if (input.examDate < hoje) {
+      return { ok: false, message: "A data da prova não pode estar no passado." };
+    }
+  }
+
+  const result = await db
+    .update(preparations)
+    .set({
+      targetPosition,
+      title: targetPosition.slice(0, 160),
+      institution: input.institution?.trim() || null,
+      examBoardId: input.examBoardId || null,
+      examDate: input.examDate,
+      examDateIsEstimated: input.examDateIsEstimated,
+      updatedAt: new Date(),
+    })
     .where(
       and(
         eq(preparations.id, input.preparationId),

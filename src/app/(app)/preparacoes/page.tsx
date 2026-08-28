@@ -1,4 +1,4 @@
-import { FileUp, Plus } from "lucide-react";
+import { FileUp, Plus, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -97,6 +97,25 @@ export default async function PreparationsPage() {
           Para estudar para mais de um concurso ao mesmo tempo, é preciso o plano
           Premium — ou encerrar a preparação atual, que libera a vaga sem apagar nada.
         </p>
+      ) : null}
+
+      {/*
+        O caminho para os planos, aqui (pedido da cliente em 27/08/2026).
+        
+        Esta é a tela onde o aluno esbarra no limite do plano — e era também a
+        única sem saída para resolvê-lo. Ele lia "seu plano permite 1
+        preparação" e tinha de procurar Planos por conta própria.
+        
+        ⚠️ Só aparece para quem NÃO tem plano ilimitado. Oferecer upgrade a
+        quem já está no topo é ruído.
+      */}
+      {gate.limit !== null ? (
+        <Button asChild size="lg" variant="outline" className="mt-2 border-primary/50">
+          <Link href="/planos">
+            <Sparkles aria-hidden />
+            Mudar de plano agora
+          </Link>
+        </Button>
       ) : null}
     </div>
   );

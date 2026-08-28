@@ -47,8 +47,22 @@ async function main() {
     .update(userId)
     .digest("hex");
 
-  const cookieName = "aa_session";
-  const cookie = `${cookieName}=${token}`;
+  /**
+   * ⚠️ MANDA OS DOIS NOMES DE COOKIE, DE PROPÓSITO.
+   *
+   * `SESSION_COOKIE_NAME` ganha o prefixo `__Host-` quando `NODE_ENV` é
+   * production (`config/routes.ts`). Quem decide isso é o processo do
+   * SERVIDOR, não este script: apontar o smoke para um build de produção
+   * (`next start`) fazia o script mandar `aa_session` enquanto o servidor
+   * procurava `__Host-aa_session`. Resultado: 17 de 29 verificações falhando
+   * com 307 para o login, como se o produto estivesse quebrado.
+   *
+   * O prefixo `__Host-` é regra de NAVEGADOR na hora de gravar o cookie; o
+   * servidor apenas lê pelo nome. Mandar os dois é seguro — cada alvo lê o
+   * que reconhece e ignora o outro — e deixa o smoke rodar contra `dev` e
+   * contra `start` sem depender de acertar o `NODE_ENV` do terminal.
+   */
+  const cookie = `aa_session=${token}; __Host-aa_session=${token}`;
 
   try {
     console.log(`Alvo: ${BASE}\n`);

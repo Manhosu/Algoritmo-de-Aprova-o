@@ -39,3 +39,16 @@ export const APP_LOCALE = "pt-BR";
  * tem o histórico da pessoa à mão.
  */
 export const SUPPORT_EMAIL = "oalgoritmodaaprovacao@gmail.com";
+
+/**
+ * Valor da opção "Outra banca" no seletor.
+ *
+ * ⚠️ NÃO É UM ID DE BANCA. As bancas cadastradas usam UUID; este marcador diz
+ * "existe uma banca, mas não está na nossa lista". O servidor o traduz para
+ * `examBoardId: null`, que é o que a coluna aceita.
+ *
+ * Sem ele, quem presta concurso de banca municipal precisava escolher uma
+ * banca errada ou deixar em branco — e "em branco" significa "não sei", que é
+ * outra coisa.
+ */
+export const OTHER_EXAM_BOARD = "__outra__";

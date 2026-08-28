@@ -59,7 +59,8 @@ export function CompleteStudyButton({
         disabled={pending || completed}
         aria-label={completed ? `${topicName} concluído` : `Marcar ${topicName} como estudado`}
         className={cn(
-          "flex size-9 items-center justify-center rounded-lg border transition-colors",
+          // `neon-hover` também aqui: a cliente citou este botão pelo nome.
+          "neon-hover flex size-9 items-center justify-center rounded-lg border transition-all",
           "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
           completed
             ? "border-success/50 bg-success/15 text-success"

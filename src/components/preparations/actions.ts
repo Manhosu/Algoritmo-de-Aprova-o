@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { isCivilDate } from "@/modules/shared/dates";
 import { requireApiUser } from "@/server/auth/guards";
+import { OTHER_EXAM_BOARD } from "@/config/app";
 import { createPreparation } from "@/server/preparations/service";
 
 export type PreparationFormState = {
@@ -61,7 +62,9 @@ export async function createPreparationAction(
     userId: session.user.id,
     targetPosition: cargo,
     institution: orgao || null,
-    examBoardId: banca || null,
+    // "Outra" é banca conhecida do aluno e desconhecida da nossa lista:
+    // vira nulo na coluna, igual a "não sei", porque não há id para gravar.
+    examBoardId: banca && banca !== OTHER_EXAM_BOARD ? banca : null,
     examDate,
     examDateIsEstimated: isEstimated,
   });
