@@ -40,6 +40,33 @@ describe("practiceLink", () => {
     expect(practiceLink("crase")).toBe("/questoes?assunto=crase");
   });
 
+  it("carrega o item da Tarefa do Dia, que é o que risca a linha", () => {
+    /**
+     * ⚠️ SEM O `?tarefa=`, O XP DO "PRATIQUE" NUNCA ENTRA.
+     *
+     * A linha mostrava "+10 XP", abria as questões e continuava aberta para
+     * sempre: o id do item não chegava à resposta, então `advanceTaskItem`
+     * jamais rodava. A cliente descreveu exatamente isso — "aparece clicável e
+     * mostra os +10XP, porém não tem como validar".
+     *
+     * O parâmetro é o que liga a resposta de volta à tarefa. O servidor confere
+     * que o item pertence ao aluno antes de fechá-lo.
+     */
+    expect(practiceLink("crase", "item-1")).toBe("/questoes?assunto=crase&tarefa=item-1");
+  });
+
+  it("usa `?` quando não há assunto, e `&` quando há", () => {
+    // O separador errado gera "/questoes?tarefa=x?assunto=y", que o navegador
+    // entrega como um parâmetro só, com o valor colado.
+    expect(practiceLink(null, "item-1")).toBe("/questoes?tarefa=item-1");
+    expect(practiceLink("crase", "item-1")).toContain("&tarefa=");
+  });
+
+  it("continua funcionando sem o item, para quem abre pelo menu", () => {
+    expect(practiceLink("crase")).not.toContain("tarefa");
+    expect(practiceLink()).toBe("/questoes");
+  });
+
   it("sem assunto, abre o banco inteiro", () => {
     // Assunto que não casou com o catálogo não tem slug. Levar ao banco sem
     // filtro é melhor que não levar a lugar nenhum.
