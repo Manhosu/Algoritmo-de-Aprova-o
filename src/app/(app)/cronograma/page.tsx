@@ -279,7 +279,15 @@ export default async function SchedulePage() {
         A linha só aparece quando há folga de verdade, e diz o que fazer com
         ela.
       */}
-      {schedule.weeks.length > 0 && schedule.hasExamDate && sobra > 0 ? (
+      {/*
+        ⚠️ SÓ COM FOLGA DE UMA SEMANA PARA CIMA.
+
+        Com a distribuição espalhando o conteúdo até a prova, a sobra costuma
+        ser de um ou dois dias — resto da divisão por semana. "Sobra 1 dia para
+        revisar e aprofundar" é verdade e não serve para nada; abaixo de uma
+        semana não há o que planejar com o tempo que ficou.
+      */}
+      {schedule.weeks.length > 0 && schedule.hasExamDate && sobra >= 7 ? (
         <p className="text-sm text-pretty text-muted-foreground">
           O conteúdo que falta termina em{" "}
           <span className="text-foreground">{formatDay(ultimoDia)}</span>, antes
