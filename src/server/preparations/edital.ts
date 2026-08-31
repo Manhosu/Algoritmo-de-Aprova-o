@@ -476,6 +476,61 @@ async function findCachedExtraction(
   return null;
 }
 
+/**
+ * Tempo depois do qual uma leitura "em andamento" é considerada morta.
+ *
+ * A rota tem `maxDuration = 300`, então nenhuma leitura viva passa disso.
+ * A folga cobre o relógio do banco e a leitura que termina no limite.
+ */
+const EXTRACTION_TIMEOUT_MS = 6 * 60 * 1000;
+
+/**
+ * Marca como falha a leitura que ficou presa em `running`.
+ *
+ * ⚠️ SEM ISTO, PROCESSO MORTO VIRA TELA ETERNA.
+ *
+ * A leitura roda dentro da requisição. Se o processo morre no meio — função
+ * derrubada, memória estourada, timeout da plataforma — ninguém executa o
+ * `catch` que marcaria a falha: a linha fica `running` para sempre, a
+ * preparação fica `extracting`, e o aluno olha "Estamos lendo seu edital"
+ * indefinidamente. Não há erro, não há botão, não há saída.
+ *
+ * Foi o que aconteceu com a cliente: a leitura parou de responder três
+ * segundos depois de começar e a tela ficou girando por horas.
+ *
+ * A cura é na LEITURA do estado, e não num job: quem abre a tela é justamente
+ * quem precisa saber. Marcada como falha, a Home já mostra "não conseguimos
+ * ler seu edital" com o botão de reenviar, que sempre existiu.
+ */
+export async function expireStuckExtraction(preparationId: string): Promise<boolean> {
+  const [presa] = await db
+    .select({ id: editalExtractions.id, startedAt: editalExtractions.startedAt })
+    .from(editalExtractions)
+    .where(
+      and(
+        eq(editalExtractions.preparationId, preparationId),
+        eq(editalExtractions.status, "running"),
+      ),
+    )
+    .orderBy(desc(editalExtractions.createdAt))
+    .limit(1);
+
+  if (!presa) return false;
+
+  const iniciada = presa.startedAt?.getTime() ?? 0;
+  if (Date.now() - iniciada < EXTRACTION_TIMEOUT_MS) return false;
+
+  await failExtraction(
+    presa.id,
+    preparationId,
+    "A leitura do seu edital foi interrompida. Envie o arquivo de novo — " +
+      "se ele for muito grande, tente a versão original do site da banca.",
+    { operatorDetail: `leitura presa em running desde ${presa.startedAt?.toISOString()}` },
+  );
+
+  return true;
+}
+
 async function failExtraction(
   extractionId: string,
   preparationId: string,

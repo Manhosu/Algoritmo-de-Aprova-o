@@ -35,6 +35,7 @@ import {
   type NextStepIcon,
 } from "@/modules/onboarding/next-step";
 import { getStudentContext } from "@/server/auth/current-user";
+import { expireStuckExtraction } from "@/server/preparations/edital";
 import { LOGIN_ROUTE } from "@/config/routes";
 import { ensureGamificationState, getHomeData, type HomeData } from "@/server/home/dashboard";
 
@@ -60,6 +61,22 @@ export default async function HomePage() {
 
   const preparation = context.currentPreparation;
   const firstName = context.user.name?.trim().split(/\s+/)[0] || null;
+  /*
+    ⚠️ CURA ANTES DE DECIDIR O QUE MOSTRAR.
+
+    Se a leitura do edital morreu no meio, a preparação fica em `extracting`
+    para sempre e esta tela gira sem fim. `expireStuckExtraction` marca a
+    leitura como falha depois do tempo limite, e aí o próximo `nextStep` já
+    devolve "não conseguimos ler seu edital" com o botão de reenviar.
+
+    Custa uma consulta, e SÓ nesse estado — que é o único em que o aluno pode
+    estar preso.
+  */
+  if (preparation?.status === "extracting") {
+    const curou = await expireStuckExtraction(preparation.id);
+    if (curou) preparation.status = "failed";
+  }
+
   const pendente = nextStep(preparation);
 
   const countdown = preparation

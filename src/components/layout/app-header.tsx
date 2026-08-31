@@ -159,7 +159,20 @@ function AvatarMenu({
         </Avatar>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-56">
+      {/*
+        ⚠️ LARGURA COM TETO NA TELA, e não fixa.
+
+        `w-56` são 238px com a fonte base de 106,25%. Num aparelho estreito isso
+        cobre quase a tela inteira: a cliente mandou uma captura em que o menu
+        ocupava tudo à direita e sobrava uma faixa de uns 90px do conteúdo.
+
+        O `max-w` deixa a folga de uma margem de cada lado, então o menu encolhe
+        junto com a tela em vez de dominá-la.
+      */}
+      <DropdownMenuContent
+        align="end"
+        className="w-56 max-w-[calc(100vw-2rem)]"
+      >
         {/*
           Só "Configurações" existe hoje. Os outros quatro são do Marco 2 e
           ficam DESABILITADOS em vez de linkar para 404 — um item de menu que
