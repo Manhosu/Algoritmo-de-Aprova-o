@@ -252,8 +252,25 @@ async function ActiveDashboard({
 
       <StatsStrip stats={home.stats} />
 
+      {/*
+        ⚠️ `min-w-0` NAS DUAS COLUNAS — sem ele o painel inteiro estoura.
+
+        Item de grid nasce com `min-width: auto`, ou seja, ele NÃO encolhe
+        abaixo do conteúdo. Basta um texto com `truncate` (que impõe
+        `white-space: nowrap`) para o conteúdo não ter largura mínima: a coluna
+        cresce até caber a frase inteira numa linha só.
+
+        Foi assim que um assunto de 190 caracteres numa revisão esticou a Home
+        de 390px para 1402px. O `main` continuava com 390 e ficava espremido à
+        esquerda de uma tela larguíssima; o menu lateral, que é `fixed inset-0`,
+        cobria só os 390 da viewport e parecia "não se sobrepor ao conteúdo"; e
+        o botão "+" da barra inferior nunca ficava centralizado.
+
+        Três sintomas que a cliente relatou em telas diferentes, todos deste
+        `min-width: auto`.
+      */}
       <div className="grid gap-4 lg:grid-cols-12">
-        <div className="flex flex-col gap-4 lg:col-span-8">
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-8">
           {/* No celular as missões vêm primeiro; no desktop, na coluna da direita. */}
           <div className="lg:hidden">
             <MissionsCard home={home} />
@@ -268,7 +285,7 @@ async function ActiveDashboard({
           <BestTechniqueCard best={home.bestTechnique} />
         </div>
 
-        <div className="flex flex-col gap-4 lg:col-span-4">
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-4">
           <StreakCard
             currentStreak={home.stats.currentStreak}
             longestStreak={home.stats.longestStreak}
