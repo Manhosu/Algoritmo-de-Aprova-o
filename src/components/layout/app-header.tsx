@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Bell,
   CircleHelp,
   Flame,
   LogOut,
@@ -174,7 +173,7 @@ function AvatarMenu({
         className="w-56 max-w-[calc(100vw-2rem)]"
       >
         {/*
-          Só "Configurações" existe hoje. Os outros quatro são do Marco 2 e
+          Só "Configurações" existe hoje. Os outros são do Marco 2 e
           ficam DESABILITADOS em vez de linkar para 404 — um item de menu que
           leva a "página não encontrada" faz o aluno concluir que a plataforma
           está quebrada, não que a tela ainda não chegou.
@@ -190,10 +189,6 @@ function AvatarMenu({
             <Settings aria-hidden />
             Configurações
           </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled>
-          <Bell aria-hidden />
-          Notificações
         </DropdownMenuItem>
         <DropdownMenuItem disabled>
           <MessageSquare aria-hidden />

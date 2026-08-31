@@ -137,6 +137,83 @@ describe("projectSchedule — horizonte", () => {
     expect(projecao.weeks[0].plannedMinutes).toBe(projecao.weeks[0].availableMinutes);
   });
 
+  it("não parte um assunto entre dois dias quando ele cabe inteiro", () => {
+    /**
+     * Pedido da cliente (31/08/2026): "não quebrar os temas em 2 dias quando
+     * ultrapassar o tempo".
+     *
+     * Partir aproveita cada minuto no papel, e na prática deixa uma pendência
+     * arrastando: o aluno abre a Tarefa do Dia com um pedaço de tema que nem
+     * lembra de ter começado.
+     *
+     * Os números são os dela: assuntos de 27 minutos, rotina de 2 horas.
+     */
+    const assuntos = Array.from({ length: 12 }, (_, i) => topic(`t${i}`, 27));
+    const projecao = projectSchedule(
+      input({
+        examDate: d("2026-10-20"),
+        pendingTopics: assuntos,
+        availability: [
+          { weekday: 0, minutesAvailable: 0 },
+          { weekday: 1, minutesAvailable: 120 },
+          { weekday: 2, minutesAvailable: 0 },
+          { weekday: 3, minutesAvailable: 120 },
+          { weekday: 4, minutesAvailable: 0 },
+          { weekday: 5, minutesAvailable: 120 },
+          { weekday: 6, minutesAvailable: 240 },
+        ],
+      }),
+    );
+
+    // Cada assunto aparece uma vez só, com os 27 minutos inteiros.
+    const porAssunto = new Map<string, number[]>();
+    for (const semana of projecao.weeks) {
+      for (const dia of semana.days) {
+        for (const t of dia.topics) {
+          porAssunto.set(t.planTopicId, [...(porAssunto.get(t.planTopicId) ?? []), t.minutes]);
+        }
+      }
+    }
+
+    for (const [id, blocos] of porAssunto) {
+      expect(blocos.length, `${id} foi partido em ${blocos.length} dias`).toBe(1);
+      expect(blocos[0], `${id} entrou incompleto`).toBe(27);
+    }
+
+    expect(porAssunto.size, "nenhum assunto foi distribuído").toBeGreaterThan(0);
+  });
+
+  it("PARTE o assunto que não cabe em nenhum dia — senão ele nunca entra", () => {
+    /**
+     * ⚠️ A exceção obrigatória. Um tema de 4 horas numa rotina de 1 hora por
+     * dia não cabe inteiro em dia nenhum. Sem partir, ele travaria o plano para
+     * sempre — e a primeira versão desta regra fez exatamente isso: parou de
+     * distribuir 450 dos 600 minutos, em silêncio.
+     */
+    const projecao = projectSchedule(
+      input({
+        examDate: d("2026-10-20"),
+        pendingTopics: [topic("gigante", 240)],
+        availability: [
+          { weekday: 0, minutesAvailable: 0 },
+          { weekday: 1, minutesAvailable: 60 },
+          { weekday: 2, minutesAvailable: 60 },
+          { weekday: 3, minutesAvailable: 60 },
+          { weekday: 4, minutesAvailable: 60 },
+          { weekday: 5, minutesAvailable: 60 },
+          { weekday: 6, minutesAvailable: 60 },
+        ],
+      }),
+    );
+
+    const total = projecao.weeks
+      .flatMap((s) => s.days)
+      .flatMap((dia) => dia.topics)
+      .reduce((soma, t) => soma + t.minutes, 0);
+
+    expect(total, "o assunto gigante sumiu do plano").toBe(240);
+  });
+
   it("não pica o conteúdo em blocos curtos demais para estudar", () => {
     /**
      * ⚠️ Espalhar por proporção pura daria três minutos por dia num horizonte

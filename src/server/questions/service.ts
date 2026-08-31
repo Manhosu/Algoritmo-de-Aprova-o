@@ -181,11 +181,16 @@ export async function findQuestions(input: {
   }
 
   /**
-   * "Só as que ainda não acertei."
+   * "Esconder questões resolvidas."
    *
-   * Exclui apenas os ACERTOS, não todas as tentativas: uma questão errada
-   * precisa voltar a aparecer, senão o aluno nunca revê exatamente aquilo em
-   * que falhou — que é o oposto do que o produto promete.
+   * ⚠️ MUDOU EM 31/08/2026, A PEDIDO DA CLIENTE. Antes escondia só os ACERTOS,
+   * com o raciocínio de que a questão errada precisa voltar para o aluno rever
+   * onde falhou.
+   *
+   * Ela preferiu esconder TODAS as respondidas: quem abre o banco quer avançar
+   * no acervo, e reencontrar a mesma questão errada no meio da lista atrapalha
+   * mais do que ajuda. O erro continua acessível — basta desmarcar o filtro, e
+   * a revisão espaçada devolve o assunto pelo caminho próprio dela.
    */
   if (input.filters.onlyUnanswered) {
     conditions.push(
@@ -193,7 +198,6 @@ export async function findQuestions(input: {
         select 1 from ${questionAttempts}
         where ${questionAttempts.questionId} = ${questions.id}
           and ${questionAttempts.userId} = ${input.userId}
-          and ${questionAttempts.isCorrect} = true
       )`,
     );
   }

@@ -154,7 +154,7 @@ export function QuestionFilters({
               }
               className="size-4 accent-[var(--primary)]"
             />
-            Esconder as que eu já acertei
+            Esconder questões resolvidas
           </label>
 
           {activeCount > 0 ? (
@@ -194,7 +194,18 @@ function Select({
       <select
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value || null)}
-        className="min-h-11 rounded-lg border border-border bg-input px-3 text-sm text-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        /*
+          ⚠️ `[&>option]` PINTA A LISTA ABERTA, e sem isso ela some.
+
+          O navegador não herda a cor do `select` para as `option`: no Windows e
+          no Android ele abre a lista com o branco do sistema, e o nosso texto
+          claro fica branco sobre branco. As opções estão lá, e a cliente relata
+          que "não estão aparecendo os assuntos para escolher".
+
+          É o mesmo defeito que ela já tinha visto no seletor de banca do
+          cadastro da preparação. Lá foi corrigido; aqui tinha ficado.
+        */
+        className="min-h-11 rounded-lg border border-border bg-input px-3 text-sm text-foreground [&>option]:bg-card [&>option]:text-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <option value="">{emptyLabel}</option>
         {options.map((option) => (

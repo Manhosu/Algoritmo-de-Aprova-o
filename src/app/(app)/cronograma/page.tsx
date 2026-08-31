@@ -205,11 +205,21 @@ export default async function SchedulePage() {
                           <span className="text-xs font-semibold text-foreground">
                             {formatDay(day.date)}
                           </span>
-                          <span className="text-metric text-xs text-muted-foreground">
-                            {day.availableMinutes === 0
-                              ? "folga"
-                              : `${day.availableMinutes}min`}
-                          </span>
+                          {/*
+                            ⚠️ SÓ "FOLGA", NUNCA OS MINUTOS DISPONÍVEIS.
+
+                            O número ao lado do dia era a CAPACIDADE daquele
+                            dia, não o que estava planejado nele. A cliente leu
+                            como promessa de estudo: "fica parecendo que vai
+                            estudar todo aquele tempo em um único dia".
+
+                            O tempo de cada assunto já aparece na linha dele,
+                            logo abaixo. Repetir a capacidade em cima só criava
+                            um número maior que a soma do que vem embaixo.
+                          */}
+                          {day.availableMinutes === 0 ? (
+                            <span className="text-xs text-muted-foreground">folga</span>
+                          ) : null}
                         </div>
 
                         {day.topics.length > 0 ? (

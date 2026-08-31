@@ -200,7 +200,14 @@ export function StatsStrip({ stats }: { stats: HomeData["stats"] }) {
  * DESEMPENHO POR DISCIPLINA
  * ========================================================================== */
 
-export function SubjectPerformanceCard({ subjects }: { subjects: SubjectPerformance[] }) {
+export function SubjectPerformanceCard({
+  subjects,
+  answersOutOfPlan = 0,
+}: {
+  subjects: SubjectPerformance[];
+  /** Respostas de disciplinas que não estão no edital do aluno. */
+  answersOutOfPlan?: number;
+}) {
   return (
     <Surface className="flex flex-col p-4 sm:p-5">
       <SectionTitle icon={<Target className="size-4" />}>
@@ -223,6 +230,26 @@ export function SubjectPerformanceCard({ subjects }: { subjects: SubjectPerforma
           ))}
         </div>
       )}
+
+      {/*
+        ⚠️ O SILÊNCIO ERA O PROBLEMA.
+
+        Este card mostra as disciplinas DO EDITAL do aluno, e tem que ser assim:
+        é ele que alimenta o Motor 1. Questão de disciplina fora do plano não
+        tem onde entrar.
+
+        Só que a cliente respondeu dez questões de outra disciplina e o gráfico
+        não se mexeu. Sem esta linha, ela não tinha como saber se o sistema
+        ignorou de propósito ou se quebrou. O número continua fora da conta; o
+        que muda é ela saber por quê.
+      */}
+      {answersOutOfPlan > 0 ? (
+        <p className="mt-4 text-xs text-pretty text-muted-foreground">
+          {answersOutOfPlan === 1
+            ? "1 questão respondida é de disciplina fora do seu edital, então não entra nesta conta."
+            : `${answersOutOfPlan} questões respondidas são de disciplinas fora do seu edital, então não entram nesta conta.`}
+        </p>
+      ) : null}
 
       <Button asChild variant="outline" className="mt-5 w-full">
         <Link href="/questoes">

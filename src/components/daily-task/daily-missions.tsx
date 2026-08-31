@@ -56,8 +56,16 @@ export type DailyMission = {
   materialCount?: number;
 
   study: MissionItemState & { xp: number };
-  /** Ausente quando o assunto não casou com o catálogo ou não há questão. */
-  practice?: MissionItemState & { xp: number };
+  /**
+   * Ausente quando o assunto não casou com o catálogo ou não há questão.
+   *
+   * ⚠️ `itemId` É OBRIGATÓRIO AQUI, e o de `study` não precisa ser. É ele que
+   * viaja no link até a tela de questões e fecha a tarefa quando o aluno
+   * responde. Ele já foi esquecido uma vez: o tipo o deixava opcional, o
+   * mapeamento na Home não o passava, e a linha "Pratique" mostrava "+10 XP"
+   * que nunca entrava na soma do dia.
+   */
+  practice?: MissionItemState & { xp: number; itemId: string };
 
   reasonLabel?: string | null;
 };

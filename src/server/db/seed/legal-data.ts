@@ -22,11 +22,11 @@
  */
 
 export const PRIVACY_POLICY_DRAFT = {
-  version: "1.0",
+  version: "1.1",
   title: "Política de Privacidade",
   content: `# Política de Privacidade
 
-**Última atualização:** 27 de agosto de 2026
+**Última atualização:** 31 de agosto de 2026
 
 ## 1. Quem somos
 
@@ -36,9 +36,6 @@ e quais são os seus direitos, nos termos da Lei nº 13.709/2018 (LGPD).
 
 **Controlador dos dados:** O Algoritmo da Aprovação.
 **Contato do controlador e do encarregado:** oalgoritmodaaprovacao@gmail.com
-
-*Os dados de registro da empresa (razão social, CNPJ e endereço) serão
-acrescentados a esta seção assim que a constituição estiver concluída.*
 
 ## 2. Quais dados coletamos
 
@@ -186,11 +183,11 @@ Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD)
  *      dizer isso com todas as letras.
  */
 export const TERMS_OF_USE_DRAFT = {
-  version: "1.0",
+  version: "1.1",
   title: "Termos de Uso",
   content: `# Termos de Uso
 
-**Última atualização:** 27 de agosto de 2026
+**Última atualização:** 31 de agosto de 2026
 
 ## 1. O que é esta plataforma
 
@@ -200,9 +197,6 @@ prioriza o que estudar a cada dia, agenda revisões e acompanha seu desempenho.
 
 **Fornecedor:** O Algoritmo da Aprovação.
 **Contato:** oalgoritmodaaprovacao@gmail.com
-
-*Os dados de registro da empresa (razão social, CNPJ e endereço) serão
-acrescentados a esta seção assim que a constituição estiver concluída.*
 
 Ao criar uma conta, você concorda com estes Termos e com a Política de
 Privacidade.

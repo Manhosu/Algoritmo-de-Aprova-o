@@ -159,12 +159,24 @@ function ResumeStep({ step }: { step: NextStep }) {
         title={title}
         description={body}
         action={
-          <Button asChild size="lg" className="mt-2">
-            <Link href={href}>
-              {cta}
-              <ArrowRight aria-hidden />
-            </Link>
-          </Button>
+          <div className="mt-2 flex flex-col items-center gap-2">
+            <Button asChild size="lg">
+              <Link href={href}>
+                {cta}
+                <ArrowRight aria-hidden />
+              </Link>
+            </Button>
+
+            {/* A segunda saída, quando existe: hoje só o cadastro à mão. */}
+            {step.alternative ? (
+              <Link
+                href={step.alternative.href}
+                className="text-sm text-primary underline-offset-4 hover:underline"
+              >
+                {step.alternative.label}
+              </Link>
+            ) : null}
+          </div>
         }
       />
     </Surface>
@@ -277,7 +289,10 @@ async function ActiveDashboard({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <SubjectPerformanceCard subjects={home.subjects} />
+            <SubjectPerformanceCard
+              subjects={home.subjects}
+              answersOutOfPlan={home.answersOutOfPlan}
+            />
             <PreparationIndexCard index={home.preparationIndex} />
           </div>
 
@@ -366,6 +381,18 @@ function MissionsCard({ home }: { home: HomeData }) {
           // resposta certa é honesto e não promete um total que depende de
           // quantas o aluno acerta.
           xp: home.xp.questionCorrect,
+          /*
+            ⚠️ SEM ESTE `itemId`, A LINHA "PRATIQUE" NUNCA SE RISCA.
+
+            Ele é o que vai no `?tarefa=` do link e liga a resposta de volta à
+            Tarefa do Dia. Faltava aqui — o `study` logo acima tinha, o
+            `practice` não —, então o link saía sem o parâmetro e o XP da
+            prática jamais entrava na soma do dia.
+
+            O tipo o declarava OPCIONAL, então nada reclamou: nem o TypeScript,
+            nem o teste do link, que checava a função e não quem a chama.
+          */
+          itemId: block.practice.itemId,
         }
       : undefined,
     reasonLabel: block.reasonLabel,

@@ -79,6 +79,20 @@ export default async function EditalPage({
                 <p className="mt-1 text-sm text-pretty text-muted-foreground">
                   {status.lastError}
                 </p>
+
+                {/*
+                  ⚠️ A SEGUNDA SAÍDA, no lugar onde a pessoa está travada.
+
+                  Sem ela, quem tem um PDF que a IA não lê só pode tentar o
+                  mesmo arquivo de novo — e vai falhar de novo. A cliente pediu
+                  o cadastro manual exatamente aqui.
+                */}
+                <Link
+                  href={`/preparacoes/${id}/manual`}
+                  className="mt-3 inline-block text-sm text-primary underline-offset-4 hover:underline"
+                >
+                  Cadastrar o edital à mão
+                </Link>
               </div>
             </div>
           ) : null}

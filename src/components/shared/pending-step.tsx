@@ -31,9 +31,20 @@ export function PendingStep({ step }: { step: NextStep }) {
         description={step.body}
         action={
           step.cta ? (
-            <Button asChild className="mt-2">
-              <Link href={step.href}>{step.cta}</Link>
-            </Button>
+            <div className="mt-2 flex flex-col items-center gap-2">
+              <Button asChild>
+                <Link href={step.href}>{step.cta}</Link>
+              </Button>
+
+              {step.alternative ? (
+                <Link
+                  href={step.alternative.href}
+                  className="text-sm text-primary underline-offset-4 hover:underline"
+                >
+                  {step.alternative.label}
+                </Link>
+              ) : null}
+            </div>
           ) : undefined
         }
       />

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, desc, eq, lte, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNull, lte, ne, sql } from "drizzle-orm";
 
 import { APP_TIMEZONE } from "@/config/app";
 import {
@@ -104,6 +104,8 @@ export type HomeData = {
   streakWeek: StreakDay[];
   /** Desempenho por disciplina, do melhor para o pior. */
   subjects: SubjectPerformance[];
+  /** Respostas de disciplinas que não estão no edital do aluno. */
+  answersOutOfPlan: number;
   /**
    * Índice de Preparação.
    *
@@ -146,7 +148,7 @@ export async function getHomeData(input: {
    * levas de tamanho controlado custam um ida-e-volta a mais e removem o risco
    * de a Home ser exatamente a tela que estoura o limite.
    */
-  const [missions, stats, xpConfig, reviews, subjects] = await Promise.all([
+  const [missions, stats, xpConfig, reviews, subjects, answersOutOfPlan] = await Promise.all([
     generated.status === "skipped"
       ? Promise.resolve(null)
       : getDailyMissions(input.preparationId, today),
@@ -154,6 +156,7 @@ export async function getHomeData(input: {
     getActiveConfig("xp_values"),
     getReviewsToday({ userId: input.userId, preparationId: input.preparationId }),
     loadSubjectPerformance(input.preparationId),
+    countOutOfPlanAnswers(input.userId),
   ]);
 
   const [level, streakWeek, preparationIndex, evolution, bestTechnique] = await Promise.all([
@@ -172,6 +175,7 @@ export async function getHomeData(input: {
     level,
     streakWeek,
     subjects,
+    answersOutOfPlan,
     preparationIndex,
     reviewsToday: reviews.due,
     evolution,
@@ -378,6 +382,29 @@ async function loadStreakWeek(userId: string, today: CivilDate): Promise<StreakD
  * "ainda não começou", e as duas coisas na mesma lista fazem o aluno achar que
  * está reprovando em algo que nunca abriu.
  */
+/**
+ * Quantas respostas ficaram FORA do desempenho por disciplina.
+ *
+ * ⚠️ O card mostra as disciplinas DO EDITAL do aluno, e é assim que tem que
+ * ser: é ele que alimenta o Motor 1. Questão de disciplina que não está no
+ * plano não tem onde entrar.
+ *
+ * Só que, do lado do aluno, isso é silêncio: a cliente respondeu dez questões
+ * de outra disciplina e o gráfico não se mexeu. Ela não tinha como saber se o
+ * sistema ignorou de propósito ou se quebrou.
+ *
+ * Este número vira uma linha embaixo do card. Continua não entrando na conta —
+ * o que muda é o aluno saber por quê.
+ */
+async function countOutOfPlanAnswers(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ total: count() })
+    .from(questionAttempts)
+    .where(and(eq(questionAttempts.userId, userId), isNull(questionAttempts.planTopicId)));
+
+  return row?.total ?? 0;
+}
+
 async function loadSubjectPerformance(preparationId: string): Promise<SubjectPerformance[]> {
   const rows = await db
     .select({

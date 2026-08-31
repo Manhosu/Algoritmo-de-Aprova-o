@@ -410,12 +410,44 @@ function buildWeeks(args: {
       */
       const fatiaMinima = Math.ceil(args.minBlockMinutes / 2);
 
+      /**
+       * ⚠️ O ASSUNTO ENTRA INTEIRO OU NÃO ENTRA — pedido da cliente, 31/08/2026.
+       *
+       * Antes o assunto era partido quando não cabia: 21 minutos hoje, 6
+       * amanhã. No papel isso aproveita cada minuto; na prática deixa uma
+       * pendência arrastando de um dia para o outro, e o aluno abre a Tarefa do
+       * Dia com um pedaço de tema que ele nem lembra de ter começado.
+       *
+       * Agora o dia só aceita o assunto se couber por completo. Se não couber,
+       * o dia fecha e o assunto abre o próximo — o tempo que sobrou volta para
+       * o acumulado e reaparece adiante, então nada se perde.
+       *
+       * ⚠️ COM UMA EXCEÇÃO OBRIGATÓRIA: assunto maior que a capacidade de um
+       * dia inteiro. Sem ela, um tema de 4 horas numa rotina de 1 hora por dia
+       * nunca entraria em dia nenhum e o plano travaria para sempre. Nesse caso
+       * ele parte, porque a alternativa é não estudar.
+       */
       while (dayBudget >= fatiaMinima && queueIndex < queue.length) {
         const topic = queue[queueIndex];
         if (topic.left <= 0) {
           queueIndex++;
           continue;
         }
+
+        /*
+          ⚠️ A CONDIÇÃO É "CABE INTEIRO EM ALGUM DIA", e não "cabe hoje".
+
+          Comparar só com a capacidade do dia trava o plano: um assunto de 300
+          minutos numa rotina de 60 recebia blocos até sobrarem 60, e aí ficava
+          preso para sempre — 60 não cabia no orçamento do dia (limitado pelo
+          teto) e também não era "maior que um dia". O conteúdo parava de ser
+          distribuído em silêncio.
+
+          O que decide é o maior bloco que um dia chega a oferecer. Se o assunto
+          não cabe nem nisso, ele parte, porque a alternativa é nunca entrar.
+        */
+        const maiorBlocoPossivel = Math.min(dayCapacity, tetoDoDia);
+        if (topic.left > dayBudget && topic.left <= maiorBlocoPossivel) break;
 
         const minutes = Math.min(dayBudget, topic.left);
         dayTopics.push({

@@ -25,6 +25,14 @@ export type NextStep = {
   href: string;
   cta: string | null;
   icon: NextStepIcon;
+  /**
+   * Caminho alternativo, quando existe mais de uma saída.
+   *
+   * Hoje só a leitura que falhou tem um: reenviar o arquivo OU digitar o
+   * edital. Sem a segunda opção, quem tem um PDF que a IA não lê fica preso
+   * tentando o mesmo arquivo.
+   */
+  alternative?: { href: string; label: string };
 };
 
 export type PreparationState = {
@@ -89,10 +97,14 @@ export function nextStep(preparation: PreparationState | null): NextStep | null 
     case "failed":
       return {
         title: "Não conseguimos ler seu edital",
-        body: "A leitura do PDF falhou. Envie o arquivo de novo, de preferência a versão original do site da banca.",
+        body: "A leitura do PDF falhou. Envie o arquivo de novo, de preferência a versão original do site da banca — ou digite as disciplinas e os assuntos, se preferir não depender do arquivo.",
         href: `/preparacoes/${preparation.id}/edital`,
         cta: "Enviar outro arquivo",
         icon: "upload",
+        alternative: {
+          href: `/preparacoes/${preparation.id}/manual`,
+          label: "Cadastrar o edital à mão",
+        },
       };
 
     /**
