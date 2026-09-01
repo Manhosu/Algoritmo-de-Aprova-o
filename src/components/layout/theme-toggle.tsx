@@ -36,7 +36,14 @@ export function ThemeToggle() {
 
   return (
     <div
-      className="flex gap-1 rounded-lg border border-border p-1"
+      /*
+        ⚠️ GRADE DE TRÊS COLUNAS IGUAIS, e não `flex` com `flex-1`.
+
+        O menu tem 238px, e com `flex` o botão mais largo empurrava os outros:
+        "Sistema" saía cortado pela borda. Na grade, cada opção recebe um terço
+        exato do espaço, e o texto encolhe junto em vez de vazar.
+      */
+      className="grid grid-cols-3 gap-1 rounded-lg border border-border p-1"
       role="group"
       aria-label="Tema da interface"
     >
@@ -51,7 +58,7 @@ export function ThemeToggle() {
             aria-pressed={ativo}
             title={opcao.rotulo}
             className={cn(
-              "flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-xs transition-colors",
+              "flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-md px-1 text-[0.7rem] transition-colors",
               "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
               ativo
                 ? "bg-primary-soft text-primary"
@@ -59,7 +66,7 @@ export function ThemeToggle() {
             )}
           >
             {opcao.icone}
-            <span>{opcao.rotulo}</span>
+            <span className="truncate">{opcao.rotulo}</span>
           </button>
         );
       })}

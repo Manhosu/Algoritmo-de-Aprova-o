@@ -795,6 +795,7 @@ export function GoldenHourCard({ goldenHour }: { goldenHour: GoldenHour }) {
  */
 export function CoverageCard({ coverage }: { coverage: Coverage }) {
   const percent = coverage.weightedPercent;
+  const emAndamento = coverage.startedTopics - coverage.studiedTopics;
 
   return (
     <Surface className="flex flex-col p-4 sm:p-5">
@@ -805,13 +806,28 @@ export function CoverageCard({ coverage }: { coverage: Coverage }) {
       <div className="mt-4 flex items-center gap-4">
         <Donut percent={percent} />
 
+        {/*
+          ⚠️ A FRASE PRECISA EXPLICAR O NÚMERO DO ANEL, e não contradizê-lo.
+
+          A primeira versão dizia "0 de 18 assuntos estudados" ao lado de um
+          anel marcando 50%. Está certo — `computeCoverage` conta assunto em
+          andamento como meio —, e lido junto vira contradição: o aluno vê zero
+          e cinquenta por cento na mesma linha.
+
+          Agora os dois números aparecem, e a nota diz por que somam meia
+          cobertura.
+        */}
         <div className="min-w-0 flex-1">
           <p className="text-sm text-pretty text-muted-foreground">
-            {coverage.studiedTopics} de {coverage.totalTopics} assuntos estudados.
+            {coverage.studiedTopics} concluído{coverage.studiedTopics === 1 ? "" : "s"}
+            {emAndamento > 0
+              ? ` e ${emAndamento} em andamento, de ${coverage.totalTopics}`
+              : ` de ${coverage.totalTopics}`}{" "}
+            assunto{coverage.totalTopics === 1 ? "" : "s"}.
           </p>
-          {coverage.startedTopics > coverage.studiedTopics ? (
+          {emAndamento > 0 ? (
             <p className="mt-1 text-xs text-pretty text-muted-foreground">
-              Outros {coverage.startedTopics - coverage.studiedTopics} já começaram.
+              Assunto em andamento conta metade.
             </p>
           ) : null}
         </div>
