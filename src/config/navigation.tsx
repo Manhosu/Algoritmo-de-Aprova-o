@@ -58,7 +58,7 @@ export const SIDEBAR_ITEMS: NavItem[] = [
   { href: "/cronograma", label: "Cronograma Adaptativo", icon: <Compass /> },
   { href: "/questoes", label: "Questões", icon: <CircleHelp /> },
   { href: "/revisoes", label: "Revisões", icon: <RefreshCw /> },
-  { href: "/estudos", label: "Estudos", icon: <BookOpen />, soon: true },
+  { href: "/estudos", label: "Estudos", icon: <BookOpen /> },
   {
     href: "/entenda-o-algoritmo",
     label: "Entenda o Algoritmo",

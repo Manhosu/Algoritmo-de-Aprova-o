@@ -315,6 +315,80 @@ async function main() {
       `${res.status}`,
     );
 
+    /* --- a biblioteca de materiais ----------------------------------------- */
+
+    res = await fetch(`${BASE}/estudos`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Biblioteca renderiza com os filtros de tipo",
+      res.ok && html.includes("Mapas mentais") && html.includes("Flashcards"),
+      `${res.status}`,
+    );
+
+    /*
+      ⚠️ O FILTRO É MEDIDO CONTANDO OS CARTÕES, não procurando um rótulo.
+
+      A primeira versão verificava que "Flashcards" sumia do HTML filtrado — e
+      falhava sempre, porque "Flashcards" é também o nome de um dos BOTÕES de
+      filtro, que continua na tela. Contar os links `/estudos/<id>` mede o que
+      realmente interessa: a lista encolheu e não ficou vazia.
+    */
+    const contarItens = (pagina: string) =>
+      (pagina.match(/href="\/estudos\/[0-9a-f-]{36}"/g) ?? []).length;
+
+    const totalSemFiltro = contarItens(html);
+
+    res = await fetch(`${BASE}/estudos?tipo=mind_map`, { headers: { cookie } });
+    html = await res.text();
+    const totalFiltrado = contarItens(html);
+
+    record(
+      "Filtro de tipo encolhe a lista sem esvaziá-la",
+      res.ok && totalFiltrado > 0 && totalFiltrado < totalSemFiltro,
+      `${totalFiltrado} de ${totalSemFiltro}`,
+    );
+
+    /*
+      ⚠️ O CONTEÚDO PAGO NÃO PODE ESTAR NO HTML de quem não tem acesso.
+
+      É o mesmo princípio do gabarito no banco de questões: esconder na tela
+      deixa o material no payload, e basta abrir o inspetor. `getMaterial` nem
+      busca os cartões quando o item está bloqueado — esta verificação existe
+      para que continue assim.
+    */
+    const [baralho] = await sql<Array<{ id: string; front: string }>>`
+      select c.id, f.front
+      from content_items c
+      join flashcards f on f.content_item_id = c.id
+      where c.type = 'flashcard_deck' and c.status = 'published' and c.deleted_at is null
+      limit 1
+    `;
+
+    if (baralho) {
+      /*
+        O cenário é MONTADO aqui e desfeito logo abaixo. O acervo da cliente
+        hoje é todo `limited`, então a verificação nunca rodaria — e uma
+        verificação que não roda dá a mesma sensação de segurança de uma que
+        passa, sem nenhuma das garantias.
+      */
+      await sql`
+        update content_items set required_access_level = 'full' where id = ${baralho.id}
+      `;
+
+      res = await fetch(`${BASE}/estudos/${baralho.id}`, { headers: { cookie } });
+      html = await res.text();
+
+      record(
+        "Material pago não entrega o conteúdo no HTML do plano gratuito",
+        res.ok && html.includes("biblioteca completa") && !html.includes(baralho.front),
+        `${res.status}`,
+      );
+
+      await sql`
+        update content_items set required_access_level = 'limited' where id = ${baralho.id}
+      `;
+    }
+
     /* --- a área administrativa ---------------------------------------------
      *
      * O aluno comum não pode entrar. E, do outro lado, o admin não pode cair
