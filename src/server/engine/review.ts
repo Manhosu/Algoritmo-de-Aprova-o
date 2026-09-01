@@ -22,6 +22,7 @@ import {
 import { recordFunnelActivity } from "@/server/analytics/funnel-activity";
 import { markFunnelStage } from "@/server/preparations/service";
 
+import { checkAchievements } from "./achievements";
 import { getActiveConfig } from "./config";
 import {
   applyStudyToTopicState,
@@ -218,11 +219,10 @@ export async function completeStudy(input: {
     return log.id;
   });
 
-  await recordFunnelActivity({
-    userId: input.userId,
-    now,
-    completedTask: tarefaConcluida,
-  }).catch(() => {});
+  await Promise.all([
+    recordFunnelActivity({ userId: input.userId, now, completedTask: tarefaConcluida }),
+    checkAchievements({ userId: input.userId, now }),
+  ]).catch(() => {});
 
   return {
     ok: true,
@@ -526,6 +526,7 @@ export async function completeReviewOccurrence(input: {
   await Promise.all([
     markFunnelStage(input.userId, "first_review_completed", now),
     recordFunnelActivity({ userId: input.userId, now }),
+    checkAchievements({ userId: input.userId, now }),
   ]).catch(() => {});
 
   return {

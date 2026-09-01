@@ -170,7 +170,7 @@ function clamp01(value: number): number {
  * 2. XP
  * ========================================================================== */
 
-export type XpSource = "question" | "study_log" | "review_occurrence";
+export type XpSource = "question" | "study_log" | "review_occurrence" | "achievement";
 
 /**
  * Credita XP no livro-razão e atualiza o saldo consolidado.

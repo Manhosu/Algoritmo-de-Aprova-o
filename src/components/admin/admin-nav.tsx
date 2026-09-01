@@ -20,6 +20,8 @@ const ABAS = [
   { href: "/admin/alunos", rotulo: "Alunos" },
   { href: "/admin/questoes", rotulo: "Questões" },
   { href: "/admin/materiais", rotulo: "Materiais" },
+  { href: "/admin/editais", rotulo: "Editais" },
+  { href: "/admin/planos", rotulo: "Planos" },
   { href: "/admin/loja", rotulo: "Loja" },
   { href: "/admin/algoritmo", rotulo: "Algoritmo" },
   { href: "/admin/textos", rotulo: "Textos do site" },

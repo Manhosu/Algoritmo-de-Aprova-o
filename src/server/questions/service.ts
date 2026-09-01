@@ -27,6 +27,7 @@ import {
 } from "@/server/engine/progress";
 import { recountTask } from "@/server/engine/task-progress";
 import { recordFunnelActivity } from "@/server/analytics/funnel-activity";
+import { checkAchievements } from "@/server/engine/achievements";
 import { markFunnelStage } from "@/server/preparations/service";
 
 /**
@@ -659,6 +660,12 @@ export async function answerQuestion(input: {
       completedTask: tarefaConcluida,
       reachedFreeLimit: reachedLimit,
     }),
+    /*
+      Conquistas também ficam fora da transação, e pela mesma razão: uma
+      conquista perdida se recupera na próxima questão, porque o critério é
+      "contador >= alvo" e o contador não some.
+    */
+    checkAchievements({ userId: input.userId, now }),
   ]).catch(() => {
     /* telemetria não derruba a resposta */
   });

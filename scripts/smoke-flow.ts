@@ -386,6 +386,12 @@ async function main() {
       `${res.status}`,
     );
 
+    record(
+      "A lista de conquistas aparece com o progresso das bloqueadas",
+      html.includes("Conquistas") && html.includes("Primeiro passo"),
+      "catálogo carregado",
+    );
+
     res = await fetch(`${BASE}/loja`, { headers: { cookie } });
     html = await res.text();
     record(
@@ -502,6 +508,8 @@ async function main() {
       "/admin/alunos",
       "/admin/questoes",
       "/admin/materiais",
+      "/admin/editais",
+      "/admin/planos",
       "/admin/loja",
       "/admin/algoritmo",
     ]) {
@@ -521,6 +529,8 @@ async function main() {
       ["/admin/alunos", "Sequência"],
       ["/admin/questoes", "Por disciplina"],
       ["/admin/materiais", "biblioteca"],
+      ["/admin/editais", "Arquivos distintos"],
+      ["/admin/planos", "Questões por dia"],
       ["/admin/loja", "Resgates aguardando entrega"],
       ["/admin/algoritmo", "Moedas por atividade"],
     ] as const) {

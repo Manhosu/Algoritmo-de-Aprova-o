@@ -643,6 +643,78 @@ async function main() {
       `saldo ${saldo?.coinBalance}, razão ${somaMoedas}`,
     );
 
+    /* --- 17c. as conquistas ----------------------------------------------- */
+    const conquistas = await db
+      .select({
+        code: schema.achievements.code,
+        progress: schema.userAchievements.progress,
+        target: schema.userAchievements.target,
+        unlockedAt: schema.userAchievements.unlockedAt,
+      })
+      .from(schema.userAchievements)
+      .innerJoin(
+        schema.achievements,
+        eq(schema.achievements.id, schema.userAchievements.achievementId),
+      )
+      .where(eq(schema.userAchievements.userId, userId));
+
+    /**
+     * ⚠️ MESMA CLASSE DE FALHA DA LOJA: catálogo semeado e nada concedendo.
+     *
+     * A primeira questão respondida tem que desbloquear "Primeiro passo". Se
+     * este teste falhar, as conquistas voltaram a ser uma tabela bonita que
+     * ninguém preenche.
+     */
+    const primeiroPasso = conquistas.find((c) => c.code === "first_question");
+
+    check(
+      "Responder a primeira questão desbloqueia a conquista",
+      primeiroPasso?.unlockedAt != null,
+      primeiroPasso ? `first_question em ${primeiroPasso.unlockedAt}` : "nenhuma linha",
+    );
+
+    /**
+     * O progresso das BLOQUEADAS também é gravado — é o que faz a tela mostrar
+     * "1 de 50" em vez de um cadeado mudo.
+     */
+    const emAndamento = conquistas.filter((c) => c.unlockedAt === null);
+
+    check(
+      "As conquistas ainda não alcançadas guardam o progresso",
+      emAndamento.length > 0 && emAndamento.every((c) => (c.target ?? 0) > 0),
+      `${emAndamento.length} em andamento`,
+    );
+
+    /* Rodar de novo não pode pagar a mesma conquista duas vezes. */
+    const xpDeConquista = await db
+      .select({ total: sql<number>`coalesce(sum(${schema.xpLedger.amount}), 0)::int` })
+      .from(schema.xpLedger)
+      .where(
+        and(
+          eq(schema.xpLedger.userId, userId),
+          eq(schema.xpLedger.activity, "achievement_unlocked"),
+        ),
+      );
+
+    const { checkAchievements } = await import("../src/server/engine/achievements");
+    await checkAchievements({ userId });
+
+    const xpDepois = await db
+      .select({ total: sql<number>`coalesce(sum(${schema.xpLedger.amount}), 0)::int` })
+      .from(schema.xpLedger)
+      .where(
+        and(
+          eq(schema.xpLedger.userId, userId),
+          eq(schema.xpLedger.activity, "achievement_unlocked"),
+        ),
+      );
+
+    check(
+      "Conferir as conquistas de novo não paga a mesma duas vezes",
+      (xpDepois[0]?.total ?? 0) === (xpDeConquista[0]?.total ?? 0),
+      `${xpDepois[0]?.total} XP de conquista (era ${xpDeConquista[0]?.total})`,
+    );
+
     /* --- 18. o limite diário do plano Free -------------------------------- */
     const limitBefore = await getDailyLimit(userId);
 

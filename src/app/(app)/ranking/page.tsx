@@ -2,10 +2,12 @@ import { Flame, Trophy } from "lucide-react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { AchievementList } from "@/components/gamification/achievement-list";
 import { EmptyState, Surface } from "@/components/shared/surface";
 import { LOGIN_ROUTE } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import { getStudentContext } from "@/server/auth/current-user";
+import { listAchievements } from "@/server/engine/achievements";
 import { getRanking, type RankingRow } from "@/server/engine/ranking";
 
 export const metadata: Metadata = {
@@ -27,7 +29,10 @@ export default async function RankingPage() {
   const context = await getStudentContext();
   if (!context) redirect(LOGIN_ROUTE);
 
-  const ranking = await getRanking({ userId: context.user.id });
+  const [ranking, conquistas] = await Promise.all([
+    getRanking({ userId: context.user.id }),
+    listAchievements(context.user.id),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 py-4">
@@ -53,8 +58,25 @@ export default async function RankingPage() {
       ) : (
         <>
           <ol className="flex flex-col gap-2">
-            {ranking.top.map((linha) => (
-              <li key={`${linha.position}-${linha.totalXp}-${linha.currentStreak}`}>
+            {/*
+              ⚠️ A CHAVE É O ÍNDICE, contra o conselho de sempre, e por dois
+              motivos.
+
+              Posição + XP + sequência NÃO é único: `rank()` dá a mesma posição a
+              quem tem exatamente os mesmos números, de propósito, e dois alunos
+              empatados produziam a mesma chave. O React reclamou em produção
+              ("Encountered two children with the same key, 1-6610-30") e a
+              segunda linha corria risco de ser omitida.
+
+              O id do aluno resolveria e é justamente o que não pode ir: chave de
+              React viaja no payload do servidor, e mandar o id de todo mundo
+              nesta tela desfaria o anonimato que ela existe para manter.
+
+              O índice é seguro aqui porque a lista é estática dentro de um
+              render: ninguém insere, remove ou reordena no cliente.
+            */}
+            {ranking.top.map((linha, indice) => (
+              <li key={indice}>
                 <Row linha={linha} />
               </li>
             ))}
@@ -73,6 +95,13 @@ export default async function RankingPage() {
         Os outros alunos aparecem sem nome. O ranking existe para você se
         comparar, não para saber quem é quem.
       </p>
+
+      {/*
+        As conquistas ficam nesta tela, e não numa própria, porque respondem à
+        mesma pergunta do ranking: como estou indo. Separá-las criaria um item
+        de menu para uma lista que o aluno abre uma vez por semana.
+      */}
+      {conquistas.length > 0 ? <AchievementList conquistas={conquistas} /> : null}
     </div>
   );
 }

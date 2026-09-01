@@ -10,6 +10,7 @@ import {
   parseEngineConfig,
   type EngineConfigKind,
 } from "@/modules/engine-config/schemas";
+import { ACHIEVEMENT_CATALOG } from "@/modules/gamification/achievements";
 import { slugify, taxonomyKey } from "@/modules/taxonomy/normalize";
 import { parseQuestionSheet, type ParsedQuestion } from "@/server/import/questions";
 
@@ -60,6 +61,7 @@ export async function runSeed(db: Db) {
   const catalog = await seedCatalog(db);
   await seedQuestions(db, catalog);
   await seedMissions(db);
+  await seedAchievements(db);
 }
 
 async function main() {
@@ -651,6 +653,53 @@ async function seedMissions(db: Db) {
   }
 
   log.item(`${missions.length} missões (as 5 do mockup da Home)`);
+}
+
+/* ========================================================================== *
+ * CONQUISTAS
+ * ========================================================================== */
+
+/**
+ * O catálogo de conquistas vem do módulo puro.
+ *
+ * ⚠️ A TABELA GUARDA O TEXTO E A RECOMPENSA; o CRITÉRIO fica no código.
+ *
+ * Nome, descrição e quanto vale são coisas que a operação pode querer ajustar
+ * sem deploy. Contador e alvo não: eles são a regra, e regra escrita em JSONB é
+ * regra sem teste. O seed reescreve o texto a cada execução e preserva o
+ * progresso dos alunos, que vive em `user_achievements`.
+ */
+async function seedAchievements(db: Db) {
+  log.section("Conquistas");
+
+  for (const [indice, conquista] of ACHIEVEMENT_CATALOG.entries()) {
+    await db
+      .insert(schema.achievements)
+      .values({
+        code: conquista.code,
+        name: conquista.name,
+        description: conquista.description,
+        icon: conquista.icon,
+        criteria: { counter: conquista.counter, target: conquista.target },
+        xpReward: conquista.xpReward,
+        coinReward: conquista.coinReward,
+        sortOrder: indice,
+      })
+      .onConflictDoUpdate({
+        target: schema.achievements.code,
+        set: {
+          name: conquista.name,
+          description: conquista.description,
+          icon: conquista.icon,
+          criteria: { counter: conquista.counter, target: conquista.target },
+          xpReward: conquista.xpReward,
+          coinReward: conquista.coinReward,
+          sortOrder: indice,
+        },
+      });
+  }
+
+  log.item(`${ACHIEVEMENT_CATALOG.length} conquistas`);
 }
 
 // Só abre conexão quando executado direto (`npm run db:seed`), nunca quando
