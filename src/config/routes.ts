@@ -59,6 +59,7 @@ export const PRIVATE_ROUTE_PREFIXES = [
   "/perfil",
   "/notificacoes",
   "/estudos",
+  "/entenda-o-algoritmo",
   "/trilhas",
   "/ranking",
   "/loja",

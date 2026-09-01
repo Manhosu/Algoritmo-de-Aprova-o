@@ -294,6 +294,26 @@ async function main() {
     res = await fetch(`${BASE}/cronograma`, { headers: { cookie } });
     record("Tela de cronograma renderiza", res.ok, `${res.status}`);
 
+    /*
+      "Entenda o Algoritmo" abre mesmo SEM tarefa gerada.
+
+      Este aluno de teste acabou de ficar ativo e ainda não tem Tarefa do Dia
+      nenhuma, que é justamente o caso que quebraria a tela se ela assumisse que
+      sempre há uma para explicar. O estado vazio precisa ser o estado vazio, e
+      não um erro de servidor.
+    */
+    res = await fetch(`${BASE}/entenda-o-algoritmo`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Entenda o Algoritmo abre e lista os cinco sinais",
+      res.ok &&
+        html.includes("Seu desempenho") &&
+        html.includes("Peso no edital") &&
+        html.includes("Tempo até a prova") &&
+        html.includes("Suas lacunas"),
+      `${res.status}`,
+    );
+
     await sql`update preparations set status = 'diagnosis_pending' where id = ${preparationId}`;
 
     res = await fetch(`${BASE}/preparacoes`, { headers: { cookie } });

@@ -51,7 +51,8 @@ export type NavItem = {
  * abre o cronograma quase toda sessão, e ele estava embaixo de dois itens
  * apagados ("em breve") — o olho batia primeiro no que não funciona.
  *
- * Estudos e Entenda o Algoritmo continuam desabilitados até o Marco 2.
+ * Estudos e Entenda o Algoritmo saíram do "em breve" no Marco 2. A barra
+ * lateral não tem mais nenhum item apagado.
  */
 export const SIDEBAR_ITEMS: NavItem[] = [
   { href: "/inicio", label: "Home", icon: <Home /> },
@@ -59,12 +60,7 @@ export const SIDEBAR_ITEMS: NavItem[] = [
   { href: "/questoes", label: "Questões", icon: <CircleHelp /> },
   { href: "/revisoes", label: "Revisões", icon: <RefreshCw /> },
   { href: "/estudos", label: "Estudos", icon: <BookOpen /> },
-  {
-    href: "/entenda-o-algoritmo",
-    label: "Entenda o Algoritmo",
-    icon: <Sparkles />,
-    soon: true,
-  },
+  { href: "/entenda-o-algoritmo", label: "Entenda o Algoritmo", icon: <Sparkles /> },
 ];
 
 /**
