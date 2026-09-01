@@ -23,6 +23,8 @@ import {
 import { APP_TAGLINE } from "@/config/app";
 import { cn } from "@/lib/utils";
 
+import { ThemeToggle } from "./theme-toggle";
+
 /**
  * Cabeçalho da área do aluno.
  *
@@ -198,6 +200,27 @@ function AvatarMenu({
           <CircleHelp aria-hidden />
           Central de Ajuda
         </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        {/*
+          ⚠️ FORA DE `DropdownMenuItem`, de propósito.
+
+          Um item de menu fecha o menu ao ser clicado. Aqui a pessoa quer VER o
+          tema mudar e talvez experimentar o outro; fechar a cada clique a
+          obrigaria a reabrir o menu três vezes para comparar.
+
+          `onSelect` cancelado no wrapper mantém o menu aberto durante a escolha.
+        */}
+        <div
+          className="px-2 py-2"
+          onClick={(evento) => evento.stopPropagation()}
+          onKeyDown={(evento) => evento.stopPropagation()}
+          role="presentation"
+        >
+          <p className="mb-1.5 px-1 text-xs text-muted-foreground">Tema</p>
+          <ThemeToggle />
+        </div>
 
         <DropdownMenuSeparator />
 

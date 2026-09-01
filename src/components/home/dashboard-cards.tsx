@@ -1,11 +1,28 @@
-import { ArrowRight, Coins, Flame, RotateCcw, Target, Timer, Trophy } from "lucide-react";
+import {
+  ArrowRight,
+  Clock,
+  Coins,
+  Flame,
+  PieChart,
+  RotateCcw,
+  Target,
+  Timer,
+  TriangleAlert,
+  Trophy,
+} from "lucide-react";
 import Link from "next/link";
 
 import { Gauge, LabeledBar, SectionTitle, Surface } from "@/components/shared/surface";
 import { Button } from "@/components/ui/button";
 import { reviewLink } from "@/lib/deep-links";
 import { cn } from "@/lib/utils";
-import type { BestTechnique, EvolutionPoint } from "@/modules/metrics";
+import type {
+  BestTechnique,
+  Coverage,
+  EvolutionPoint,
+  Gap,
+  GoldenHour,
+} from "@/modules/metrics";
 import type { LevelProgress } from "@/modules/gamification";
 import type { HomeData, StreakDay, SubjectPerformance } from "@/server/home/dashboard";
 
@@ -726,4 +743,160 @@ function formatNumber(value: number): string {
 function formatHours(minutes: number): string {
   if (minutes < 60) return `${minutes}min`;
   return `${Math.floor(minutes / 60)}h`;
+}
+
+/* ========================================================================== *
+ * HORÁRIO DE OURO, COBERTURA DO EDITAL E LACUNAS
+ * ========================================================================== */
+
+/**
+ * A faixa de horário em que o aluno mais acerta.
+ *
+ * ⚠️ NÃO MOSTRA NADA SEM AMOSTRA SUFICIENTE. `computeGoldenHour` devolve
+ * `isReliable: false` quando são poucas respostas, e aí o card explica em vez
+ * de cravar. Dizer "seu melhor horário é 14h" com base em três questões é pior
+ * que não dizer: o aluno reorganiza a rotina em cima de ruído.
+ */
+export function GoldenHourCard({ goldenHour }: { goldenHour: GoldenHour }) {
+  const { startHour, endHour, accuracyPercent, isReliable, sampleSize } = goldenHour;
+
+  return (
+    <Surface className="flex flex-col p-4 sm:p-5">
+      <SectionTitle icon={<Clock className="size-4" />}>Horário de ouro</SectionTitle>
+
+      {isReliable && startHour !== null ? (
+        <>
+          <p className="mt-4 flex items-baseline gap-2">
+            <span className="text-metric text-2xl text-primary">
+              {String(startHour).padStart(2, "0")}h–{String(endHour).padStart(2, "0")}h
+            </span>
+          </p>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            É a faixa em que você mais acerta: {accuracyPercent}% em {sampleSize}{" "}
+            {sampleSize === 1 ? "questão" : "questões"}.
+          </p>
+        </>
+      ) : (
+        <p className="mt-4 flex-1 text-sm text-pretty text-muted-foreground">
+          Responda questões em horários diferentes e o sistema descobre quando o
+          seu rendimento é maior. {sampleSize > 0 ? `Já tem ${sampleSize} respostas.` : ""}
+        </p>
+      )}
+    </Surface>
+  );
+}
+
+/**
+ * Quanto do edital já foi coberto.
+ *
+ * Mostra a porcentagem PONDERADA pelo peso de cada assunto, e não a simples.
+ * Cobrir dez assuntos que não caem não é o mesmo que cobrir dois que caem
+ * muito, e é a ponderada que responde "quanto da prova eu já vi".
+ */
+export function CoverageCard({ coverage }: { coverage: Coverage }) {
+  const percent = coverage.weightedPercent;
+
+  return (
+    <Surface className="flex flex-col p-4 sm:p-5">
+      <SectionTitle icon={<PieChart className="size-4" />}>
+        Cobertura do edital
+      </SectionTitle>
+
+      <div className="mt-4 flex items-center gap-4">
+        <Donut percent={percent} />
+
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-pretty text-muted-foreground">
+            {coverage.studiedTopics} de {coverage.totalTopics} assuntos estudados.
+          </p>
+          {coverage.startedTopics > coverage.studiedTopics ? (
+            <p className="mt-1 text-xs text-pretty text-muted-foreground">
+              Outros {coverage.startedTopics - coverage.studiedTopics} já começaram.
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </Surface>
+  );
+}
+
+/** O anel de progresso, desenhado à mão para não carregar biblioteca. */
+function Donut({ percent }: { percent: number }) {
+  const raio = 30;
+  const circunferencia = 2 * Math.PI * raio;
+  const preenchido = (Math.min(100, Math.max(0, percent)) / 100) * circunferencia;
+
+  return (
+    <svg viewBox="0 0 80 80" className="size-20 shrink-0 -rotate-90" role="img"
+      aria-label={`${percent}% do edital coberto`}>
+      <circle cx="40" cy="40" r={raio} fill="none" stroke="var(--border)" strokeWidth="8" />
+      <circle
+        cx="40"
+        cy="40"
+        r={raio}
+        fill="none"
+        stroke="var(--primary)"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeDasharray={`${preenchido} ${circunferencia}`}
+      />
+      <text
+        x="40"
+        y="40"
+        className="fill-[var(--foreground)] text-[18px] font-semibold"
+        textAnchor="middle"
+        dominantBaseline="central"
+        transform="rotate(90 40 40)"
+      >
+        {percent}%
+      </text>
+    </svg>
+  );
+}
+
+/**
+ * Os assuntos em que o aluno mais erra.
+ *
+ * ⚠️ SÓ ENTRA QUEM TEM AMOSTRA. `findGaps` exige um mínimo de tentativas antes
+ * de chamar um assunto de lacuna — errar uma de uma não é lacuna, é acaso, e
+ * apontar isso mandaria o aluno estudar o que ele talvez já saiba.
+ */
+export function GapsCard({ gaps }: { gaps: Gap[] }) {
+  return (
+    <Surface className="flex flex-col p-4 sm:p-5">
+      <SectionTitle icon={<TriangleAlert className="size-4" />}>Lacunas</SectionTitle>
+
+      {gaps.length === 0 ? (
+        <p className="mt-4 flex-1 text-sm text-pretty text-muted-foreground">
+          Nenhuma lacuna medida ainda. Depois de algumas questões por assunto, os
+          que mais derrubam você aparecem aqui.
+        </p>
+      ) : (
+        <ul className="mt-4 flex flex-col gap-3">
+          {gaps.map((gap) => (
+            <li key={gap.planTopicId} className="min-w-0">
+              <p className="text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+                {gap.subjectName}
+              </p>
+              <div className="mt-0.5 flex items-baseline gap-3">
+                <span className="min-w-0 flex-1 text-pretty text-sm text-foreground">
+                  {gap.topicName}
+                </span>
+                <span className="text-metric shrink-0 text-sm text-warning">
+                  {gap.errorPercent}%
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Button asChild variant="outline" className="mt-5 w-full">
+        <Link href="/questoes">
+          Praticar o que falta
+          <ArrowRight aria-hidden />
+        </Link>
+      </Button>
+    </Surface>
+  );
 }

@@ -14,7 +14,10 @@ import { redirect } from "next/navigation";
 import { DailyMissions, type DailyMission } from "@/components/daily-task/daily-missions";
 import {
   BestTechniqueCard,
+  CoverageCard,
   EvolutionCard,
+  GapsCard,
+  GoldenHourCard,
   LevelCard,
   PreparationIndexCard,
   QuickAccess,
@@ -293,6 +296,17 @@ async function ActiveDashboard({
               subjects={home.subjects}
               answersOutOfPlan={home.answersOutOfPlan}
             />
+
+            {/*
+              Os três do Marco 2. As contas existiam desde o Marco 1, puras e
+              testadas em `modules/metrics`, e nunca tinham chegado à tela.
+
+              Ficam na coluna larga, junto com o que o aluno LÊ: são leitura de
+              estado, não ação de hoje.
+            */}
+            <CoverageCard coverage={home.coverage} />
+            <GoldenHourCard goldenHour={home.goldenHour} />
+            <GapsCard gaps={home.gaps} />
             <PreparationIndexCard index={home.preparationIndex} />
           </div>
 

@@ -12,10 +12,16 @@ import {
 } from "@/modules/gamification";
 import {
   buildEvolutionSeries,
+  computeCoverage,
+  computeGoldenHour,
   computePreparationIndex,
   findBestTechnique,
+  findGaps,
   type BestTechnique,
+  type Coverage,
   type EvolutionPoint,
+  type Gap,
+  type GoldenHour,
 } from "@/modules/metrics";
 import { addDays, toCivilDate, type CivilDate } from "@/modules/shared/dates";
 import { db } from "@/server/db";
@@ -122,6 +128,12 @@ export type HomeData = {
   /** Série do gráfico de evolução. */
   evolution: EvolutionPoint[];
   bestTechnique: BestTechnique;
+  /** Faixa de horário em que o aluno mais acerta. */
+  goldenHour: GoldenHour;
+  /** Quanto do edital já foi coberto. */
+  coverage: Coverage;
+  /** Assuntos em que ele mais erra. */
+  gaps: Gap[];
   /** XP por atividade, vindo da configuração versionada — nunca de constante. */
   xp: { study: number; questionCorrect: number; review: number; dailyGoal: number };
 };
@@ -159,13 +171,15 @@ export async function getHomeData(input: {
     countOutOfPlanAnswers(input.userId),
   ]);
 
-  const [level, streakWeek, preparationIndex, evolution, bestTechnique] = await Promise.all([
-    getLevel(stats.totalXp),
-    loadStreakWeek(input.userId, today),
-    loadPreparationIndex(input.preparationId),
-    loadEvolution(input.userId),
-    loadBestTechnique(input.preparationId),
-  ]);
+  const [level, streakWeek, preparationIndex, evolution, bestTechnique, insights] =
+    await Promise.all([
+      getLevel(stats.totalXp),
+      loadStreakWeek(input.userId, today),
+      loadPreparationIndex(input.preparationId),
+      loadEvolution(input.userId),
+      loadBestTechnique(input.preparationId),
+      loadInsights(input.userId, input.preparationId),
+    ]);
 
   return {
     today,
@@ -180,6 +194,9 @@ export async function getHomeData(input: {
     reviewsToday: reviews.due,
     evolution,
     bestTechnique,
+    goldenHour: insights.goldenHour,
+    coverage: insights.coverage,
+    gaps: insights.gaps,
     xp: {
       // `xpForStudy` e companhia devolvem LANÇAMENTOS, não números: um acerto
       // rende dois (a resposta e o bônus). Somar aqui é o que garante que a
@@ -403,6 +420,80 @@ async function countOutOfPlanAnswers(userId: string): Promise<number> {
     .where(and(eq(questionAttempts.userId, userId), isNull(questionAttempts.planTopicId)));
 
   return row?.total ?? 0;
+}
+
+/**
+ * Horário de Ouro, Cobertura do Edital e Lacunas.
+ *
+ * ⚠️ AS TRÊS CONTAS JÁ EXISTIAM em `modules/metrics`, puras e testadas, desde o
+ * Marco 1 — e nunca tinham chegado à tela. O que faltava era só a leitura.
+ *
+ * Vão juntas numa função porque as três saem das MESMAS duas tabelas
+ * (`question_attempts` e `topic_states`). Separadas, seriam três idas ao banco
+ * para os mesmos dados, na tela que já é a mais pesada do produto.
+ */
+async function loadInsights(
+  userId: string,
+  preparationId: string,
+): Promise<{ goldenHour: GoldenHour; coverage: Coverage; gaps: Gap[] }> {
+  const [horas, assuntos] = await Promise.all([
+    /*
+      `answered_hour` é gravado na resposta, já convertido para o fuso do
+      aluno. Agrupar por ele aqui é o que torna o Horário de Ouro possível sem
+      reconverter timestamp nenhum.
+    */
+    db
+      .select({
+        hour: questionAttempts.answeredHour,
+        answered: count(),
+        correct: sql<number>`count(*) filter (where ${questionAttempts.isCorrect})::int`,
+      })
+      .from(questionAttempts)
+      .where(eq(questionAttempts.userId, userId))
+      .groupBy(questionAttempts.answeredHour),
+
+    db
+      .select({
+        planTopicId: topicStates.planTopicId,
+        coverageStatus: topicStates.coverageStatus,
+        weight: studyPlanTopics.weight,
+        topicName: studyPlanTopics.displayName,
+        subjectName: studyPlanSubjects.displayName,
+        questionsAnswered: topicStates.questionsAnswered,
+        questionsCorrect: topicStates.questionsCorrect,
+      })
+      .from(topicStates)
+      .innerJoin(studyPlanTopics, eq(studyPlanTopics.id, topicStates.planTopicId))
+      .innerJoin(studyPlanSubjects, eq(studyPlanSubjects.id, studyPlanTopics.planSubjectId))
+      .where(
+        and(
+          eq(topicStates.preparationId, preparationId),
+          eq(studyPlanTopics.isActive, true),
+        ),
+      ),
+  ]);
+
+  return {
+    goldenHour: computeGoldenHour(
+      horas.map((h) => ({ hour: h.hour ?? 0, answered: h.answered, correct: h.correct })),
+    ),
+    coverage: computeCoverage(
+      assuntos.map((a) => ({
+        planTopicId: a.planTopicId,
+        coverageStatus: a.coverageStatus,
+        weight: a.weight,
+      })),
+    ),
+    gaps: findGaps(
+      assuntos.map((a) => ({
+        planTopicId: a.planTopicId,
+        topicName: a.topicName,
+        subjectName: a.subjectName,
+        questionsAnswered: a.questionsAnswered,
+        questionsCorrect: a.questionsCorrect,
+      })),
+    ),
+  };
 }
 
 async function loadSubjectPerformance(preparationId: string): Promise<SubjectPerformance[]> {
