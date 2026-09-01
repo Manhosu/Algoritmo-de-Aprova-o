@@ -9,6 +9,7 @@ import {
   planPrices,
   plans,
   subscriptions,
+  users,
 } from "@/server/db/schema";
 
 export const metadata: Metadata = { title: "Planos" };
@@ -30,9 +31,10 @@ const ROTULO_ACESSO: Record<string, string> = {
   full: "Completo",
 };
 
+/** ⚠️ As chaves são os valores do enum `billing_period`: "monthly" e "annual". */
 const ROTULO_PERIODO: Record<string, string> = {
   monthly: "Mensal",
-  yearly: "Anual",
+  annual: "Anual",
 };
 
 /**
@@ -65,9 +67,19 @@ export default async function AdminPlanosPage() {
         dailyQuestionLimit: planLimits.dailyQuestionLimit,
         maxActivePreparations: planLimits.maxActivePreparations,
         monthlyEditalUploadLimit: planLimits.monthlyEditalUploadLimit,
+        /*
+          ⚠️ SÓ ALUNOS. A conta de administração também tem assinatura Free, e
+          contá-la faria esta tela dizer "5 assinantes" ao lado de uma Visão
+          Geral que diz "4 alunos ativos" — dois números para a mesma pergunta,
+          sem nada explicando a diferença.
+        */
         assinantes: sql<number>`(
           select count(*)::int from ${subscriptions}
-          where ${subscriptions.planId} = ${plans.id} and ${subscriptions.status} = 'active'
+          join ${users} on ${users.id} = ${subscriptions.userId}
+          where ${subscriptions.planId} = ${plans.id}
+            and ${subscriptions.status} = 'active'
+            and ${users.role} = 'student'
+            and ${users.status} = 'active'
         )`,
       })
       .from(plans)

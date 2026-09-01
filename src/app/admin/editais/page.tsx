@@ -8,12 +8,13 @@ export const metadata: Metadata = { title: "Editais" };
 
 export const dynamic = "force-dynamic";
 
+/** ⚠️ As chaves são os valores de `extraction_status`. `expired` não existe. */
 const ROTULO_STATUS: Record<string, string> = {
   queued: "Na fila",
   running: "Lendo",
   succeeded: "Lida",
   failed: "Falhou",
-  expired: "Expirou",
+  canceled: "Cancelada",
 };
 
 /**
