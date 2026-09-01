@@ -113,7 +113,27 @@ export const coinLedger = pgTable(
     note: text(),
     createdAt: createdAt(),
   },
-  (table) => [index("coin_ledger_user_idx").on(table.userId, table.occurredAt)],
+  (table) => [
+    index("coin_ledger_user_idx").on(table.userId, table.occurredAt),
+
+    /**
+     * A MESMA guarda do `xp_ledger`, e ela faltava aqui.
+     *
+     * Impede lançamento duplicado do mesmo evento: uma requisição repetida —
+     * clique duplo, retentativa de rede — não pode pagar a mesma tarefa duas
+     * vezes. No XP isso já existia; na moeda, não, e o efeito seria pior, porque
+     * moeda vira item resgatado na Loja e não há como "desfazer" a entrega.
+     *
+     * ⚠️ `sourceId` nulo NÃO conflita (o Postgres trata NULL como distinto), e é
+     * o comportamento certo: ajuste manual de admin deve poder repetir.
+     */
+    uniqueIndex("coin_ledger_source_unique").on(
+      table.userId,
+      table.reason,
+      table.sourceType,
+      table.sourceId,
+    ),
+  ],
 );
 
 /**

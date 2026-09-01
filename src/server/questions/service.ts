@@ -19,7 +19,9 @@ import {
 } from "@/server/db/schema";
 import {
   applyAttemptToTopicState,
+  awardCoins,
   awardXp,
+  coinValues,
   markActivity,
   xpEntriesFor,
 } from "@/server/engine/progress";
@@ -506,12 +508,13 @@ export async function answerQuestion(input: {
    * algo que o aluno já dominou. A ligação é feita pelo assunto canônico, que
    * é a ponte que o casamento construiu.
    */
-  const [planTopicId, xp] = await Promise.all([
+  const [planTopicId, xp, moedas] = await Promise.all([
     input.planTopicId ??
       (question.canonicalTopicId && input.preparationId
         ? findPlanTopic(input.preparationId, question.canonicalTopicId)
         : Promise.resolve(null)),
     xpEntriesFor("question", isCorrect),
+    coinValues(),
   ]);
 
   /** Preenchido dentro da transação, lido depois dela para o funil. */
@@ -569,12 +572,31 @@ export async function answerQuestion(input: {
       date: today,
       kind: "questions",
       xpEarned: earned,
+      coinsPerStreakDay: moedas.streakDay,
       now,
     });
 
     if (input.dailyTaskItemId) {
       const avanco = await advanceTaskItem(tx, input.dailyTaskItemId, input.userId, now);
       tarefaConcluida = avanco.taskJustCompleted;
+
+      /*
+        A recompensa da Tarefa do Dia sai daqui, dentro da transação, e a chave
+        é o id da TAREFA. Fora dela, uma falha de rede depois do commit deixaria
+        o aluno com a tarefa concluída e sem a moeda; e sem a chave, refazer a
+        última questão pagaria de novo.
+      */
+      if (tarefaConcluida && avanco.dailyTaskId) {
+        await awardCoins(tx, {
+          userId: input.userId,
+          amount: moedas.dailyTaskCompleted,
+          reason: "earned_activity",
+          sourceType: "daily_task",
+          sourceId: avanco.dailyTaskId,
+          occurredAt: now,
+          occurredDate: today,
+        });
+      }
     }
 
     /**
@@ -698,7 +720,7 @@ async function advanceTaskItem(
   itemId: string,
   userId: string,
   now: Date,
-): Promise<{ taskJustCompleted: boolean }> {
+): Promise<{ taskJustCompleted: boolean; dailyTaskId: string | null }> {
   /**
    * ⚠️ O `userId` NO WHERE NÃO É ZELO EXTRA — é o que fecha o buraco.
    *
@@ -723,7 +745,9 @@ async function advanceTaskItem(
     .where(and(eq(dailyTaskItems.id, itemId), eq(dailyTasks.userId, userId)))
     .limit(1);
 
-  if (!item || item.status === "completed") return { taskJustCompleted: false };
+  if (!item || item.status === "completed") {
+    return { taskJustCompleted: false, dailyTaskId: null };
+  }
 
   const answered = item.answered + 1;
   const completed = item.target !== null && answered >= item.target;
@@ -739,10 +763,10 @@ async function advanceTaskItem(
     })
     .where(eq(dailyTaskItems.id, itemId));
 
-  if (!completed) return { taskJustCompleted: false };
+  if (!completed) return { taskJustCompleted: false, dailyTaskId: item.dailyTaskId };
 
   const { justCompleted } = await recountTask(tx, item.dailyTaskId, now);
-  return { taskJustCompleted: justCompleted };
+  return { taskJustCompleted: justCompleted, dailyTaskId: item.dailyTaskId };
 }
 
 async function findPlanTopic(

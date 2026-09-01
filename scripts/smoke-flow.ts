@@ -25,6 +25,21 @@ config({ path: [".env.local", ".env"], quiet: true });
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
 const MARKER = "smoke-test";
 
+const NOME_DE_TESTE = "Aluno de Teste";
+
+/**
+ * O nome do colega-isca, usado como sonda de vazamento de PII no Ranking.
+ *
+ * Se ele aparecer no HTML de `/ranking`, é porque a tela publicou o nome de um
+ * aluno para OUTRO — que é justamente o que a Política de Privacidade aceita no
+ * cadastro não prevê.
+ *
+ * ⚠️ Não dá para usar o nome do próprio usuário logado como sonda: ele aparece
+ * legitimamente no cabeçalho de toda página. Foi o falso positivo da primeira
+ * versão desta verificação.
+ */
+const NOME_ISCA = "Zebedeu Quaresma Xavier";
+
 type Step = { label: string; ok: boolean; detail: string };
 const steps: Step[] = [];
 
@@ -76,7 +91,7 @@ async function main() {
 
     await sql`
       insert into users (id, name, email, whatsapp, password_hash, pseudonym_key, role, status, timezone)
-      values (${userId}, 'Aluno de Teste', ${email}, '+5511999990000', ${passwordHash},
+      values (${userId}, ${NOME_DE_TESTE}, ${email}, '+5511999990000', ${passwordHash},
               ${pseudonym}, 'student', 'active', 'America/Sao_Paulo')
     `;
 
@@ -94,6 +109,34 @@ async function main() {
     await sql`
       insert into auth_sessions (user_id, token_hash, expires_at)
       values (${userId}, ${tokenHash}, now() + interval '1 day')
+    `;
+
+    /*
+      O COLEGA-ISCA do Ranking.
+
+      Um segundo aluno, com XP alto para garantir que ele apareça no topo da
+      lista, e com um nome que não existe em nenhum outro lugar do produto. Se
+      esse nome aparecer no HTML de `/ranking`, é porque a tela publicou o nome
+      de um aluno para outro.
+
+      A sonda precisa ser um SEGUNDO aluno: usar o nome do próprio usuário
+      logado não serviria, porque ele aparece legitimamente no cabeçalho — foi
+      exatamente esse o falso positivo da primeira versão desta verificação.
+    */
+    const colegaId = randomUUID();
+    const colegaPseudonimo = createHmac("sha256", process.env.ANONYMIZATION_PEPPER ?? "x")
+      .update(colegaId)
+      .digest("hex");
+
+    await sql`
+      insert into users (id, name, email, whatsapp, password_hash, pseudonym_key, role, status, timezone)
+      values (${colegaId}, ${NOME_ISCA}, ${`${MARKER}-colega-${Date.now()}@exemplo.invalido`},
+              '+5511999990002', ${passwordHash}, ${colegaPseudonimo}, 'student', 'active',
+              'America/Sao_Paulo')
+    `;
+    await sql`
+      insert into user_gamification_states (user_id, total_xp, current_streak, longest_streak)
+      values (${colegaId}, 999999, 42, 42)
     `;
 
     console.log("Percorrendo o fluxo:\n");
@@ -314,6 +357,43 @@ async function main() {
       `${res.status}`,
     );
 
+    res = await fetch(`${BASE}/trilhas`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Trilhas monta o percurso a partir do edital",
+      res.ok && html.includes("Trilhas") && html.includes("dominados"),
+      `${res.status}`,
+    );
+
+    /*
+      O Ranking NÃO pode trazer o nome de aluno nenhum.
+
+      A Política de Privacidade aceita no cadastro não prevê exibir o nome de um
+      aluno para outro. Esta verificação existe porque a regressão é fácil e
+      silenciosa: basta alguém acrescentar `users.name` ao select para publicar
+      dado pessoal sem que nada quebre.
+    */
+    res = await fetch(`${BASE}/ranking`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Ranking abre sem expor o nome de outro aluno",
+      res.ok &&
+        html.includes("Ranking") &&
+        // O colega-isca ESTÁ na lista (999.999 XP o coloca em 1º)...
+        html.includes("999999") &&
+        // ...e mesmo assim o nome dele não aparece em lugar nenhum.
+        !html.includes(NOME_ISCA),
+      `${res.status}`,
+    );
+
+    res = await fetch(`${BASE}/loja`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Loja abre e mostra o saldo de moedas",
+      res.ok && html.includes("Loja") && html.includes("Seu saldo"),
+      `${res.status}`,
+    );
+
     await sql`update preparations set status = 'diagnosis_pending' where id = ${preparationId}`;
 
     res = await fetch(`${BASE}/preparacoes`, { headers: { cookie } });
@@ -422,6 +502,7 @@ async function main() {
       "/admin/alunos",
       "/admin/questoes",
       "/admin/materiais",
+      "/admin/loja",
       "/admin/algoritmo",
     ]) {
       res = await fetch(`${BASE}${rota}`, { headers: { cookie }, redirect: "manual" });
@@ -440,7 +521,8 @@ async function main() {
       ["/admin/alunos", "Sequência"],
       ["/admin/questoes", "Por disciplina"],
       ["/admin/materiais", "biblioteca"],
-      ["/admin/algoritmo", "Pesos da Tarefa do Dia"],
+      ["/admin/loja", "Resgates aguardando entrega"],
+      ["/admin/algoritmo", "Moedas por atividade"],
     ] as const) {
       res = await fetch(`${BASE}${rota}`, { headers: { cookie } });
       html = await res.text();

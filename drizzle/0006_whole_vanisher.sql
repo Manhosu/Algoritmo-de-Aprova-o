@@ -1,0 +1,1 @@
+ALTER TYPE "public"."engine_config_kind" ADD VALUE 'coin_values';

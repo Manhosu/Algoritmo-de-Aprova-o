@@ -14,6 +14,7 @@ import {
 import { toCivilDate, type CivilDate } from "@/modules/shared/dates";
 import { db } from "@/server/db";
 import {
+  coinLedger,
   levels,
   questionAttempts,
   streakDays,
@@ -258,6 +259,77 @@ export async function xpEntriesFor(
 }
 
 /* ========================================================================== *
+ * 2b. MOEDAS
+ * ========================================================================== */
+
+/**
+ * Credita moedas, pelo mesmo princípio do XP: LIVRO-RAZÃO, nunca contador.
+ *
+ * ⚠️ E, ao contrário do XP, moeda é SALDO — ela sai da conta quando o aluno
+ * troca por algo na Loja. Por isso o `onConflictDoNothing` importa ainda mais
+ * aqui: um lançamento duplicado no XP infla um número; um lançamento duplicado
+ * na moeda paga um item que ninguém entregou, e não há como desfazer a entrega.
+ *
+ * O índice `coin_ledger_source_unique` é quem impõe isso — a cláusula abaixo só
+ * transforma a violação em "nada aconteceu" em vez de erro na tela.
+ */
+export async function awardCoins(
+  tx: Transaction,
+  input: {
+    userId: string;
+    amount: number;
+    reason: "earned_activity" | "mission_reward" | "achievement_reward";
+    sourceType: string;
+    sourceId: string;
+    occurredAt: Date;
+    occurredDate: CivilDate;
+    note?: string;
+  },
+): Promise<number> {
+  if (input.amount <= 0) return 0;
+
+  const inserido = await tx
+    .insert(coinLedger)
+    .values({
+      userId: input.userId,
+      reason: input.reason,
+      amount: input.amount,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      occurredAt: input.occurredAt,
+      occurredDate: input.occurredDate,
+      note: input.note ?? null,
+    })
+    .onConflictDoNothing()
+    .returning({ amount: coinLedger.amount });
+
+  if (inserido.length === 0) return 0;
+
+  await tx
+    .insert(userGamificationStates)
+    .values({
+      userId: input.userId,
+      coinBalance: input.amount,
+      lastActivityDate: input.occurredDate,
+    })
+    .onConflictDoUpdate({
+      target: userGamificationStates.userId,
+      set: {
+        coinBalance: sql`${userGamificationStates.coinBalance} + ${input.amount}`,
+        updatedAt: input.occurredAt,
+      },
+    });
+
+  return input.amount;
+}
+
+/** Os valores de moeda vigentes, da configuração versionada. */
+export async function coinValues() {
+  const config = await getActiveConfig("coin_values");
+  return config.value;
+}
+
+/* ========================================================================== *
  * 3. SEQUÊNCIA
  * ========================================================================== */
 
@@ -275,10 +347,12 @@ export async function markActivity(
     date: CivilDate;
     kind: "questions" | "study" | "review";
     xpEarned: number;
+    /** Vem da configuração versionada `coin_values`, lida pelo chamador. */
+    coinsPerStreakDay: number;
     now: Date;
   },
 ): Promise<void> {
-  await tx
+  const [dia] = await tx
     .insert(streakDays)
     .values({
       userId: input.userId,
@@ -297,7 +371,8 @@ export async function markActivity(
         hadReview: input.kind === "review" ? true : sql`${streakDays.hadReview}`,
         xpEarned: sql`${streakDays.xpEarned} + ${input.xpEarned}`,
       },
-    });
+    })
+    .returning({ id: streakDays.id });
 
   const days = await tx
     .select({ activityDate: streakDays.activityDate })
@@ -328,6 +403,30 @@ export async function markActivity(
         updatedAt: input.now,
       },
     });
+
+  /**
+   * A moeda do dia de sequência.
+   *
+   * ⚠️ A CHAVE DO LANÇAMENTO É A LINHA DE `streak_days`, e é ela que faz isso
+   * pagar uma vez por DIA em vez de uma vez por atividade.
+   *
+   * `markActivity` roda a cada questão respondida, cada estudo concluído e cada
+   * revisão feita — dezenas de vezes num dia produtivo. `streak_days` tem
+   * índice único em (aluno, data), então a linha é sempre a mesma dentro do dia:
+   * o índice do livro-razão recusa da segunda em diante e o aluno recebe pelo
+   * dia, que é o que "sequência" significa.
+   *
+   * O id da linha, e não a data, porque `coin_ledger.source_id` é `uuid`.
+   */
+  await awardCoins(tx, {
+    userId: input.userId,
+    amount: input.coinsPerStreakDay,
+    reason: "earned_activity",
+    sourceType: "streak_day",
+    sourceId: dia.id,
+    occurredAt: input.now,
+    occurredDate: input.date,
+  });
 }
 
 /**

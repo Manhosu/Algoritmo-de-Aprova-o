@@ -96,6 +96,49 @@ export const DEFAULT_XP_VALUES: XpValues = {
 };
 
 /* ========================================================================== *
+ * GAMIFICAÇÃO — MOEDAS POR ATIVIDADE (README 2.3)
+ * ========================================================================== */
+
+const coins = z.number().int().min(0).max(1000);
+
+/**
+ * ⚠️ SEPARADO DE `xp_values`, e não é organização: são grandezas diferentes.
+ *
+ * XP mede progresso acumulado e nunca é gasto — é o que define o nível e a
+ * posição no ranking. Moeda é saldo: sai da conta quando o aluno troca por algo
+ * na Loja. Num payload só, calibrar o XP mexeria no poder de compra da Loja sem
+ * que ninguém tivesse pedido, e o inverso também.
+ */
+export const coinValuesSchema = z
+  .object({
+    /** 🏆 Tarefa do Dia concluída — a recompensa principal. */
+    dailyTaskCompleted: coins,
+    /** 🔁 Revisão espaçada realizada. */
+    reviewCompleted: coins,
+    /** 🔥 Cada novo dia da sequência. */
+    streakDay: coins,
+  })
+  .refine((v) => v.dailyTaskCompleted + v.reviewCompleted + v.streakDay > 0, {
+    message:
+      "Pelo menos uma atividade precisa render moeda. Com tudo em zero, a Loja " +
+      "fica visível e inalcançável — o aluno vê preços que nunca vai poder pagar.",
+  });
+
+export type CoinValues = z.infer<typeof coinValuesSchema>;
+
+/**
+ * Os padrões vêm das missões já semeadas: "cumprir todas as metas do dia" valia
+ * 25 moedas e "fazer 1 revisão espaçada" valia 5. Manter os mesmos números
+ * evita que a Loja e o catálogo de missões contem histórias diferentes sobre
+ * quanto vale a mesma coisa.
+ */
+export const DEFAULT_COIN_VALUES: CoinValues = {
+  dailyTaskCompleted: 25,
+  reviewCompleted: 5,
+  streakDay: 10,
+};
+
+/* ========================================================================== *
  * MOTOR 2 — INTERVALOS DA CURVA DO ESQUECIMENTO (README 1.7)
  * ========================================================================== */
 
@@ -338,6 +381,7 @@ export const DEFAULT_STUDY_TECHNIQUES: StudyTechniquesConfig = {
 export const ENGINE_CONFIG_SCHEMAS = {
   daily_task_weights: dailyTaskWeightsSchema,
   xp_values: xpValuesSchema,
+  coin_values: coinValuesSchema,
   review_intervals: reviewIntervalsSchema,
   preparation_index: preparationIndexSchema,
   schedule_params: scheduleParamsSchema,
@@ -351,6 +395,7 @@ export const ENGINE_CONFIG_DEFAULTS: {
 } = {
   daily_task_weights: DEFAULT_DAILY_TASK_WEIGHTS,
   xp_values: DEFAULT_XP_VALUES,
+  coin_values: DEFAULT_COIN_VALUES,
   review_intervals: DEFAULT_REVIEW_INTERVALS,
   preparation_index: DEFAULT_PREPARATION_INDEX,
   schedule_params: DEFAULT_SCHEDULE_PARAMS,

@@ -591,6 +591,58 @@ async function main() {
       `${xpAfter[0]?.total} XP no total (era ${gami?.totalXp})`,
     );
 
+    /* --- 17b. as moedas da Loja ------------------------------------------- */
+    const coinRows = await db
+      .select({
+        amount: schema.coinLedger.amount,
+        sourceType: schema.coinLedger.sourceType,
+      })
+      .from(schema.coinLedger)
+      .where(eq(schema.coinLedger.userId, userId));
+
+    /**
+     * ⚠️ A LOJA NASCEU MORTA E ESTE É O TESTE QUE IMPEDE ISSO DE VOLTAR.
+     *
+     * As tabelas de moeda e de loja existiam desde o Marco 1, o catálogo de
+     * missões trazia `coinReward` — e NADA no código creditava moeda alguma. A
+     * tela da Loja teria mostrado saldo zero para todo aluno, para sempre, sem
+     * erro em lugar nenhum.
+     */
+    check(
+      "A atividade credita MOEDA, não só XP",
+      coinRows.length > 0,
+      coinRows.map((r) => `${r.sourceType} +${r.amount}`).join(", ") || "nenhuma moeda",
+    );
+
+    const moedasPorDia = coinRows.filter((r) => r.sourceType === "streak_day");
+
+    /**
+     * O dia de sequência paga UMA VEZ POR DIA, não uma por atividade.
+     *
+     * `markActivity` roda a cada questão respondida — e a esta altura o script
+     * já respondeu várias. Sem a chave de idempotência apontando para a linha
+     * de `streak_days`, cada resposta pagaria de novo e o saldo do aluno subiria
+     * proporcional ao volume, não à constância.
+     */
+    check(
+      "A moeda do dia de sequência é paga uma vez por dia, não por atividade",
+      moedasPorDia.length === 1,
+      `${moedasPorDia.length} lançamento(s) de streak_day`,
+    );
+
+    const saldo = await db.query.userGamificationStates.findFirst({
+      where: (t, { eq: e }) => e(t.userId, userId),
+      columns: { coinBalance: true },
+    });
+
+    const somaMoedas = coinRows.reduce((s, r) => s + r.amount, 0);
+
+    check(
+      "O saldo de moedas é exatamente a soma do livro-razão",
+      (saldo?.coinBalance ?? 0) === somaMoedas,
+      `saldo ${saldo?.coinBalance}, razão ${somaMoedas}`,
+    );
+
     /* --- 18. o limite diário do plano Free -------------------------------- */
     const limitBefore = await getDailyLimit(userId);
 

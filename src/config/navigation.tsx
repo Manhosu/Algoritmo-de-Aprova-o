@@ -72,9 +72,9 @@ export const SIDEBAR_ITEMS: NavItem[] = [
  */
 export const BOTTOM_NAV_ITEMS: NavItem[] = [
   { href: "/inicio", label: "Home", icon: <Home /> },
-  { href: "/trilhas", label: "Trilhas", icon: <Route />, soon: true },
-  { href: "/ranking", label: "Ranking", icon: <Trophy />, soon: true },
-  { href: "/loja", label: "Loja", icon: <ShoppingBag />, soon: true },
+  { href: "/trilhas", label: "Trilhas", icon: <Route /> },
+  { href: "/ranking", label: "Ranking", icon: <Trophy /> },
+  { href: "/loja", label: "Loja", icon: <ShoppingBag /> },
 ];
 
 /** Onde o botão "+" entra na barra inferior. */

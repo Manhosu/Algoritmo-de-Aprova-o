@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { EngineForm } from "@/components/admin/engine-form";
 import { camposDe } from "@/components/admin/engine-fields";
 import type {
+  CoinValues,
   DailyTaskWeights,
   XpValues,
 } from "@/modules/engine-config/schemas";
@@ -31,6 +32,18 @@ const ROTULOS_PESOS: Record<keyof DailyTaskWeights, { rotulo: string; ajuda?: st
     knowledgeGap: { rotulo: "Lacunas", ajuda: "Onde ele mais erra." },
   };
 
+const ROTULOS_MOEDAS: Record<keyof CoinValues, { rotulo: string; ajuda?: string }> = {
+  dailyTaskCompleted: {
+    rotulo: "Tarefa do Dia concluída",
+    ajuda: "A recompensa principal: todos os blocos do dia terminados.",
+  },
+  reviewCompleted: { rotulo: "Revisão realizada" },
+  streakDay: {
+    rotulo: "Dia de sequência",
+    ajuda: "Uma vez por dia, na primeira atividade — não a cada questão.",
+  },
+};
+
 const ROTULOS_XP: Record<keyof XpValues, { rotulo: string; ajuda?: string }> = {
   studyCompleted: { rotulo: "Estudo concluído" },
   questionAnswered: { rotulo: "Questão respondida" },
@@ -56,11 +69,13 @@ export const dynamic = "force-dynamic";
 export default async function AlgoritmoPage() {
   await requireAdmin();
 
-  const [pesos, xp, versoesPesos, versoesXp] = await Promise.all([
+  const [pesos, xp, moedas, versoesPesos, versoesXp, versoesMoedas] = await Promise.all([
     getActiveConfig("daily_task_weights"),
     getActiveConfig("xp_values"),
+    getActiveConfig("coin_values"),
     listConfigVersions("daily_task_weights"),
     listConfigVersions("xp_values"),
+    listConfigVersions("coin_values"),
   ]);
 
   return (
@@ -111,6 +126,29 @@ export default async function AlgoritmoPage() {
         <EngineForm kind="xp_values" campos={camposDe(xp.value, ROTULOS_XP, "XP")} />
 
         <Historico versoes={versoesXp} />
+      </section>
+
+      <section className="flex flex-col gap-4 border-t border-border pt-8">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            Moedas por atividade
+          </h2>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            O que o aluno gasta na Loja. Separado do XP de propósito: XP mede
+            progresso e nunca é gasto; moeda é saldo e sai da conta ao ser
+            trocada.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            No ar: versão {moedas.version}
+          </p>
+        </div>
+
+        <EngineForm
+          kind="coin_values"
+          campos={camposDe(moedas.value, ROTULOS_MOEDAS, "moedas")}
+        />
+
+        <Historico versoes={versoesMoedas} />
       </section>
     </div>
   );

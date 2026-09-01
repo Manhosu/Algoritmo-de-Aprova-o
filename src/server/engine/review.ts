@@ -25,7 +25,9 @@ import { markFunnelStage } from "@/server/preparations/service";
 import { getActiveConfig } from "./config";
 import {
   applyStudyToTopicState,
+  awardCoins,
   awardXp,
+  coinValues,
   markActivity,
   xpEntriesFor,
 } from "./progress";
@@ -95,9 +97,10 @@ export async function completeStudy(input: {
   if (!item || item.kind !== "study") return { ok: false, reason: "not_found" };
   if (item.status === "completed") return { ok: false, reason: "already_completed" };
 
-  const [intervals, xp] = await Promise.all([
+  const [intervals, xp, moedas] = await Promise.all([
     getActiveConfig("review_intervals"),
     xpEntriesFor("study"),
+    coinValues(),
   ]);
 
   const series = startReviewSeries({
@@ -192,11 +195,25 @@ export async function completeStudy(input: {
       date: today,
       kind: "study",
       xpEarned: earned,
+      coinsPerStreakDay: moedas.streakDay,
       now,
     });
 
     const recontagem = await recountTask(tx, item.dailyTaskId, now);
     tarefaConcluida = recontagem.justCompleted;
+
+    /* A recompensa da Tarefa do Dia, chaveada pela tarefa — paga uma vez só. */
+    if (tarefaConcluida) {
+      await awardCoins(tx, {
+        userId: input.userId,
+        amount: moedas.dailyTaskCompleted,
+        reason: "earned_activity",
+        sourceType: "daily_task",
+        sourceId: item.dailyTaskId,
+        occurredAt: now,
+        occurredDate: today,
+      });
+    }
 
     return log.id;
   });
@@ -399,9 +416,10 @@ export async function completeReviewOccurrence(input: {
   if (!occurrence) return { ok: false, reason: "not_found" };
   if (occurrence.status !== "scheduled") return { ok: false, reason: "already_done" };
 
-  const [intervals, xp] = await Promise.all([
+  const [intervals, xp, moedas] = await Promise.all([
     getActiveConfig("review_intervals"),
     xpEntriesFor("review"),
+    coinValues(),
   ]);
 
   const result = completeReview({
@@ -488,7 +506,19 @@ export async function completeReviewOccurrence(input: {
       date: today,
       kind: "review",
       xpEarned: earned,
+      coinsPerStreakDay: moedas.streakDay,
       now,
+    });
+
+    /* Moeda por revisão feita, chaveada pela ocorrência. */
+    await awardCoins(tx, {
+      userId: input.userId,
+      amount: moedas.reviewCompleted,
+      reason: "earned_activity",
+      sourceType: "review_occurrence",
+      sourceId: occurrence.id,
+      occurredAt: now,
+      occurredDate: today,
     });
   });
 

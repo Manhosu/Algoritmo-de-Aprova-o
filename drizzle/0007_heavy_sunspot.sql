@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "coin_ledger_source_unique" ON "coin_ledger" USING btree ("user_id","reason","source_type","source_id");

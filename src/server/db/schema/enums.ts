@@ -244,6 +244,15 @@ export const engineConfigKindEnum = pgEnum("engine_config_kind", [
   "schedule_params",
   /** Técnicas de estudo prescritas nos blocos da Tarefa do Dia e sua rotação. */
   "study_techniques",
+  /**
+   * Moedas por atividade (README 2.3: "moedas acumuladas, gastas na Loja").
+   *
+   * Separado de `xp_values` de propósito: XP mede progresso e nunca é gasto;
+   * moeda é saldo e sai da conta ao ser trocada. Juntar os dois num payload só
+   * faria uma calibração de XP mexer no poder de compra da Loja sem que ninguém
+   * tivesse pedido isso.
+   */
+  "coin_values",
 ]);
 
 export const dailyTaskStatusEnum = pgEnum("daily_task_status", [
