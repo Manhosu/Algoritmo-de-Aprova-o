@@ -322,7 +322,14 @@ async function main() {
      * login, e por um tempo não havia página nenhuma nesse endereço — quem
      * entrasse com a senha certa via "Essa página não existe".
      */
-    for (const rota of ["/admin", "/admin/textos"]) {
+    for (const rota of [
+      "/admin",
+      "/admin/textos",
+      "/admin/alunos",
+      "/admin/questoes",
+      "/admin/materiais",
+      "/admin/algoritmo",
+    ]) {
       res = await fetch(`${BASE}${rota}`, { headers: { cookie }, redirect: "manual" });
       record(
         `${rota} recusa aluno comum sem devolver 404`,
@@ -334,8 +341,12 @@ async function main() {
     await sql`update users set role = 'admin' where id = ${userId}`;
 
     for (const [rota, marcador] of [
-      ["/admin", "Textos do site"],
+      ["/admin", "Ativação"],
       ["/admin/textos", "Publicar no site"],
+      ["/admin/alunos", "Sequência"],
+      ["/admin/questoes", "Por disciplina"],
+      ["/admin/materiais", "biblioteca"],
+      ["/admin/algoritmo", "Pesos da Tarefa do Dia"],
     ] as const) {
       res = await fetch(`${BASE}${rota}`, { headers: { cookie } });
       html = await res.text();
@@ -503,7 +514,20 @@ async function main() {
      * script precisa apagar na ordem, e não pode simplesmente remover o
      * usuário. A primeira execução falhou exatamente aqui, o que é uma boa
      * notícia: a proteção funciona.
+     *
+     * ⚠️ A LINHA DO FUNIL PRECISA SER APAGADA À MÃO, e por muito tempo não era.
+     *
+     * `user_funnel_progress.user_id` é ON DELETE SET NULL de propósito: a linha
+     * SOBREVIVE à exclusão da conta, para que a coorte histórica não encolha a
+     * cada pedido de exclusão da LGPD. É a decisão certa para gente de verdade e
+     * exatamente errada para um usuário de teste — cada execução deixava um
+     * cadastro fantasma, e o painel da cliente chegou a mostrar 114 cadastros
+     * onde havia 4 contas.
      */
+    await sql`
+      delete from user_funnel_progress
+      where user_id in (select id from users where email like ${`${MARKER}-%`})
+    `;
     await sql`
       delete from subscriptions
       where user_id in (select id from users where email like ${`${MARKER}-%`})

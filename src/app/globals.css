@@ -795,6 +795,21 @@
   }
 }
 
+/**
+ * Tira a barra de rolagem sem tirar a rolagem.
+ *
+ * ⚠️ Só para tiras que rolam na HORIZONTAL e cujo conteúdo cortado é óbvio —
+ * abas, carrosséis. Numa lista vertical, esconder a barra tira a única pista de
+ * que há mais coisa abaixo.
+ */
+@utility no-scrollbar {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* ---------------------------------------------------------------------------
  * MOVIMENTO REDUZIDO
  *

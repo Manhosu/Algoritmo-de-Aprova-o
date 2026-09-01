@@ -25,6 +25,7 @@ import {
   topicStates,
   userAvailability,
 } from "@/server/db/schema";
+import { markFunnelStage } from "@/server/preparations/service";
 
 import { getActiveConfig, requireConfigId } from "./config";
 
@@ -229,6 +230,14 @@ export async function ensureDailyTask(input: {
 
     return task.id;
   });
+
+  /*
+    O degrau do funil só é carimbado no caminho "generated". No "existing" a
+    tarefa é de hoje e já foi carimbada quando nasceu; carimbar de novo não
+    mudaria nada (o `markFunnelStage` só grava se estiver nulo), mas gastaria um
+    UPDATE em toda abertura da Home.
+  */
+  await markFunnelStage(input.userId, "first_task_generated", now).catch(() => {});
 
   return {
     status: "generated",

@@ -24,6 +24,8 @@ import {
   xpEntriesFor,
 } from "@/server/engine/progress";
 import { recountTask } from "@/server/engine/task-progress";
+import { recordFunnelActivity } from "@/server/analytics/funnel-activity";
+import { markFunnelStage } from "@/server/preparations/service";
 
 /**
  * BANCO DE QUESTÕES (README 1.9).
@@ -488,6 +490,15 @@ export async function answerQuestion(input: {
   const isCorrect = chosen.isCorrect;
 
   /**
+   * Esta resposta é a que fecha a cota do dia?
+   *
+   * Calculado uma vez, aqui, porque serve a DOIS lugares: `limit_reached_at` na
+   * transação e o marco de monetização no funil, depois dela. Duas cópias da
+   * mesma aritmética divergiriam no primeiro ajuste de regra de plano.
+   */
+  const reachedLimit = limit.limit !== null && limit.used + 1 >= limit.limit;
+
+  /**
    * O assunto do PLANO do aluno, para o desempenho voltar ao motor.
    *
    * Sem isto, responder uma questão no banco livre não moveria o
@@ -502,6 +513,9 @@ export async function answerQuestion(input: {
         : Promise.resolve(null)),
     xpEntriesFor("question", isCorrect),
   ]);
+
+  /** Preenchido dentro da transação, lido depois dela para o funil. */
+  let tarefaConcluida = false;
 
   await db.transaction(async (tx) => {
     await tx
@@ -559,7 +573,8 @@ export async function answerQuestion(input: {
     });
 
     if (input.dailyTaskItemId) {
-      await advanceTaskItem(tx, input.dailyTaskItemId, input.userId, now);
+      const avanco = await advanceTaskItem(tx, input.dailyTaskItemId, input.userId, now);
+      tarefaConcluida = avanco.taskJustCompleted;
     }
 
     /**
@@ -569,8 +584,6 @@ export async function answerQuestion(input: {
      * `limit_reached_at` responde à métrica de monetização "quantos atingem o
      * limite do Free" — o instante de maior intenção de upgrade do produto.
      */
-    const reachedNow = limit.limit !== null && limit.used + 1 >= limit.limit;
-
     await tx
       .insert(dailyQuestionUsage)
       .values({
@@ -578,13 +591,13 @@ export async function answerQuestion(input: {
         usageDate: today,
         questionsAnswered: 1,
         limitAtTime: limit.limit,
-        limitReachedAt: reachedNow ? now : null,
+        limitReachedAt: reachedLimit ? now : null,
       })
       .onConflictDoUpdate({
         target: [dailyQuestionUsage.userId, dailyQuestionUsage.usageDate],
         set: {
           questionsAnswered: sql`${dailyQuestionUsage.questionsAnswered} + 1`,
-          limitReachedAt: reachedNow
+          limitReachedAt: reachedLimit
             // ⚠️ `${now}` cru num fragmento SQL vira `Date.toString()`, que o
             // Postgres recusa: o mapeador da coluna não se aplica dentro de
             // `sql`. O ISO com cast explícito é o que funciona.
@@ -603,6 +616,29 @@ export async function answerQuestion(input: {
           : questions.correctCount,
       })
       .where(eq(questions.id, input.questionId));
+  });
+
+  /**
+   * O FUNIL, DEPOIS da transação e sem segurá-la.
+   *
+   * ⚠️ Fora do `tx` de propósito: são duas escritas numa tabela de métrica, e
+   * uma falha ali não pode desfazer a resposta do aluno. Métrica perdida é
+   * chateação; resposta perdida é o aluno respondendo de novo a mesma questão.
+   *
+   * `Promise.all` porque uma não depende da outra, e `catch` porque o
+   * `answerQuestion` já tem tudo que importa em mãos — deixar o erro subir daqui
+   * transformaria uma falha de telemetria em erro de tela.
+   */
+  await Promise.all([
+    markFunnelStage(input.userId, "first_question_answered", now),
+    recordFunnelActivity({
+      userId: input.userId,
+      now,
+      completedTask: tarefaConcluida,
+      reachedFreeLimit: reachedLimit,
+    }),
+  ]).catch(() => {
+    /* telemetria não derruba a resposta */
   });
 
   return {
@@ -662,7 +698,7 @@ async function advanceTaskItem(
   itemId: string,
   userId: string,
   now: Date,
-): Promise<void> {
+): Promise<{ taskJustCompleted: boolean }> {
   /**
    * ⚠️ O `userId` NO WHERE NÃO É ZELO EXTRA — é o que fecha o buraco.
    *
@@ -687,7 +723,7 @@ async function advanceTaskItem(
     .where(and(eq(dailyTaskItems.id, itemId), eq(dailyTasks.userId, userId)))
     .limit(1);
 
-  if (!item || item.status === "completed") return;
+  if (!item || item.status === "completed") return { taskJustCompleted: false };
 
   const answered = item.answered + 1;
   const completed = item.target !== null && answered >= item.target;
@@ -703,7 +739,10 @@ async function advanceTaskItem(
     })
     .where(eq(dailyTaskItems.id, itemId));
 
-  if (completed) await recountTask(tx, item.dailyTaskId, now);
+  if (!completed) return { taskJustCompleted: false };
+
+  const { justCompleted } = await recountTask(tx, item.dailyTaskId, now);
+  return { taskJustCompleted: justCompleted };
 }
 
 async function findPlanTopic(

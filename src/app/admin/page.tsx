@@ -1,39 +1,36 @@
-import { FileText, LayoutDashboard } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 
+import { FunnelBlock, MetricGrid } from "@/components/admin/funnel";
+import { findDropOff } from "@/modules/admin/funnel";
 import { requireAdmin } from "@/server/auth/guards";
+import { countRecentSignups, getAdminOverview } from "@/server/admin/overview";
 
-export const metadata: Metadata = { title: "Administração" };
+export const metadata: Metadata = { title: "Visão geral" };
 
 /**
- * A porta da área administrativa.
+ * A primeira tela do painel: o funil inteiro (README 2.6).
  *
- * ⚠️ ELA EXISTE PORQUE O LOGIN JÁ MANDAVA PARA CÁ. `AFTER_ADMIN_LOGIN_REDIRECT`
- * aponta para `/admin` desde antes de haver qualquer página aqui: quem entrasse
- * como admin caía num 404 logo depois de digitar a senha certa. É o pior
- * primeiro contato possível com uma área nova — parece que a conta quebrou.
+ * ⚠️ `force-dynamic` porque a resposta É a leitura do momento.
  *
- * Por enquanto tem uma seção só. A lista cresce conforme o painel do Marco 2
- * for saindo; o que não pode é ela voltar a não existir.
+ * Uma métrica em cache mente de um jeito específico e perigoso: mostra um
+ * número plausível e não avisa que ele é de ontem. Quem olha o painel para
+ * decidir onde mexer precisa do que está acontecendo agora, e são seis
+ * consultas — todas em paralelo, todas sobre índices.
  */
 export const dynamic = "force-dynamic";
 
-const SECOES = [
-  {
-    href: "/admin/textos",
-    icon: <FileText />,
-    titulo: "Textos do site",
-    descricao:
-      "A página inicial inteira: título, chamadas, os quatro passos e os botões. Publica na hora.",
-  },
-];
-
 export default async function AdminPage() {
   const session = await requireAdmin();
+  const [dados, novosNaSemana] = await Promise.all([
+    getAdminOverview(),
+    countRecentSignups(7),
+  ]);
+
+  const quedas = findDropOff(dados.activation);
+  const maiorQueda = quedas[0];
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8">
       <header>
         <p className="text-eyebrow">Administração</p>
         {/* `name` é anulável: a anonimização da LGPD o apaga e a conta continua. */}
@@ -41,40 +38,85 @@ export default async function AdminPage() {
           {session.user.name ? `Olá, ${session.user.name.split(" ")[0]}` : "Painel"}
         </h1>
         <p className="mt-2 text-pretty text-muted-foreground">
-          O que você pode editar sem depender de ninguém.
+          Onde as pessoas entram, onde param e o que a plataforma tem no ar.
         </p>
       </header>
 
-      <ul className="flex flex-col gap-3">
-        {SECOES.map((secao) => (
-          <li key={secao.href}>
-            <Link
-              href={secao.href}
-              className="lift neon-hover flex items-start gap-4 rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <span
-                className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-background/60 text-primary [&>svg]:size-5"
-                aria-hidden
-              >
-                {secao.icon}
-              </span>
-              <span className="min-w-0">
-                <span className="block font-semibold text-foreground">{secao.titulo}</span>
-                <span className="mt-1 block text-sm text-pretty text-muted-foreground">
-                  {secao.descricao}
-                </span>
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <MetricGrid
+        itens={[
+          { rotulo: "Cadastros", valor: dados.totalSignups },
+          { rotulo: "Novos em 7 dias", valor: novosNaSemana },
+          { rotulo: "Alunos ativos", valor: dados.operation.activeStudents },
+          {
+            rotulo: "Acerto da turma",
+            valor: dados.operation.classAccuracyPercent,
+            sufixo: "%",
+          },
+          { rotulo: "Questões no ar", valor: dados.operation.publishedQuestions },
+          { rotulo: "Materiais", valor: dados.operation.contentItems },
+        ]}
+      />
 
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
-        <LayoutDashboard className="size-4 shrink-0" aria-hidden />
-        <Link href="/inicio" className="text-primary underline-offset-4 hover:underline">
-          Ir para a área de estudo
-        </Link>
-      </p>
+      {maiorQueda ? (
+        <p className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-pretty text-foreground">
+          Maior abandono: <strong>{maiorQueda.stage}</strong>. {maiorQueda.lost}{" "}
+          {maiorQueda.lost === 1 ? "pessoa parou" : "pessoas pararam"} nesse ponto.
+        </p>
+      ) : null}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <FunnelBlock
+          titulo="Ativação"
+          descricao="Do cadastro até a primeira questão respondida."
+          etapas={dados.activation}
+          total={dados.totalSignups}
+        />
+
+        <FunnelBlock
+          titulo="Retenção"
+          descricao="Quem voltou depois do primeiro dia."
+          etapas={dados.retention}
+          total={dados.totalSignups}
+        />
+
+        <FunnelBlock
+          titulo="Monetização"
+          descricao="Quem esbarrou no limite do plano gratuito e quem assinou."
+          etapas={dados.monetization}
+          total={dados.totalSignups}
+        />
+
+        <section className="rounded-xl border border-border bg-card p-5">
+          <h2 className="font-semibold text-foreground">Onde a turma mais erra</h2>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            Assuntos com pelo menos 20 respostas. É a fila do que produzir a
+            seguir.
+          </p>
+
+          {dados.hardestTopics.length === 0 ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Ainda não há assunto com respostas suficientes para uma leitura
+              honesta.
+            </p>
+          ) : (
+            <ul className="mt-4 flex flex-col gap-3">
+              {dados.hardestTopics.map((assunto) => (
+                <li key={assunto.name} className="flex items-baseline gap-3">
+                  <span className="min-w-0 flex-1 text-pretty text-sm text-foreground">
+                    {assunto.name}
+                  </span>
+                  <span className="text-metric shrink-0 text-sm text-destructive">
+                    {assunto.errorPercent}%
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {assunto.answered} resp.
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

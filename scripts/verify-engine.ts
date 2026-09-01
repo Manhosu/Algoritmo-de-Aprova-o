@@ -1089,6 +1089,19 @@ async function main() {
       "drizzle-orm",
     );
 
+    /**
+     * ⚠️ A LINHA DO FUNIL PRIMEIRO, e à mão.
+     *
+     * `user_funnel_progress.user_id` é ON DELETE SET NULL de propósito: a linha
+     * SOBREVIVE à exclusão da conta, para que a coorte histórica não encolha a
+     * cada pedido de exclusão da LGPD. Certo para gente de verdade, errado para
+     * um usuário de verificação — cada execução deixava um cadastro fantasma no
+     * painel administrativo.
+     */
+    await db
+      .delete(schema.userFunnelProgress)
+      .where(eq(schema.userFunnelProgress.userId, userId));
+
     // Ordem obrigatória: `subscriptions` referencia `users` com ON DELETE
     // RESTRICT, de propósito — registro financeiro tem prazo de guarda legal.
     await db.delete(schema.subscriptions).where(eq(schema.subscriptions.userId, userId));

@@ -20,32 +20,51 @@ import { dailyTaskItems, dailyTasks } from "@/server/db/schema";
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/**
+ * Devolve se ESTA chamada foi a que fechou a tarefa.
+ *
+ * ⚠️ A transição importa, não o estado. `completed_tasks_count` no funil conta
+ * tarefas concluídas; somar sempre que a tarefa ESTIVER concluída faria cada
+ * reabertura e refechamento contar de novo, e o número subiria sozinho até não
+ * significar nada.
+ */
 export async function recountTask(
   tx: Transaction,
   dailyTaskId: string,
   now: Date,
-): Promise<void> {
+): Promise<{ justCompleted: boolean }> {
+  /*
+    O status anterior vem no MESMO SELECT, pelo join. Uma segunda consulta só
+    para lê-lo custaria outra volta de rede em todo caminho de resposta e de
+    estudo concluído. `max(...)` porque a coluna não está no `group by` — o join
+    é para um único registro, então o máximo é o próprio valor.
+  */
   const [row] = await tx
     .select({
       total: sql<number>`count(*)::int`,
       done: sql<number>`count(*) filter (where ${dailyTaskItems.status} = 'completed')::int`,
+      statusAnterior: sql<string>`max(${dailyTasks.status}::text)`,
     })
     .from(dailyTaskItems)
+    .innerJoin(dailyTasks, eq(dailyTasks.id, dailyTaskItems.dailyTaskId))
     .where(eq(dailyTaskItems.dailyTaskId, dailyTaskId));
 
   const total = row?.total ?? 0;
   const done = row?.done ?? 0;
+  const concluida = total > 0 && done >= total;
 
   await tx
     .update(dailyTasks)
     .set({
       itemsCompleted: done,
-      status: done === 0 ? "generated" : done >= total ? "completed" : "in_progress",
+      status: done === 0 ? "generated" : concluida ? "completed" : "in_progress",
       // O carimbo de conclusão volta a ser nulo se um item for reaberto: uma
       // tarefa "concluída em" com item pendente seria um registro que se
       // contradiz.
-      completedAt: done >= total && total > 0 ? now : null,
+      completedAt: concluida ? now : null,
       updatedAt: now,
     })
     .where(eq(dailyTasks.id, dailyTaskId));
+
+  return { justCompleted: concluida && row?.statusAnterior !== "completed" };
 }

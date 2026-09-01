@@ -19,6 +19,8 @@ import {
   studyPlanTopics,
   topicStates,
 } from "@/server/db/schema";
+import { recordFunnelActivity } from "@/server/analytics/funnel-activity";
+import { markFunnelStage } from "@/server/preparations/service";
 
 import { getActiveConfig } from "./config";
 import {
@@ -106,6 +108,8 @@ export async function completeStudy(input: {
 
   const minutes = input.minutes ?? item.targetMinutes ?? 0;
   let earned = 0;
+  /** Preenchido dentro da transação, lido depois dela para o funil. */
+  let tarefaConcluida = false;
 
   const studyLogId = await db.transaction(async (tx) => {
     const [log] = await tx
@@ -191,10 +195,17 @@ export async function completeStudy(input: {
       now,
     });
 
-    await recountTask(tx, item.dailyTaskId, now);
+    const recontagem = await recountTask(tx, item.dailyTaskId, now);
+    tarefaConcluida = recontagem.justCompleted;
 
     return log.id;
   });
+
+  await recordFunnelActivity({
+    userId: input.userId,
+    now,
+    completedTask: tarefaConcluida,
+  }).catch(() => {});
 
   return {
     ok: true,
@@ -480,6 +491,12 @@ export async function completeReviewOccurrence(input: {
       now,
     });
   });
+
+  /* Funil fora da transação: telemetria não desfaz uma revisão concluída. */
+  await Promise.all([
+    markFunnelStage(input.userId, "first_review_completed", now),
+    recordFunnelActivity({ userId: input.userId, now }),
+  ]).catch(() => {});
 
   return {
     ok: true,
