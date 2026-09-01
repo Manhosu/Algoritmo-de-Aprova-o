@@ -527,7 +527,7 @@ async function main() {
       ["/admin", "Ativação"],
       ["/admin/textos", "Publicar no site"],
       ["/admin/alunos", "Sequência"],
-      ["/admin/questoes", "Por disciplina"],
+      ["/admin/questoes", "Importar planilha"],
       ["/admin/materiais", "biblioteca"],
       ["/admin/editais", "Arquivos distintos"],
       ["/admin/planos", "Questões por dia"],

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
+import { ImportForm } from "@/components/admin/import-form";
 import { requireAdmin } from "@/server/auth/guards";
+import { QUESTION_SHEET_COLUMNS } from "@/server/import/questions";
 import {
   countPublishedWithoutExplanation,
   questionsByBoard,
@@ -48,11 +50,22 @@ export default async function QuestoesPage() {
         <p className="text-eyebrow">Administração</p>
         <h1 className="mt-2 text-2xl font-bold text-foreground">Questões</h1>
         <p className="mt-2 text-pretty text-muted-foreground">
-          {publicadas} no ar e {rascunhos} em rascunho. Importar planilha é pelo
-          comando <code className="text-metric text-sm">npm run import:questions</code>,
-          que valida linha a linha antes de gravar.
+          {publicadas} no ar e {rascunhos} em rascunho.
         </p>
       </header>
+
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+        <div>
+          <h2 className="font-semibold text-foreground">Importar planilha</h2>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            Cada linha é conferida antes de gravar. O que não casar com o
+            catálogo fica de fora e aparece na lista, para você corrigir e
+            reenviar.
+          </p>
+        </div>
+
+        <ImportForm colunas={QUESTION_SHEET_COLUMNS} />
+      </section>
 
       {semComentario > 0 ? (
         <p className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-pretty text-foreground">
