@@ -1,11 +1,47 @@
 import type { Metadata } from "next";
 
 import { EngineForm } from "@/components/admin/engine-form";
+import { camposDe } from "@/components/admin/engine-fields";
+import type {
+  DailyTaskWeights,
+  XpValues,
+} from "@/modules/engine-config/schemas";
 import { requireAdmin } from "@/server/auth/guards";
 import { getActiveConfig } from "@/server/engine/config";
 import { listConfigVersions } from "@/server/engine/publish-config";
 
 export const metadata: Metadata = { title: "Algoritmo" };
+
+/**
+ * Os nomes em pt-BR de cada sinal, um por chave do schema.
+ *
+ * `Record<keyof …>` é o ponto: acrescentar um peso ao Motor 1 sem dar nome a
+ * ele passa a ser erro de compilação, e não um campo sem rótulo na tela — ou,
+ * pior, um campo ausente que só aparece como "veio vazio" ao publicar.
+ */
+const ROTULOS_PESOS: Record<keyof DailyTaskWeights, { rotulo: string; ajuda?: string }> =
+  {
+    performance: { rotulo: "Desempenho", ajuda: "Quanto o aluno acerta no assunto." },
+    editalWeight: {
+      rotulo: "Peso no edital",
+      ajuda: "Quantas questões o tema costuma valer na prova.",
+    },
+    urgency: { rotulo: "Urgência", ajuda: "Proximidade da data da prova." },
+    recency: { rotulo: "Recência", ajuda: "Há quanto tempo o aluno não vê o assunto." },
+    knowledgeGap: { rotulo: "Lacunas", ajuda: "Onde ele mais erra." },
+  };
+
+const ROTULOS_XP: Record<keyof XpValues, { rotulo: string; ajuda?: string }> = {
+  studyCompleted: { rotulo: "Estudo concluído" },
+  questionAnswered: { rotulo: "Questão respondida" },
+  correctBonus: {
+    rotulo: "Bônus de acerto",
+    ajuda: "Somado ao valor acima. Precisa ser maior que zero.",
+  },
+  streakDay: { rotulo: "Dia de constância" },
+  dailyGoalCompleted: { rotulo: "Meta diária concluída" },
+  reviewCompleted: { rotulo: "Revisão realizada" },
+};
 
 /**
  * Pesos do Motor 1 e valores de XP, editáveis sem tocar em código (README 2.6).
@@ -56,43 +92,7 @@ export default async function AlgoritmoPage() {
         <EngineForm
           kind="daily_task_weights"
           somaEsperada={100}
-          campos={[
-            {
-              chave: "performance",
-              rotulo: "Desempenho",
-              ajuda: "Quanto o aluno acerta no assunto.",
-              valor: pesos.value.performance,
-              sufixo: "%",
-            },
-            {
-              chave: "editalWeight",
-              rotulo: "Peso no edital",
-              ajuda: "Quantas questões o tema costuma valer na prova.",
-              valor: pesos.value.editalWeight,
-              sufixo: "%",
-            },
-            {
-              chave: "urgency",
-              rotulo: "Urgência",
-              ajuda: "Proximidade da data da prova.",
-              valor: pesos.value.urgency,
-              sufixo: "%",
-            },
-            {
-              chave: "recency",
-              rotulo: "Recência",
-              ajuda: "Há quanto tempo o aluno não vê o assunto.",
-              valor: pesos.value.recency,
-              sufixo: "%",
-            },
-            {
-              chave: "knowledgeGap",
-              rotulo: "Lacunas",
-              ajuda: "Onde ele mais erra.",
-              valor: pesos.value.knowledgeGap,
-              sufixo: "%",
-            },
-          ]}
+          campos={camposDe(pesos.value, ROTULOS_PESOS, "%")}
         />
 
         <Historico versoes={versoesPesos} />
@@ -108,23 +108,7 @@ export default async function AlgoritmoPage() {
           <p className="mt-1 text-xs text-muted-foreground">No ar: versão {xp.version}</p>
         </div>
 
-        <EngineForm
-          kind="xp_values"
-          campos={[
-            { chave: "studyCompleted", rotulo: "Estudo concluído", valor: xp.value.studyCompleted, sufixo: "XP" },
-            { chave: "questionAnswered", rotulo: "Questão respondida", valor: xp.value.questionAnswered, sufixo: "XP" },
-            {
-              chave: "correctBonus",
-              rotulo: "Bônus de acerto",
-              ajuda: "Somado ao valor acima. Precisa ser maior que zero.",
-              valor: xp.value.correctBonus,
-              sufixo: "XP",
-            },
-            { chave: "streakDay", rotulo: "Dia de constância", valor: xp.value.streakDay, sufixo: "XP" },
-            { chave: "dailyGoalCompleted", rotulo: "Meta diária concluída", valor: xp.value.dailyGoalCompleted, sufixo: "XP" },
-            { chave: "reviewCompleted", rotulo: "Revisão realizada", valor: xp.value.reviewCompleted, sufixo: "XP" },
-          ]}
-        />
+        <EngineForm kind="xp_values" campos={camposDe(xp.value, ROTULOS_XP, "XP")} />
 
         <Historico versoes={versoesXp} />
       </section>

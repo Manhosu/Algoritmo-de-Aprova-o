@@ -9,14 +9,8 @@ import type { EngineConfigKind } from "@/modules/engine-config/schemas";
 import { cn } from "@/lib/utils";
 
 import { publishEngineConfigAction, type EngineFormState } from "./engine-actions";
+import type { CampoConfig } from "./engine-fields";
 
-export type CampoConfig = {
-  chave: string;
-  rotulo: string;
-  ajuda?: string;
-  valor: number;
-  sufixo?: string;
-};
 
 /**
  * Formulário de uma configuração de motor.
