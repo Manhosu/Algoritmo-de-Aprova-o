@@ -30,9 +30,16 @@ import * as schema from "./schema";
  *
  * O pooler de SESSÃO (5432) é IPv4, aceita o protocolo completo e não tem esse
  * teto. Em troca, ele segura uma conexão do servidor por conexão de cliente —
- * daí o `max` baixo abaixo. Se um dia a concorrência crescer a ponto de esgotar
- * o pool, a saída é aumentar o pool no painel do Supabase, não voltar para o
- * 6543.
+ * daí o `max` baixo abaixo.
+ *
+ * ⚠️ O TETO DELE TEM NOME: `pool_size: 15`. É o que o Supabase responde quando
+ * estoura: `EMAXCONNSESSION: max clients reached in session mode - max clients
+ * are limited to pool_size: 15`. Quinze CLIENTES no total, somando toda função
+ * serverless viva, mais qualquer script rodando na máquina de alguém.
+ *
+ * Quando a concorrência crescer além disso, a saída é aumentar o pool no painel
+ * do Supabase — nunca voltar para o 6543. A medição de 6543 acima continua
+ * valendo: ele trava em silêncio, que é o pior modo de falhar.
  *
  * POR QUE UM SINGLETON GLOBAL
  * ----------------------------------------------------------------------------
@@ -52,12 +59,32 @@ const connection =
   postgres(env.DATABASE_URL, {
     prepare: false,
     /**
-     * Baixo de propósito. Em modo sessão, cada conexão de cliente ocupa uma
-     * conexão do servidor enquanto viver; numa plataforma serverless, cada
-     * instância manteria a sua. Poucas conexões por instância, liberadas rápido
-     * pelo `idle_timeout`, é o que faz a conta fechar.
+     * UMA conexão por instância. Era 3, e a troca tem uma história.
+     *
+     * ⚠️ O TETO DO SUPABASE É `pool_size: 15` CLIENTES. Com 3 por instância,
+     * cinco funções simultâneas esgotavam o banco e as seguintes recebiam
+     * `EMAXCONNSESSION: max clients reached in session mode`. Com 1, cabem
+     * quinze instâncias — o triplo de alunos ao mesmo tempo, sem tocar em
+     * infraestrutura.
+     *
+     * A nota antiga defendia `max` maior porque `Promise.all` de leituras é o
+     * padrão nas telas: a Home faz quatro. Com `max: 1` elas passam a ir em
+     * série pela mesma conexão.
+     *
+     * ⚠️ ESSE ARGUMENTO CAIU QUANDO A REGIÃO FOI CORRIGIDA. Cada ida ao banco
+     * custava 115 ms (função em `iad1`, banco em `sa-east-1`) e passou a custar
+     * 2 ms. Serializar quatro leituras custava 460 ms e passou a custar 8 ms.
+     * Ver `docs/regiao-e-latencia.md`.
+     *
+     * Oito milissegundos por tela é preço barato por triplicar a concorrência
+     * que o produto suporta.
+     *
+     * ⚠️ Com `max: 1`, chamar `db.` DENTRO de um callback de transação trava:
+     * a transação segura a única conexão e a consulta nova espera por ela para
+     * sempre. Dentro de `db.transaction` use SEMPRE o `tx`. Conferido: hoje
+     * nenhum arquivo faz isso.
      */
-    max: 3,
+    max: 1,
     idle_timeout: 20,
     connect_timeout: 10,
   });
