@@ -37,16 +37,42 @@ milissegundos, e o mesmo caminho passa a custar centenas de milissegundos.
 página que lê o banco pagava a travessia. Foi a mudança de maior efeito por
 linha de código do projeto inteiro.
 
+## O efeito medido
+
+| | antes (iad1) | depois (gru1) |
+|---|---|---|
+| Ida ao banco | 115 ms | 2 ms |
+| Responder uma questão | 7.020 ms | 350 ms |
+| Concluir um estudo | — | 567 ms |
+| Carregar `/questoes` | 279 ms | 279 ms* |
+| Carregar `/trilhas` | 213 ms | 90 ms |
+
+\* medido do navegador, dominado pela rede até o usuário.
+
 ## Como conferir depois de qualquer deploy
 
 ```
 curl -s https://oalgoritmodaaprovacao.com.br/api/health
 ```
 
-O campo `regiao` precisa dizer `gru1` e `mediaPorIdaMs` precisa ficar abaixo de
-20. Se `regiao` voltar a ser `iad1`, alguém removeu o `vercel.json` ou a
-configuração de região foi sobrescrita no painel da Vercel — o painel vence o
-arquivo.
+O campo `regiao` precisa dizer `gru1` e `idaMs` precisa ficar abaixo de 20. Se
+`regiao` voltar a ser `iad1`, alguém removeu o `vercel.json` ou a configuração de
+região foi sobrescrita no painel da Vercel — o painel vence o arquivo. O produto
+inteiro fica 20 vezes mais lento sem nenhum erro aparecer.
+
+## Concorrência: o que o produto aguenta
+
+Medido em produção depois da correção de região, com sessão de aluno:
+
+- **48 carregamentos simultâneos** de `/inicio`, `/questoes`, `/estudos`,
+  `/cronograma`, `/trilhas`, `/ranking`, `/loja` e `/revisoes`:
+  **48 respostas 200**, mediana 323 ms, p95 1.222 ms.
+- 20 carregamentos simultâneos de `/planos`: 20 respostas 200.
+
+⚠️ Um susto pelo caminho: a primeira versão de `/api/health` fazia quinze
+consultas e segurava as três conexões do pool. Três chamadas simultâneas DELA
+devolviam 500, e por um momento pareceu que o produto não aguentava
+concorrência. A sonda era a carga. Ela agora faz uma consulta só.
 
 ## O que NÃO era
 

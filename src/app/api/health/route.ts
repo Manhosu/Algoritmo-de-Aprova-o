@@ -5,64 +5,61 @@ import { db } from "@/server/db";
 /**
  * Saúde e latência do banco, vistas de dentro do servidor.
  *
- * ⚠️ EXISTE PARA RESPONDER "ONDE ESTÃO OS SEGUNDOS", e não por completude.
+ * ⚠️ EXISTE PORQUE RESPONDEU UMA PERGUNTA QUE O NAVEGADOR NÃO RESPONDIA.
  *
- * Responder uma questão levava 7 segundos em produção. No meu computador o
- * mesmo caminho levava 700 ms. Sem medir de DENTRO do servidor não há como
- * separar as três hipóteses: rede do usuário, render da página, ou distância
- * entre a função e o banco. As duas primeiras eu já tinha medido pelo
- * navegador; esta é a terceira.
+ * Responder uma questão levava 5 segundos em produção e o render da mesma
+ * página levava 250 ms. Medindo de fora não dava para separar rede, render e
+ * distância até o banco. Este endpoint mediu de dentro: 115 ms por ida, região
+ * `iad1`, com o banco em `sa-east-1`. A função rodava em Washington e o banco
+ * em São Paulo. Ver `docs/regiao-e-latencia.md`.
  *
- * ⚠️ NÃO EXPÕE DADO NENHUM. Só tempos e a contagem de idas. Está na lista de
- * rotas públicas porque um monitor externo precisa alcançá-la sem sessão, e
- * porque saber que o banco responde não conta nada sobre ninguém.
+ * ⚠️ UMA CONSULTA SÓ, e isso é uma correção.
+ *
+ * A primeira versão fazia quinze — uma simples, dez em série, três em paralelo
+ * e uma transação — e segurava as três conexões do pool. Com ela, TRÊS chamadas
+ * simultâneas devolviam 500: a sonda de saúde era a maior carga do sistema, e
+ * eu quase concluí que o produto não aguentava concorrência. Ele aguenta: 48
+ * páginas autenticadas simultâneas responderam 200, com mediana de 323 ms.
+ *
+ * O que a investigação precisava (média por ida em série) foi feito uma vez e
+ * está documentado. O que fica é o mínimo para um monitor externo: o banco
+ * responde, quanto demora uma ida, e de onde.
+ *
+ * ⚠️ NÃO EXPÕE DADO NENHUM. Só tempo e região.
  */
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const inicio = Date.now();
 
-  /* Uma ida trivial: mede a distância, sem trabalho de banco no meio. */
-  const t1 = Date.now();
-  await db.execute(sql`select 1`);
-  const idaSimples = Date.now() - t1;
-
-  /* Dez idas em série: é a forma do caminho de responder uma questão. */
-  const t2 = Date.now();
-  for (let i = 0; i < 10; i += 1) {
+  try {
     await db.execute(sql`select 1`);
+  } catch {
+    /*
+      Falha de banco é 503, não 500: o serviço existe e está indisponível.
+      Um monitor externo distingue as duas coisas, e a mensagem não conta nada
+      sobre a causa para quem não deveria saber.
+    */
+    return Response.json(
+      { ok: false, regiao: process.env.VERCEL_REGION ?? "local" },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
   }
-  const dezEmSerie = Date.now() - t2;
 
-  /*
-    Três em paralelo: mostra se o gargalo é a distância ou o pool.
-
-    ⚠️ TRÊS, e não dez, porque `max: 3` é o tamanho do pool. Pedir dez em
-    paralelo estoura o pooler em modo sessão — este endpoint já derrubou o
-    banco uma vez com `EMAXCONNSESSION: max clients reached in session mode`.
-    Uma sonda de saúde que causa a doença não serve.
-  */
-  const t3 = Date.now();
-  await Promise.all(Array.from({ length: 3 }, () => db.execute(sql`select 1`)));
-  const tresEmParalelo = Date.now() - t3;
-
-  /* Uma transação vazia: o custo de BEGIN e COMMIT, que toda escrita paga. */
-  const t4 = Date.now();
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`select 1`);
-  });
-  const transacaoVazia = Date.now() - t4;
+  const idaMs = Date.now() - inicio;
 
   return Response.json(
     {
       ok: true,
-      idaSimplesMs: idaSimples,
-      dezEmSerieMs: dezEmSerie,
-      mediaPorIdaMs: Math.round(dezEmSerie / 10),
-      tresEmParaleloMs: tresEmParalelo,
-      transacaoVaziaMs: transacaoVazia,
-      totalMs: Date.now() - inicio,
+      idaMs,
       regiao: process.env.VERCEL_REGION ?? "local",
+      /*
+        ⚠️ A região precisa ser a mesma do banco (`sa-east-1` → `gru1`). Se isto
+        voltar a dizer `iad1`, alguém removeu o `vercel.json` ou a configuração
+        foi sobrescrita no painel da Vercel, e o produto inteiro fica 20x mais
+        lento sem nenhum erro aparecer.
+      */
+      regiaoEsperada: "gru1",
     },
     { headers: { "cache-control": "no-store" } },
   );

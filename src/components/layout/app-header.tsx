@@ -175,16 +175,16 @@ function AvatarMenu({
         className="w-56 max-w-[calc(100vw-2rem)]"
       >
         {/*
-          Só "Configurações" existe hoje. Os outros são do Marco 2 e
-          ficam DESABILITADOS em vez de linkar para 404 — um item de menu que
-          leva a "página não encontrada" faz o aluno concluir que a plataforma
-          está quebrada, não que a tela ainda não chegou.
-
-          ⚠️ Ao construir cada uma, troque o `disabled` por `asChild` + `Link`.
+          Os quatro existem. Ficaram DESABILITADOS enquanto as telas não
+          chegavam, porque um item de menu que leva a "página não encontrada" faz
+          o aluno concluir que a plataforma está quebrada, não que a tela ainda
+          não veio.
         */}
-        <DropdownMenuItem disabled>
-          <User aria-hidden />
-          Meu Perfil
+        <DropdownMenuItem asChild>
+          <Link href="/perfil">
+            <User aria-hidden />
+            Meu Perfil
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/configuracoes">
@@ -192,13 +192,17 @@ function AvatarMenu({
             Configurações
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem disabled>
-          <MessageSquare aria-hidden />
-          Feedback &amp; Suporte
+        <DropdownMenuItem asChild>
+          <Link href="/suporte">
+            <MessageSquare aria-hidden />
+            Feedback &amp; Suporte
+          </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem disabled>
-          <CircleHelp aria-hidden />
-          Central de Ajuda
+        <DropdownMenuItem asChild>
+          <Link href="/ajuda">
+            <CircleHelp aria-hidden />
+            Central de Ajuda
+          </Link>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />

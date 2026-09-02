@@ -400,6 +400,29 @@ async function main() {
       `${res.status}`,
     );
 
+    /*
+      Os quatro destinos do menu do avatar.
+
+      ⚠️ Três deles ficaram DESABILITADOS no menu por semanas, esperando a tela.
+      Ligar o link e esquecer a página é a forma mais fácil de reintroduzir um
+      404 no menu principal — e o aluno conclui que a plataforma quebrou, não que
+      a tela ainda não chegou.
+    */
+    for (const [rota, marcador] of [
+      ["/perfil", "Meu Perfil"],
+      ["/configuracoes", "Configurações"],
+      ["/suporte", "Feedback"],
+      ["/ajuda", "Central de Ajuda"],
+    ] as const) {
+      res = await fetch(`${BASE}${rota}`, { headers: { cookie } });
+      html = await res.text();
+      record(
+        `${rota} abre para o aluno`,
+        res.ok && html.includes(marcador),
+        `${res.status}`,
+      );
+    }
+
     await sql`update preparations set status = 'diagnosis_pending' where id = ${preparationId}`;
 
     res = await fetch(`${BASE}/preparacoes`, { headers: { cookie } });

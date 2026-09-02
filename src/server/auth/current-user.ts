@@ -41,6 +41,7 @@ export type StudentContext = {
   gamification: {
     totalXp: number;
     currentStreak: number;
+    longestStreak: number;
   };
 };
 
@@ -69,7 +70,12 @@ export const getStudentContext = cache(async (): Promise<StudentContext | null> 
     }),
     db.query.userGamificationStates.findFirst({
       where: (t, { eq }) => eq(t.userId, userId),
-      columns: { totalXp: true, currentStreak: true },
+      /*
+        `longestStreak` vem junto porque está na MESMA linha já lida — o Perfil
+        mostra "recorde: N dias" e uma consulta a mais para buscar um inteiro
+        que já veio seria desperdício puro.
+      */
+      columns: { totalXp: true, currentStreak: true, longestStreak: true },
     }),
   ]);
 
@@ -90,6 +96,7 @@ export const getStudentContext = cache(async (): Promise<StudentContext | null> 
     gamification: {
       totalXp: gamification?.totalXp ?? 0,
       currentStreak: gamification?.currentStreak ?? 0,
+      longestStreak: gamification?.longestStreak ?? 0,
     },
   };
 });

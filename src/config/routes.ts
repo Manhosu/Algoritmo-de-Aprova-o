@@ -57,6 +57,8 @@ export const PRIVATE_ROUTE_PREFIXES = [
   "/cronograma",
   "/configuracoes",
   "/perfil",
+  "/suporte",
+  "/ajuda",
   "/notificacoes",
   "/estudos",
   "/entenda-o-algoritmo",
