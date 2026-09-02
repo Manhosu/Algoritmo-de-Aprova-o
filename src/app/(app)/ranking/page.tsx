@@ -1,5 +1,6 @@
 import { Flame, Trophy } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AchievementList } from "@/components/gamification/achievement-list";
@@ -25,12 +26,26 @@ export const metadata: Metadata = {
  */
 export const dynamic = "force-dynamic";
 
-export default async function RankingPage() {
+type Params = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+/**
+ * Quantos alunos aparecem antes do "ver mais".
+ *
+ * ⚠️ Dez, e não todos. A cliente perguntou o que acontece com mil alunos: com a
+ * lista inteira, as Conquistas — que ficam abaixo — seriam empurradas para
+ * fora de qualquer tela. Dez cabem numa dobra e o resto continua a um clique.
+ */
+const VISIVEIS = 10;
+
+export default async function RankingPage({ searchParams }: Params) {
   const context = await getStudentContext();
   if (!context) redirect(LOGIN_ROUTE);
 
+  const params = await searchParams;
+  const verTodos = params.todos === "1";
+
   const [ranking, conquistas] = await Promise.all([
-    getRanking({ userId: context.user.id }),
+    getRanking({ userId: context.user.id, limit: verTodos ? 100 : VISIVEIS }),
     listAchievements(context.user.id),
   ]);
 
@@ -88,6 +103,15 @@ export default async function RankingPage() {
               <Row linha={ranking.me} />
             </>
           ) : null}
+
+          {ranking.hasMore && !verTodos ? (
+            <Link
+              href="/ranking?todos=1"
+              className="self-center rounded-lg border border-border px-4 py-2 text-sm text-primary transition-colors hover:border-primary/40"
+            >
+              Ver mais
+            </Link>
+          ) : null}
         </>
       )}
 
@@ -97,9 +121,12 @@ export default async function RankingPage() {
       </p>
 
       {/*
-        As conquistas ficam nesta tela, e não numa própria, porque respondem à
-        mesma pergunta do ranking: como estou indo. Separá-las criaria um item
-        de menu para uma lista que o aluno abre uma vez por semana.
+        ⚠️ As conquistas ficam ANTES do resto da lista, não no fim da página.
+
+        Elas respondem à mesma pergunta do ranking — como estou indo — e a
+        cliente notou o risco: com muitos alunos, uma lista longa empurraria as
+        conquistas para fora da tela e ninguém as veria. Por isso o ranking
+        mostra dez e esconde o resto atrás de "ver mais".
       */}
       {conquistas.length > 0 ? <AchievementList conquistas={conquistas} /> : null}
     </div>
@@ -139,6 +166,17 @@ function Row({ linha }: { linha: RankingRow }) {
           </span>
         ) : null}
       </span>
+
+      {/*
+        Acerto ao lado da sequência (pedido da cliente). Some quando o aluno
+        ainda não respondeu nada: "0%" diria que ele erra tudo, e o certo é que
+        ele ainda não começou.
+      */}
+      {linha.accuracyPercent !== null ? (
+        <span className="text-metric hidden shrink-0 text-xs text-muted-foreground sm:inline">
+          {linha.accuracyPercent}%<span className="sr-only"> de acerto</span>
+        </span>
+      ) : null}
 
       <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
         <Flame className="size-3.5" aria-hidden />

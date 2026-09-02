@@ -17,7 +17,7 @@ const TIPOS = [
   { valor: null, rotulo: "Tudo" },
   { valor: "mind_map", rotulo: "Mapas mentais" },
   { valor: "flashcard_deck", rotulo: "Flashcards" },
-  { valor: "study_text", rotulo: "Textos" },
+  { valor: "study_text", rotulo: "Resumos" },
   { valor: "video", rotulo: "Videoaulas" },
 ] as const;
 
@@ -30,6 +30,13 @@ export default async function EstudosPage({ searchParams }: Params) {
   const tipo = typeof params.tipo === "string" ? params.tipo : null;
   const disciplina = typeof params.disciplina === "string" ? params.disciplina : null;
   const soMeuPlano = params.plano === "1";
+  /*
+    ⚠️ O assunto vem do link da Tarefa do Dia ("Estude: Mapa Mental — Crase") e
+    NÃO tem botão de filtro na tela: ele é um recorte que chega de fora, não uma
+    escolha que o aluno faz aqui. Por isso aparece como aviso removível em vez
+    de virar mais uma fileira de opções.
+  */
+  const assunto = typeof params.assunto === "string" ? params.assunto : null;
 
   const preparacao = contexto?.currentPreparation ?? null;
 
@@ -39,6 +46,7 @@ export default async function EstudosPage({ searchParams }: Params) {
     filters: {
       type: (tipo as LibraryFilters["type"]) ?? null,
       canonicalSubjectId: disciplina,
+      topicSlug: assunto,
       onlyMyPlan: soMeuPlano,
     },
   });
@@ -53,6 +61,7 @@ export default async function EstudosPage({ searchParams }: Params) {
     if (tipo) atual.set("tipo", tipo);
     if (disciplina) atual.set("disciplina", disciplina);
     if (soMeuPlano) atual.set("plano", "1");
+    if (assunto) atual.set("assunto", assunto);
 
     for (const [chave, valor] of Object.entries(mudanca)) {
       if (valor === null) atual.delete(chave);
@@ -76,6 +85,27 @@ export default async function EstudosPage({ searchParams }: Params) {
             : "Mapas mentais, flashcards e textos para estudar antes de praticar."}
         </p>
       </header>
+
+      {assunto ? (
+        /*
+          ⚠️ O aluno chegou aqui por um link da Tarefa do Dia, e a lista está
+          recortada num assunto. Sem este aviso ele veria uma biblioteca quase
+          vazia e concluiria que quase não há material — em vez de entender que
+          está vendo o recorte que pediu.
+        */
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-primary/40 bg-primary/5 px-4 py-3 text-sm text-pretty text-foreground">
+          <span className="min-w-0 flex-1">
+            Mostrando só o material de{" "}
+            <strong>{biblioteca.items[0]?.topicName ?? "um assunto"}</strong>.
+          </span>
+          <Link
+            href={comFiltro({ assunto: null })}
+            className="shrink-0 text-primary underline-offset-4 hover:underline"
+          >
+            Ver todo o acervo
+          </Link>
+        </p>
+      ) : null}
 
       <div className="flex flex-col gap-3">
         <nav aria-label="Tipo de material" className="-mx-4 overflow-x-auto no-scrollbar px-4">

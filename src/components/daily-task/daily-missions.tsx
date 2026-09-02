@@ -77,11 +77,26 @@ export type DailyMissionsProps = {
 };
 
 export function DailyMissions({ missions, completionBonusXp }: DailyMissionsProps) {
-  const items = missions.flatMap((mission) =>
-    mission.practice ? [mission.study, mission.practice] : [mission.study],
-  );
-  const done = items.filter((item) => item.status === "completed").length;
-  const total = items.length;
+  /**
+   * ⚠️ CONTA MISSÕES, NÃO ITENS — e essa era a origem de "3 de 4 concluídas"
+   * numa tela com três missões.
+   *
+   * Cada missão é um bloco com estudo e, quando há questões do assunto no
+   * acervo, prática. A contagem antiga somava os ITENS: um bloco sem prática
+   * valia 1 e um bloco com prática valia 2, então o denominador dependia de
+   * quanto conteúdo existia e nunca batia com o que estava na tela. Três
+   * missões, uma delas com prática, davam quatro.
+   *
+   * A missão está cumprida quando o estudo está feito e, se houver prática, ela
+   * também. É o que o aluno entende por "concluí a missão".
+   */
+  const done = missions.filter(
+    (mission) =>
+      mission.study.status === "completed" &&
+      (!mission.practice || mission.practice.status === "completed"),
+  ).length;
+
+  const total = missions.length;
   const percent = total === 0 ? 0 : Math.round((done / total) * 100);
   const allDone = total > 0 && done === total;
 

@@ -20,11 +20,20 @@ import type { Trail, TrailTopic } from "@/server/engine/trails";
  * animação. Não há nada aqui que justifique um componente de cliente.
  */
 export function TrailSection({ trilha }: { trilha: Trail }) {
-  const emAndamento = trilha.startedCount > 0 && trilha.masteredCount < trilha.topics.length;
-
   return (
     <Surface className="overflow-hidden">
-      <details open={emAndamento}>
+      {/*
+        ⚠️ TODAS FECHADAS (pedido da cliente em 02/09/2026).
+
+        A versão anterior abria a disciplina com progresso, achando que era onde
+        o aluno estava. Com um edital de 150 assuntos isso desmontava a tela: a
+        cliente pediu "deixar todos os assuntos fechados, fica mais difícil de
+        entender, e assim o aluno vai clicando em um de cada vez".
+
+        A barra e o "X de Y dominados" continuam visíveis fechados, que é a
+        informação que a tela existe para dar.
+      */}
+      <details>
         <summary className="flex cursor-pointer list-none items-center gap-3 p-4 transition-colors hover:bg-background/40">
           <div className="min-w-0 flex-1">
             <p className="text-pretty font-semibold text-foreground">
@@ -97,21 +106,37 @@ function TopicRow({ assunto }: { assunto: TrailTopic }) {
     </>
   );
 
-  /*
-    Só vira link quando o assunto casou com o catálogo. Sem `topicSlug` não há
-    questão para oferecer, e um link que leva a uma lista vazia é pior que
-    nenhum link: o aluno conclui que a plataforma não tem conteúdo, quando o que
-    houve foi um assunto do edital dele que ainda não entrou no acervo.
-  */
   const classe = cn(
-    "flex items-start gap-3 rounded-lg py-2",
+    "flex items-start gap-3 rounded-lg py-2 px-2",
     // A indentação mostra a árvore do edital sem precisar repetir o nome do pai.
     assunto.depth > 0 && "pl-4",
     assunto.depth > 1 && "pl-8",
   );
 
+  /*
+    ⚠️ O ASSUNTO SEM CONTEÚDO DIZ POR QUÊ, NA PRÓPRIA LINHA.
+
+    A cliente notou que "alguns assuntos estão clicáveis e outros não" e pediu
+    que todos fossem clicáveis, informando quando não houvesse conteúdo.
+
+    Fiz diferente do pedido literal e o motivo é o celular: um clique que só
+    revela um aviso precisa de JavaScript e de um segundo toque para o aluno
+    descobrir algo que cabe na linha. Mostrando o aviso direto, a inconsistência
+    some pela raiz — não há mais um link que não leva a lugar nenhum, e ninguém
+    precisa clicar para entender.
+
+    O assunto sem `topicSlug` não casou com o catálogo, então não existe questão
+    dele no acervo. Isso é informação para o aluno, não defeito a esconder.
+  */
   if (!assunto.topicSlug) {
-    return <div className={classe}>{conteudo}</div>;
+    return (
+      <div className={classe}>
+        {conteudo}
+        <span className="shrink-0 self-center text-right text-xs text-muted-foreground">
+          Conteúdo em preparação
+        </span>
+      </div>
+    );
   }
 
   return (
@@ -119,7 +144,7 @@ function TopicRow({ assunto }: { assunto: TrailTopic }) {
       href={`/questoes?assunto=${assunto.topicSlug}`}
       className={cn(
         classe,
-        "px-2 transition-colors hover:bg-background/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        "transition-colors hover:bg-background/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
       )}
     >
       {conteudo}

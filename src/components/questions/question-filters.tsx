@@ -46,7 +46,14 @@ export function QuestionFilters({
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const [open, setOpen] = useState(false);
+  /*
+    ⚠️ ABERTO POR PADRÃO (pedido da cliente).
+
+    Quem entra no Banco de Questões quase sempre quer recortar por disciplina
+    ou assunto antes de começar. Fechado, o filtro escondia a primeira ação da
+    tela atrás de um clique que nem todo mundo descobre que existe.
+  */
+  const [open, setOpen] = useState(true);
 
   function apply(key: string, value: string | null) {
     const next = new URLSearchParams(params.toString());

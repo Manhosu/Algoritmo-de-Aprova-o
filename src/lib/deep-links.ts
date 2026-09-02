@@ -39,7 +39,21 @@ export type LinkableTechnique =
   | "other";
 
 export const QUESTIONS_ROUTE = "/questoes";
-export const CONTENT_ITEM_ROUTE = "/conteudo";
+export const LIBRARY_ROUTE = "/estudos";
+
+/**
+ * ⚠️ ERA `/conteudo`, UMA ROTA QUE NUNCA EXISTIU.
+ *
+ * A biblioteca nasceu em `/estudos/[id]`, e este arquivo continuou apontando
+ * para `/conteudo`. Como rota não implementada devolve `null` por segurança, o
+ * efeito não foi um 404: foi a metade "Estude" de TODA missão ficar sem link,
+ * em silêncio, por semanas. A cliente reportou exatamente isso — "os itens da
+ * missão Estude precisam ser clicáveis, conforme combinado anteriormente".
+ *
+ * A guarda de rota não implementada continua valendo e é boa. O que faltava era
+ * alguém mover a entrada quando a tela ficou pronta.
+ */
+export const CONTENT_ITEM_ROUTE = LIBRARY_ROUTE;
 
 /**
  * Rotas de conteúdo que JÁ EXISTEM.
@@ -56,25 +70,38 @@ export const CONTENT_ITEM_ROUTE = "/conteudo";
 const IMPLEMENTED_ROUTES = new Set<string>([
   /**
    * Banco de questões — entrou em 23/08/2026.
-   *
-   * É o que torna clicável a metade "Pratique" de cada missão, como a cliente
-   * pediu. A metade "Estude" continua sem link enquanto o acervo de material
-   * (mapas mentais, flashcards, resumos) não tiver tela: um link para uma
-   * página que não existe faz o aluno concluir que a plataforma está quebrada.
+   * Torna clicável a metade "Pratique" de cada missão.
    */
   QUESTIONS_ROUTE,
+
+  /**
+   * Biblioteca de Estudos — entrou em 01/09/2026.
+   * Torna clicável a metade "Estude". Ver a nota em `CONTENT_ITEM_ROUTE`.
+   */
+  LIBRARY_ROUTE,
 ]);
 
-const TECHNIQUE_ROUTES: Record<LinkableTechnique, string> = {
-  flashcard: "/flashcards",
-  mind_map: "/mapas-mentais",
-  summary: "/resumos",
-  video: "/videoaulas",
-  audio: "/audios",
-  reading: "/estudos",
-  other: "/estudos",
+/**
+ * Cada técnica vira um FILTRO da biblioteca, não uma rota própria.
+ *
+ * ⚠️ Antes cada técnica apontava para uma rota inventada (`/flashcards`,
+ * `/mapas-mentais`, `/resumos`…). Nenhuma existe: o acervo inteiro mora em
+ * `/estudos`, filtrado por tipo. Manter seis rotas fantasmas só produzia links
+ * nulos.
+ *
+ * Os valores são os do enum `content_type` no banco — é o que a tela de
+ * biblioteca espera em `?tipo=`.
+ */
+const TECHNIQUE_CONTENT_TYPE: Record<LinkableTechnique, string | null> = {
+  flashcard: "flashcard_deck",
+  mind_map: "mind_map",
+  summary: "study_text",
+  video: "video",
+  audio: "audio",
+  reading: "study_text",
+  other: null,
   // Não deveria acontecer: "questions" é a prática, não uma técnica de estudo.
-  questions: "/questoes",
+  questions: null,
 };
 
 export type StudyLinkInput = {
@@ -101,11 +128,28 @@ export function studyLink(input: StudyLinkInput): string | null {
 
   // Um único material: abrir uma lista de um item só seria um clique a mais.
   if (count === 1 && input.contentItemId) {
-    return routeIfImplemented(`${CONTENT_ITEM_ROUTE}/${input.contentItemId}`, CONTENT_ITEM_ROUTE);
+    return routeIfImplemented(
+      `${CONTENT_ITEM_ROUTE}/${input.contentItemId}`,
+      CONTENT_ITEM_ROUTE,
+    );
   }
 
-  const base = input.technique ? TECHNIQUE_ROUTES[input.technique] : "/estudos";
-  return routeIfImplemented(withTopic(base, input.topicSlug), base);
+  /*
+    Vários materiais: a lista, já filtrada pelo tipo E pelo assunto. Filtrar só
+    por assunto misturaria mapa mental com flashcard quando a missão prescreveu
+    um dos dois.
+  */
+  const tipo = input.technique ? TECHNIQUE_CONTENT_TYPE[input.technique] : null;
+
+  const parametros = new URLSearchParams();
+  if (tipo) parametros.set("tipo", tipo);
+  if (input.topicSlug) parametros.set("assunto", input.topicSlug);
+
+  const consulta = parametros.toString();
+  return routeIfImplemented(
+    consulta ? `${LIBRARY_ROUTE}?${consulta}` : LIBRARY_ROUTE,
+    LIBRARY_ROUTE,
+  );
 }
 
 /** Destino do item de PRÁTICA: o banco de questões, já filtrado no assunto. */

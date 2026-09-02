@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import type { DailyLimit, QuestionView } from "@/server/questions/service";
@@ -28,7 +29,6 @@ export function QuestionList({
   /** Item da Tarefa do Dia que trouxe o aluno, quando veio por lá. */
   dailyTaskItemId?: string | null;
 }) {
-  const router = useRouter();
   const [used, setUsed] = useState(limit.used);
 
   const remaining = limit.limit === null ? null : Math.max(0, limit.limit - used);
@@ -51,12 +51,22 @@ export function QuestionList({
           index={index}
           blocked={blocked && question.previousAttempt === null}
           dailyTaskItemId={dailyTaskItemId}
-          onAnswered={() => {
-            setUsed((current) => current + 1);
-            // Atualiza a Home e o contador do servidor sem descartar o que já
-            // está na tela: o aluno continua vendo os comentários que abriu.
-            router.refresh();
-          }}
+          /*
+            ⚠️ NÃO RECARREGA A PÁGINA, e o comentário anterior aqui estava
+            errado.
+
+            Ele dizia que o `router.refresh()` atualizava o servidor "sem
+            descartar o que já está na tela". Descartava: com "esconder questões
+            resolvidas" ligado — que é o padrão — o servidor refazia a consulta,
+            a questão recém-respondida saía do resultado e SUMIA antes de o
+            aluno ler o comentário. A cliente relatou exatamente isso.
+
+            O contador já é atualizado aqui do lado do cliente, que é a única
+            coisa desta tela que depende da resposta. XP, sequência e Home se
+            atualizam quando o aluno navegar até lá — e o recarregamento ainda
+            custava um render inteiro da lista a cada questão.
+          */
+          onAnswered={() => setUsed((current) => current + 1)}
         />
       ))}
     </div>
@@ -108,6 +118,26 @@ function LimitBanner({
           </>
         )}
       </p>
+
+      {reached ? (
+        /*
+          ⚠️ O CTA aparece SÓ no limite, e é um link comum.
+
+          É o momento de maior intenção de assinar do produto inteiro: o aluno
+          quer continuar e não pode. Mostrar "trocar de plano" antes disso seria
+          vender para quem ainda está satisfeito.
+
+          `Link` do Next navega no cliente, então a sessão não se perde — a
+          cliente pediu explicitamente "SEM FAZER LOGOUT".
+        */
+        <Link
+          href="/planos"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          Trocar de plano
+          <ArrowRight className="size-4" aria-hidden />
+        </Link>
+      ) : null}
     </div>
   );
 }

@@ -9,27 +9,95 @@ import { practiceLink, studyLabel, studyLink } from "./deep-links";
  */
 
 describe("studyLink", () => {
-  it("NÃO LINKA para rota que ainda não existe", () => {
-    // Link que leva a 404 é pior que ausência de link: o aluno conclui que a
-    // plataforma está quebrada, e não que a página ainda não chegou.
-    expect(studyLink({ technique: "flashcard", topicSlug: "crase" })).toBeNull();
-    expect(studyLink({ technique: "mind_map", topicSlug: "crase" })).toBeNull();
-    expect(studyLink({ technique: null })).toBeNull();
+  /**
+   * ⚠️ ESTES TESTES AFIRMAVAM `null` — e estavam certos até 01/09/2026.
+   *
+   * Cada técnica apontava para uma rota inventada (`/flashcards`,
+   * `/mapas-mentais`, `/resumos`), nenhuma delas existia, e a guarda de rota
+   * não implementada devolvia `null`. O efeito não foi um 404: foi a metade
+   * "Estude" de TODA missão ficar sem link, em silêncio, por semanas. A cliente
+   * reportou — "os itens da missão Estude precisam ser clicáveis".
+   *
+   * A biblioteca mora em `/estudos`, filtrada por tipo. Estes testes agora
+   * travam o destino real.
+   */
+  it("UM material leva DIRETO a ele", () => {
+    // Abrir uma lista de um item só é um clique jogado fora.
+    expect(
+      studyLink({
+        technique: "mind_map",
+        contentItemId: "abc",
+        materialCount: 1,
+        topicSlug: "crase",
+      }),
+    ).toBe("/estudos/abc");
   });
 
-  it("UM material leva direto; VÁRIOS levam para a lista filtrada", () => {
-    // Pergunta da cliente: "e se tiver vários mapas mentais sobre crase, não
-    // teria que ter uma lista?" — tinha. A versão anterior escondia os demais.
-    // Enquanto as rotas não existem os dois devolvem null, mas a regra está
-    // fixada e passa a valer sozinha quando as telas entrarem.
-    const um = studyLink({ technique: "mind_map", contentItemId: "abc", materialCount: 1, topicSlug: "crase" });
-    const varios = studyLink({ technique: "mind_map", contentItemId: "abc", materialCount: 4, topicSlug: "crase" });
-    expect(um).toBeNull();
-    expect(varios).toBeNull();
+  it("VÁRIOS materiais levam à lista filtrada por tipo E assunto", () => {
+    /*
+      Pergunta da cliente: "e se tiver vários mapas mentais sobre crase, não
+      teria que ter uma lista?" — tinha.
+
+      Filtrar só por assunto misturaria mapa mental com flashcard quando a
+      missão prescreveu um dos dois.
+    */
+    expect(
+      studyLink({
+        technique: "mind_map",
+        contentItemId: "abc",
+        materialCount: 4,
+        topicSlug: "crase",
+      }),
+    ).toBe("/estudos?tipo=mind_map&assunto=crase");
   });
 
   it("sem materialCount, um contentItemId sozinho ainda significa um material", () => {
-    expect(studyLink({ technique: "mind_map", contentItemId: "abc" })).toBeNull();
+    expect(studyLink({ technique: "mind_map", contentItemId: "abc" })).toBe(
+      "/estudos/abc",
+    );
+  });
+
+  it("sem técnica prescrita, abre a biblioteca do assunto", () => {
+    expect(studyLink({ technique: null, topicSlug: "crase" })).toBe(
+      "/estudos?assunto=crase",
+    );
+  });
+
+  it("sem técnica e sem assunto, abre a biblioteca inteira", () => {
+    expect(studyLink({ technique: null })).toBe("/estudos");
+  });
+
+  it("cada técnica vira o tipo de conteúdo correspondente", () => {
+    /*
+      ⚠️ Os valores são do enum `content_type` no banco. Um valor que não exista
+      lá vira um filtro que não casa com nada, e a tela mostra biblioteca vazia
+      sem erro nenhum.
+    */
+    const esperado: Record<string, string> = {
+      flashcard: "flashcard_deck",
+      mind_map: "mind_map",
+      summary: "study_text",
+      reading: "study_text",
+      video: "video",
+      audio: "audio",
+    };
+
+    for (const [tecnica, tipo] of Object.entries(esperado)) {
+      expect(
+        studyLink({
+          technique: tecnica as "flashcard",
+          topicSlug: "crase",
+          materialCount: 3,
+        }),
+        tecnica,
+      ).toBe(`/estudos?tipo=${tipo}&assunto=crase`);
+    }
+  });
+
+  it("escapa o assunto na URL", () => {
+    expect(
+      studyLink({ technique: null, topicSlug: "raciocinio logico" }),
+    ).toBe("/estudos?assunto=raciocinio+logico");
   });
 });
 

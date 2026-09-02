@@ -3,7 +3,12 @@ import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/server/db";
-import { levels, userGamificationStates, users } from "@/server/db/schema";
+import {
+  levels,
+  questionAttempts,
+  userGamificationStates,
+  users,
+} from "@/server/db/schema";
 
 /**
  * RANKING — comparativo entre alunos por XP e consistência (README 2.4).
@@ -33,6 +38,8 @@ export type RankingRow = {
   currentStreak: number;
   levelName: string;
   levelEmoji: string | null;
+  /** Percentual de acerto do aluno. Nulo enquanto ele não respondeu nada. */
+  accuracyPercent: number | null;
   /** Verdadeiro só na linha de quem está olhando. */
   isMe: boolean;
 };
@@ -43,6 +50,8 @@ export type Ranking = {
   me: RankingRow | null;
   /** Quantos alunos entram na comparação. */
   totalStudents: number;
+  /** Há mais gente além do que foi devolvido — a tela mostra "ver mais". */
+  hasMore: boolean;
 };
 
 /**
@@ -84,10 +93,43 @@ export async function getRanking(input: {
         currentStreak: userGamificationStates.currentStreak,
         levelName: levels.name,
         levelEmoji: levels.emoji,
+        /*
+          Acerto de cada aluno, em subconsulta e não em join: um `join` com
+          `question_attempts` multiplicaria a linha do aluno por cada resposta,
+          e `total_xp` — que é coluna, não agregado — passaria a ser somado uma
+          vez por tentativa.
+        */
+        accuracyPercent: sql<number | null>`(
+          select round(
+            count(*) filter (where ${questionAttempts.isCorrect}) * 100.0
+            / nullif(count(*), 0)
+          )::int
+          from ${questionAttempts}
+          where ${questionAttempts.userId} = ${users.id}
+        )`,
       })
       .from(userGamificationStates)
       .innerJoin(users, eq(users.id, userGamificationStates.userId))
-      .leftJoin(levels, eq(levels.id, userGamificationStates.currentLevelId))
+      /**
+       * ⚠️ O NÍVEL VEM DA FAIXA DE XP, NÃO DE `current_level_id`.
+       *
+       * Aquela coluna é um cache que NADA no produto preenche: está nula para
+       * todos os alunos desde sempre. O join por ela devolvia nulo e a tela caía
+       * no rótulo padrão, então TODO MUNDO aparecia como "Iniciante" — inclusive
+       * quem tinha 1.660 XP e é Competitivo. A cliente reportou exatamente isso,
+       * e a Home mostrava o nível certo ao lado, porque lá ele é calculado.
+       *
+       * A faixa é a fonte da verdade: nível é função pura do XP. Derivar aqui
+       * também elimina a chance de duas telas discordarem sobre o mesmo aluno.
+       */
+      .leftJoin(
+        levels,
+        and(
+          eq(levels.isActive, true),
+          sql`${userGamificationStates.totalXp} >= ${levels.minXp}`,
+          sql`(${levels.maxXp} is null or ${userGamificationStates.totalXp} <= ${levels.maxXp})`,
+        ),
+      )
       .where(elegivel)
       .orderBy(
         desc(userGamificationStates.totalXp),
@@ -115,6 +157,7 @@ export async function getRanking(input: {
     */
     levelName: linha.levelName ?? "Iniciante",
     levelEmoji: linha.levelEmoji ?? "🌱",
+    accuracyPercent: linha.accuracyPercent,
     isMe: linha.userId === input.userId,
   });
 
@@ -122,6 +165,7 @@ export async function getRanking(input: {
   const minha = linhas.find((l) => l.userId === input.userId);
 
   return {
+    hasMore: linhas.length > limite,
     top,
     /*
       A própria linha vai junto quando o aluno está fora do top.

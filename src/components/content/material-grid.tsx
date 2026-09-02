@@ -27,7 +27,7 @@ const NOME_TIPO: Record<MaterialCard["type"], string> = {
   mind_map: "Mapa mental",
   flashcard_deck: "Flashcards",
   video: "Videoaula",
-  study_text: "Texto",
+  study_text: "Resumo",
   pdf: "PDF",
   audio: "Áudio",
 };

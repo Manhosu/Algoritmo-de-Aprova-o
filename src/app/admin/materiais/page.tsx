@@ -12,7 +12,7 @@ const ROTULO_TIPO: Record<string, string> = {
   flashcard_deck: "Flashcards",
   mind_map: "Mapas mentais",
   video: "Videoaulas",
-  study_text: "Textos de estudo",
+  study_text: "Resumos",
   pdf: "PDFs",
   audio: "Áudios",
 };

@@ -54,6 +54,14 @@ export type MaterialCard = {
 export type LibraryFilters = {
   type?: MaterialCard["type"] | null;
   canonicalSubjectId?: string | null;
+  /**
+   * Slug do assunto canônico.
+   *
+   * ⚠️ É o que faz o link da Tarefa do Dia funcionar. "Estude: Mapa Mental —
+   * Coesão e Coerência" precisa abrir os mapas mentais DAQUELE assunto; sem
+   * este filtro o aluno caía na biblioteca inteira e tinha que procurar.
+   */
+  topicSlug?: string | null;
   /** Só o que está no edital do aluno. */
   onlyMyPlan?: boolean;
 };
@@ -106,6 +114,18 @@ export async function getLibrary(input: {
   if (filtros.type) condicoes.push(eq(contentItems.type, filtros.type));
   if (filtros.canonicalSubjectId) {
     condicoes.push(eq(contentItems.canonicalSubjectId, filtros.canonicalSubjectId));
+  }
+  if (filtros.topicSlug) {
+    /*
+      Pelo slug, e não pelo id, porque quem monta o link é a Tarefa do Dia — e
+      lá o que existe é o slug do assunto canônico. Um `in` com subconsulta
+      evita mais um join na consulta principal.
+    */
+    condicoes.push(
+      sql`${contentItems.canonicalTopicId} in (
+        select id from ${canonicalTopics} where slug = ${filtros.topicSlug}
+      )`,
+    );
   }
 
   const [linhas, acesso, contagemPorDisciplina] = await Promise.all([
