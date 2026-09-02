@@ -1152,6 +1152,31 @@ async function main() {
       })
       .returning({ id: schema.preparations.id });
 
+    /**
+     * ⚠️ PREMIUM ANTES DO TERCEIRO ENVIO, e a razão é o que esta verificação
+     * mede.
+     *
+     * Ela existe para conferir a SEMÂNTICA DO CARGO: o programa de um cargo não
+     * pode ser servido a outro. Só que o aluno de teste está no Free, que
+     * permite duas leituras por mês, e este é o terceiro envio — os dois
+     * anteriores (o original e o reaproveitado) já consumiram a cota.
+     *
+     * A verificação falhou por semanas por isso, e o relatório dizia "fila
+     * própria de leitura" tanto no sucesso quanto na falha, então parecia um
+     * defeito de reaproveitamento entre cargos. Era o limite do plano
+     * funcionando — e o limite tem verificação própria mais abaixo.
+     */
+    const [premiumParaCargo] = await db
+      .select({ id: schema.plans.id })
+      .from(schema.plans)
+      .where(eq(schema.plans.code, "premium"))
+      .limit(1);
+
+    await db
+      .update(schema.subscriptions)
+      .set({ planId: premiumParaCargo.id })
+      .where(eq(schema.subscriptions.userId, userId));
+
     const thirdUpload = await receiveEdital({
       preparationId: thirdPrep.id,
       userId,
@@ -1166,10 +1191,20 @@ async function main() {
           .where(eq(schema.editalExtractions.id, thirdUpload.extractionId))
       : [];
 
+    /*
+      ⚠️ O DETALHE PRECISA DIZER O QUE ACONTECEU, e não repetir o que deveria.
+
+      Esta verificação falhou por semanas mostrando só "fila própria de
+      leitura" — a frase do caso de sucesso, impressa também na falha. Quem
+      lesse o relatório concluiria que o reaproveitamento entre cargos estava
+      quebrado, quando o upload sequer tinha sido aceito.
+    */
     check(
       "Cargo DIFERENTE não reaproveita a leitura do outro cargo",
       cachedForOther.length === 1,
-      "fila própria de leitura",
+      thirdUpload.ok
+        ? `fila própria: ${cachedForOther.length} extração(ões)`
+        : `upload recusado: ${thirdUpload.message}`,
     );
 
     /* --- 26. NULL no limite significa ILIMITADO --------------------------- */
