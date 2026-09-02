@@ -63,6 +63,7 @@ export async function checkAchievements(input: {
     db
       .select({
         achievementId: userAchievements.achievementId,
+        progress: userAchievements.progress,
         unlockedAt: userAchievements.unlockedAt,
       })
       .from(userAchievements)
@@ -81,56 +82,55 @@ export async function checkAchievements(input: {
   const porCodigo = new Map(catalogo.map((a) => [a.code, a]));
   const doCodigo = ACHIEVEMENT_CATALOG.filter((d) => porCodigo.has(d.code));
 
-  const desbloqueadoEm = new Map(
-    jaTem.map((linha) => [linha.achievementId, linha.unlockedAt]),
-  );
+  const meu = new Map(jaTem.map((linha) => [linha.achievementId, linha]));
 
   const avaliacao = evaluateAchievements(retrato, doCodigo);
   const novas: UnlockedAchievement[] = [];
+
+  /**
+   * ⚠️ AS GRAVAÇÕES SÃO JUNTADAS E SÓ AS QUE MUDARAM ENTRAM.
+   *
+   * A primeira versão gravava uma linha por conquista, em sequência, a cada
+   * questão respondida: onze idas ao banco de 68 ms cada, empilhadas na ação
+   * mais frequente do produto. `measure:answer` mediu 1.246 ms de mediana, e a
+   * cliente já tinha reclamado de demora exatamente nessa tela.
+   *
+   * Responder uma questão move três contadores, não doze. Comparando com o que
+   * já está gravado, sobra um punhado de linhas — e elas vão num `insert` só.
+   */
+  const paraGravar: Array<{
+    userId: string;
+    achievementId: string;
+    progress: number;
+    target: number;
+    unlockedAt: Date | null;
+  }> = [];
 
   for (const resultado of avaliacao) {
     const linhaDoBanco = porCodigo.get(resultado.code);
     if (!linhaDoBanco) continue;
 
-    const jaDesbloqueada = desbloqueadoEm.get(linhaDoBanco.id);
-    if (jaDesbloqueada) continue;
+    const atual = meu.get(linhaDoBanco.id);
+    if (atual?.unlockedAt) continue;
 
     /*
-      O progresso é gravado SEMPRE, desbloqueando ou não. É o que faz a tela
-      mostrar "7 de 30 dias" em vez de só um cadeado — e é a diferença entre uma
-      lista que motiva e uma vitrine de coisas inalcançáveis.
+      O progresso é gravado desbloqueando ou não: é o que faz a tela mostrar
+      "7 de 30 dias" em vez de só um cadeado. Mas só quando ele MUDA — regravar
+      "0 de 50" a cada questão é escrita pura sem informação nova.
     */
-    await db
-      .insert(userAchievements)
-      .values({
-        userId: input.userId,
-        achievementId: linhaDoBanco.id,
-        progress: resultado.progress,
-        target: resultado.target,
-        unlockedAt: resultado.unlocked ? now : null,
-      })
-      .onConflictDoUpdate({
-        target: [userAchievements.userId, userAchievements.achievementId],
-        set: {
-          progress: resultado.progress,
-          target: resultado.target,
-          // `coalesce` protege o carimbo original: reconquistar não é coisa.
-          unlockedAt: resultado.unlocked
-            ? sql`coalesce(${userAchievements.unlockedAt}, ${now.toISOString()}::timestamptz)`
-            : userAchievements.unlockedAt,
-          updatedAt: now,
-        },
-      });
+    if (atual && atual.progress === resultado.progress && !resultado.unlocked) {
+      continue;
+    }
 
-    if (!resultado.unlocked) continue;
-
-    await payReward({
+    paraGravar.push({
       userId: input.userId,
       achievementId: linhaDoBanco.id,
-      xpReward: linhaDoBanco.xpReward,
-      coinReward: linhaDoBanco.coinReward,
-      now,
+      progress: resultado.progress,
+      target: resultado.target,
+      unlockedAt: resultado.unlocked ? now : null,
     });
+
+    if (!resultado.unlocked) continue;
 
     novas.push({
       code: linhaDoBanco.code,
@@ -138,6 +138,40 @@ export async function checkAchievements(input: {
       icon: linhaDoBanco.icon,
       xpReward: linhaDoBanco.xpReward,
       coinReward: linhaDoBanco.coinReward,
+    });
+  }
+
+  if (paraGravar.length === 0) return [];
+
+  await db
+    .insert(userAchievements)
+    .values(paraGravar)
+    .onConflictDoUpdate({
+      target: [userAchievements.userId, userAchievements.achievementId],
+      set: {
+        progress: sql`excluded.progress`,
+        target: sql`excluded.target`,
+        // `coalesce` protege o carimbo original: reconquistar não é coisa.
+        unlockedAt: sql`coalesce(${userAchievements.unlockedAt}, excluded.unlocked_at)`,
+        updatedAt: now,
+      },
+    });
+
+  /*
+    As recompensas ficam de fora do lote porque cada uma mexe em dois
+    livros-razão e no saldo. São raras — a esmagadora maioria das chamadas
+    desbloqueia zero conquistas e nem chega aqui.
+  */
+  for (const conquista of novas) {
+    const linhaDoBanco = porCodigo.get(conquista.code);
+    if (!linhaDoBanco) continue;
+
+    await payReward({
+      userId: input.userId,
+      achievementId: linhaDoBanco.id,
+      xpReward: linhaDoBanco.xpReward,
+      coinReward: linhaDoBanco.coinReward,
+      now,
     });
   }
 

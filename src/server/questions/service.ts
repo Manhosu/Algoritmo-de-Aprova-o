@@ -29,6 +29,7 @@ import { recountTask } from "@/server/engine/task-progress";
 import { recordFunnelActivity } from "@/server/analytics/funnel-activity";
 import { checkAchievements } from "@/server/engine/achievements";
 import { markFunnelStage } from "@/server/preparations/service";
+import { afterResponse } from "@/server/shared/after-response";
 
 /**
  * BANCO DE QUESTÕES (README 1.9).
@@ -642,32 +643,35 @@ export async function answerQuestion(input: {
   });
 
   /**
-   * O FUNIL, DEPOIS da transação e sem segurá-la.
+   * FUNIL E CONQUISTAS: DEPOIS DA RESPOSTA CHEGAR AO ALUNO.
    *
-   * ⚠️ Fora do `tx` de propósito: são duas escritas numa tabela de métrica, e
-   * uma falha ali não pode desfazer a resposta do aluno. Métrica perdida é
-   * chateação; resposta perdida é o aluno respondendo de novo a mesma questão.
+   * ⚠️ `after()` roda isto quando a resposta JÁ FOI ENVIADA. Nada aqui pertence
+   * ao caminho crítico: o aluno precisa ver se acertou, e não esperar o funil
+   * ser atualizado.
    *
-   * `Promise.all` porque uma não depende da outra, e `catch` porque o
-   * `answerQuestion` já tem tudo que importa em mãos — deixar o erro subir daqui
-   * transformaria uma falha de telemetria em erro de tela.
+   * Antes eram três chamadas com `await` antes do retorno, e o custo era real —
+   * `measure:answer` mediu 1.246 ms de mediana, a maior parte em gravação de
+   * conquista. A cliente já tinha reclamado de demora exatamente nesta tela.
+   *
+   * Ficam fora da transação também, e por outra razão: uma falha aqui não pode
+   * desfazer a resposta. Métrica perdida é chateação; resposta perdida faz o
+   * aluno responder de novo a mesma questão. E a conquista se recupera sozinha
+   * na próxima questão, porque o critério é "contador >= alvo" e o contador não
+   * some.
    */
-  await Promise.all([
-    markFunnelStage(input.userId, "first_question_answered", now),
-    recordFunnelActivity({
-      userId: input.userId,
-      now,
-      completedTask: tarefaConcluida,
-      reachedFreeLimit: reachedLimit,
-    }),
-    /*
-      Conquistas também ficam fora da transação, e pela mesma razão: uma
-      conquista perdida se recupera na próxima questão, porque o critério é
-      "contador >= alvo" e o contador não some.
-    */
-    checkAchievements({ userId: input.userId, now }),
-  ]).catch(() => {
-    /* telemetria não derruba a resposta */
+  await afterResponse(async () => {
+    await Promise.all([
+      markFunnelStage(input.userId, "first_question_answered", now),
+      recordFunnelActivity({
+        userId: input.userId,
+        now,
+        completedTask: tarefaConcluida,
+        reachedFreeLimit: reachedLimit,
+      }),
+      checkAchievements({ userId: input.userId, now }),
+    ]).catch(() => {
+      /* telemetria não derruba a resposta */
+    });
   });
 
   return {

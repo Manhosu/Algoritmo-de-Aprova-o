@@ -21,6 +21,7 @@ import {
 } from "@/server/db/schema";
 import { recordFunnelActivity } from "@/server/analytics/funnel-activity";
 import { markFunnelStage } from "@/server/preparations/service";
+import { afterResponse } from "@/server/shared/after-response";
 
 import { checkAchievements } from "./achievements";
 import { getActiveConfig } from "./config";
@@ -219,10 +220,12 @@ export async function completeStudy(input: {
     return log.id;
   });
 
-  await Promise.all([
-    recordFunnelActivity({ userId: input.userId, now, completedTask: tarefaConcluida }),
-    checkAchievements({ userId: input.userId, now }),
-  ]).catch(() => {});
+  await afterResponse(async () => {
+    await Promise.all([
+      recordFunnelActivity({ userId: input.userId, now, completedTask: tarefaConcluida }),
+      checkAchievements({ userId: input.userId, now }),
+    ]).catch(() => {});
+  });
 
   return {
     ok: true,
@@ -522,12 +525,17 @@ export async function completeReviewOccurrence(input: {
     });
   });
 
-  /* Funil fora da transação: telemetria não desfaz uma revisão concluída. */
-  await Promise.all([
-    markFunnelStage(input.userId, "first_review_completed", now),
-    recordFunnelActivity({ userId: input.userId, now }),
-    checkAchievements({ userId: input.userId, now }),
-  ]).catch(() => {});
+  /*
+    Telemetria e conquistas depois da resposta chegar ao aluno — mesma decisão
+    de `answerQuestion`, e pela mesma razão. Ver a nota longa lá.
+  */
+  await afterResponse(async () => {
+    await Promise.all([
+      markFunnelStage(input.userId, "first_review_completed", now),
+      recordFunnelActivity({ userId: input.userId, now }),
+      checkAchievements({ userId: input.userId, now }),
+    ]).catch(() => {});
+  });
 
   return {
     ok: true,
