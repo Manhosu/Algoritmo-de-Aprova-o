@@ -139,6 +139,22 @@ export default async function AlunoPage({
               },
               { rotulo: "Cobertura", valor: home.coverage.percent, sufixo: "%" },
               { rotulo: "Questões", valor: home.stats.questionsAnswered },
+              /*
+                ⚠️ ACERVO É MÉTRICA DA CLIENTE, não do aluno, e por isso está
+                aqui também.
+
+                Os outros números medem o que ESTE aluno fez. Este mede o que
+                NÓS entregamos a ele: quanto do edital dele já tem questão, mapa,
+                flashcard e resumo. É o número que diz para quem produzir material
+                primeiro, que foi o motivo de esta tela existir.
+              */
+              {
+                rotulo: "Acervo pronto",
+                valor: home.catalogReadiness.totalPairs > 0
+                  ? home.catalogReadiness.availablePercent
+                  : null,
+                sufixo: "%",
+              },
             ]}
           />
 
