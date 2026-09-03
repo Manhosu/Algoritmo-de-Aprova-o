@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 
 import {
   archiveMaterialAction,
@@ -51,14 +51,34 @@ const TIPOS: Array<[string, string]> = [
 ];
 
 export function MaterialForm({ material, subjects, topics }: MaterialFormProps) {
-  const [estado, salvar, salvando] = useActionState(saveMaterialAction, INICIAL);
+  const [estado, dispatch] = useActionState(saveMaterialAction, INICIAL);
+  const [salvando, startTransition] = useTransition();
   const [disciplinaId, setDisciplinaId] = useState(material?.canonicalSubjectId ?? "");
+
+  /*
+    ⚠️ A AÇÃO É CHAMADA DE DENTRO DO `onSubmit`, e não por `action={}`.
+
+    O React 19 LIMPA um formulário que ele governa pelo `action` assim que a
+    ação termina — inclusive quando ela termina RECUSANDO. O efeito aqui seria
+    cruel: a cliente preenche tudo, o servidor responde "precisa de disciplina",
+    e cada campo volta ao valor inicial. Ela reescreveria o formulário inteiro
+    para corrigir uma escolha.
+
+    Chamando a ação daqui, o React não reseta nada e o que ela digitou continua
+    na tela para o segundo clique.
+  */
+  function enviar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const dados = new FormData(evento.currentTarget);
+    startTransition(() => dispatch(dados));
+  }
+
 
   const assuntos = topics.filter((t) => t.subjectId === disciplinaId);
 
   return (
     <div className="flex flex-col gap-5">
-      <form action={salvar} className="flex flex-col gap-5">
+      <form onSubmit={enviar} className="flex flex-col gap-5">
         {material ? <input type="hidden" name="materialId" value={material.id} /> : null}
 
         <label className="flex flex-col gap-1.5">

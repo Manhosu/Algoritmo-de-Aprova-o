@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 
 import { Field } from "@/components/auth/field";
 import { Label } from "@/components/ui/label";
@@ -40,10 +40,27 @@ export function ExamDetailsForm({
   examBoards: ExamBoardOption[];
   initial: Initial;
 }) {
-  const [state, formAction, pending] = useActionState(
+  const [state, dispatch] = useActionState(
     updateExamDetailsAction.bind(null, preparationId),
     { ok: false } as { ok: boolean; message?: string },
   );
+  const [pending, startTransition] = useTransition();
+
+  /*
+    ⚠️ A AÇÃO É CHAMADA DE DENTRO DO `onSubmit`, e não por `action={}`.
+
+    O React 19 LIMPA um formulário que ele governa pelo `action` assim que a
+    ação termina — inclusive quando ela termina RECUSANDO. Num formulário de
+    EDIÇÃO isso é pior que perder o que foi digitado: os campos voltam ao
+    `defaultValue`, que é o valor ANTIGO. A pessoa corrige, o servidor recusa
+    por outro motivo, e a tela mostra de volta exatamente o dado errado que ela
+    estava consertando — parecendo que a correção foi gravada ao contrário.
+  */
+  function enviar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const dados = new FormData(evento.currentTarget);
+    startTransition(() => dispatch(dados));
+  }
 
   const [banca, setBanca] = useState(initial.banca);
 
@@ -52,7 +69,7 @@ export function ExamDetailsForm({
   );
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form onSubmit={enviar} className="flex flex-col gap-4">
       <Field
         label="Cargo pretendido"
         name="cargo"

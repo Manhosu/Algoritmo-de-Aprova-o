@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull, ne } from "drizzle-orm";
 
 import { db } from "@/server/db";
 import { canonicalSubjects, canonicalTopics, contentItems } from "@/server/db/schema";
@@ -30,6 +30,18 @@ export type AdminMaterialRow = {
   topicName: string | null;
   hasSource: boolean;
 };
+
+/**
+ * ⚠️ BARALHO DE FLASHCARDS NÃO TEM ENDEREÇO, e não é falta.
+ *
+ * O conteúdo dele são os cartões, na tabela `flashcards` — não há arquivo nem
+ * link para apontar. Exigir endereço marcaria todo baralho publicado como
+ * defeituoso na lista e impediria publicar um novo, que é o oposto do que este
+ * cadastro existe para fazer.
+ */
+function precisaDeEndereco(tipo: string): boolean {
+  return tipo !== "flashcard_deck";
+}
 
 export async function listMaterialsForAdmin(input?: {
   subjectId?: string | null;
@@ -71,7 +83,9 @@ export async function listMaterialsForAdmin(input?: {
       card aparece na biblioteca e não abre nada. A lista marca; o formulário
       recusa publicar.
     */
-    hasSource: Boolean(linha.storagePath?.trim() || linha.externalUrl?.trim()),
+    hasSource:
+      !precisaDeEndereco(linha.type) ||
+      Boolean(linha.storagePath?.trim() || linha.externalUrl?.trim()),
   }));
 }
 
@@ -116,7 +130,8 @@ export type MaterialInput = {
   description: string | null;
   type: string;
   status: "draft" | "published" | "archived";
-  requiredAccessLevel: "limited" | "full";
+  /** Os três níveis do README 2.5 — `extended` é o do meio e é usado. */
+  requiredAccessLevel: "limited" | "extended" | "full";
   canonicalSubjectId: string | null;
   canonicalTopicId: string | null;
   externalUrl: string | null;
@@ -141,7 +156,7 @@ export async function saveMaterial(input: MaterialInput): Promise<SaveMaterialRe
     return { ok: false, message: "O endereço precisa começar com http:// ou https://" };
   }
 
-  if (input.status === "published" && !url) {
+  if (input.status === "published" && precisaDeEndereco(input.type) && !url) {
     return {
       ok: false,
       message: "Material publicado precisa de um endereço. Salve como rascunho enquanto ele não existe.",
@@ -233,6 +248,8 @@ export async function countPublishedWithoutSource(): Promise<number> {
         eq(contentItems.status, "published"),
         isNull(contentItems.externalUrl),
         isNull(contentItems.storagePath),
+        /* Baralho de flashcards guarda o conteúdo nos cartões, não num arquivo. */
+        ne(contentItems.type, "flashcard_deck"),
       ),
     );
 

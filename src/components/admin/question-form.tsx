@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 
 import {
   deleteQuestionAction,
@@ -35,14 +35,35 @@ export type QuestionFormProps = {
 const INICIAL: QuestionFormState = { ok: false };
 
 export function QuestionForm({ question, hasAttempts }: QuestionFormProps) {
-  const [estado, salvar, salvando] = useActionState(saveQuestionAction, INICIAL);
+  const [estado, dispatch] = useActionState(saveQuestionAction, INICIAL);
+  const [salvando, startTransition] = useTransition();
   const [corretaId, setCorretaId] = useState(
     question.options.find((o) => o.isCorrect)?.id ?? "",
   );
 
+  /*
+    ⚠️ A AÇÃO É CHAMADA DE DENTRO DO `onSubmit`, e não por `action={}`.
+
+    O React 19 LIMPA um formulário que ele governa pelo `action` assim que a
+    ação termina — inclusive quando ela termina RECUSANDO. O efeito aqui seria
+    cruel: a cliente preenche tudo, o servidor responde "precisa de comentário",
+    e o enunciado e o comentário voltam ao texto ORIGINAL. A correção que ela
+    acabou de escrever some, e a tela mostra de volta exatamente o erro que ela
+    estava consertando.
+
+    Chamando a ação daqui, o React não reseta nada e o que ela digitou continua
+    na tela para o segundo clique.
+  */
+  function enviar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const dados = new FormData(evento.currentTarget);
+    startTransition(() => dispatch(dados));
+  }
+
+
   return (
     <div className="flex flex-col gap-5">
-      <form action={salvar} className="flex flex-col gap-5">
+      <form onSubmit={enviar} className="flex flex-col gap-5">
       <input type="hidden" name="questionId" value={question.id} />
       {/*
         Os ids das alternativas viajam declarados. A action lê cada uma por id em

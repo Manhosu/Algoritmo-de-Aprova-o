@@ -36,7 +36,7 @@ export async function saveMaterialAction(
     description: texto(formData, "description") || null,
     type: tipo,
     status: situacao(texto(formData, "status")),
-    requiredAccessLevel: texto(formData, "requiredAccessLevel") === "full" ? "full" : "limited",
+    requiredAccessLevel: nivelDeAcesso(texto(formData, "requiredAccessLevel")),
     canonicalSubjectId: texto(formData, "canonicalSubjectId") || null,
     canonicalTopicId: texto(formData, "canonicalTopicId") || null,
     externalUrl: texto(formData, "externalUrl") || null,
@@ -75,6 +75,18 @@ export async function archiveMaterialAction(
 function texto(formData: FormData, chave: string): string {
   const valor = formData.get(chave);
   return typeof valor === "string" ? valor.trim() : "";
+}
+
+/*
+  ⚠️ O PADRÃO É `limited`, o nível MAIS ABERTO — e é a escolha certa aqui.
+
+  Um valor fora do enum só chega por formulário adulterado. Cair no nível mais
+  restrito esconderia material do plano que deveria vê-lo, e ninguém
+  reclamaria: o aluno não sabe o que não aparece. Já o erro para o lado aberto
+  fica visível na lista, na coluna "Quem pode ver".
+*/
+function nivelDeAcesso(valor: string): "limited" | "extended" | "full" {
+  return valor === "full" || valor === "extended" ? valor : "limited";
 }
 
 /*

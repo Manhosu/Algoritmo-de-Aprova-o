@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -26,13 +26,30 @@ const ENTRADA =
  * fonte que um dia discordaria da primeira.
  */
 export function ReviewIntervalsForm({ atuais }: { atuais: number[] }) {
-  const [state, formAction, pending] = useActionState<EngineFormState, FormData>(
+  const [state, dispatch] = useActionState<EngineFormState, FormData>(
     publishReviewIntervalsAction,
     { ok: false },
   );
 
+  const [pending, startTransition] = useTransition();
+
+  /*
+    ⚠️ A AÇÃO É CHAMADA DE DENTRO DO `onSubmit`, e não por `action={}`.
+
+    O React 19 LIMPA um formulário que ele governa pelo `action` assim que a
+    ação termina — inclusive quando ela termina RECUSANDO. Aqui isso apagava a
+    sequência digitada e devolvia a publicada: quem tentasse "1, 7, 5, 60" via a
+    recusa correta e o campo já de volta em "1, 7, 30, 60, 90", sem o texto que
+    precisava corrigir.
+  */
+  function enviar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const dados = new FormData(evento.currentTarget);
+    startTransition(() => dispatch(dados));
+  }
+
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form onSubmit={enviar} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="intervals">Intervalos, em dias</Label>
         <input

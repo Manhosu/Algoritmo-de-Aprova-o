@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useActionState, useRef } from "react";
+import { useActionState, useEffect, useRef, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -34,26 +34,44 @@ const ENTRADA =
  *
  * Com refs, o reset limpa tudo de uma vez, e o preenchimento automático do
  * código continua funcionando escrevendo direto no campo.
+ *
+ * ⚠️ E A LIMPEZA ACONTECE SÓ NO SUCESSO, não a cada envio.
+ *
+ * O reset automático do React não distingue "salvou" de "o servidor recusou".
+ * Um custo digitado errado devolvia a mensagem certa e um formulário vazio: a
+ * pessoa redigitava nome, descrição, custo e estoque para corrigir um número.
  */
 export function StoreForm() {
-  const [state, formAction, pending] = useActionState<StoreFormState, FormData>(
+  const [state, dispatch] = useActionState<StoreFormState, FormData>(
     saveStoreItemAction,
     { ok: false },
   );
+  const [pending, startTransition] = useTransition();
 
   const codigoRef = useRef<HTMLInputElement>(null);
   /** Deixa de seguir o nome assim que alguém digita o código à mão. */
   const codigoEditado = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  function enviar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const dados = new FormData(evento.currentTarget);
+    startTransition(() => dispatch(dados));
+  }
+
+  /*
+    Limpa depois de gravar, para o próximo item começar do zero — inclusive na
+    regra do código, que volta a seguir o nome.
+  */
+  useEffect(() => {
+    if (state.ok) {
+      formRef.current?.reset();
+      codigoEditado.current = false;
+    }
+  }, [state]);
 
   return (
-    <form
-      action={formAction}
-      onSubmit={() => {
-        // O próximo item começa do zero, inclusive na regra do código.
-        codigoEditado.current = false;
-      }}
-      className="flex flex-col gap-4"
-    >
+    <form ref={formRef} onSubmit={enviar} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="name">Nome do item</Label>
         <input
