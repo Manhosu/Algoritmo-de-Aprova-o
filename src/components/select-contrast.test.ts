@@ -37,6 +37,8 @@ describe("contraste da lista de um select", () => {
       const fonte = readFileSync(join(RAIZ, arquivo), "utf8");
       if (!fonte.includes("<select")) continue;
 
+      const constantes = constantesDeTexto(fonte);
+
       /*
         Cada `<select ...>` até o `>` de abertura, com o que vier depois até a
         primeira `<option`: é onde a classe mora, seja no atributo direto ou
@@ -45,7 +47,11 @@ describe("contraste da lista de um select", () => {
       const blocos = fonte.split("<select").slice(1);
 
       for (const [i, bloco] of blocos.entries()) {
-        const cabeca = bloco.slice(0, bloco.indexOf("<option") + 1 || 1200);
+        const cabeca = expandir(
+          bloco.slice(0, bloco.indexOf("<option") + 1 || 1200),
+          constantes,
+        );
+
         if (!/\[&>option\]:bg-/.test(cabeca) && !/\[&>option\]:text-/.test(cabeca)) {
           semCor.push(`${arquivo} · select #${i + 1}`);
         }
@@ -57,4 +63,60 @@ describe("contraste da lista de um select", () => {
       "sem `[&>option]:bg-…` a lista abre branca sobre branco no Windows e no Android",
     ).toEqual([]);
   });
+
+  /*
+    ⚠️ O TESTE DO PRÓPRIO TESTE.
+
+    A expansão de constantes foi acrescentada para parar de acusar código
+    correto. Uma expansão frouxa demais faria tudo passar, e a regra viraria
+    enfeite sem ninguém notar — o modo de falhar de um guarda é sempre este.
+  */
+  it("ainda acusa um select sem cor", () => {
+    const fonte = `const CLASSE = "rounded-lg border";
+      <select className={CLASSE}><option value="a">A</option></select>`;
+
+    const constantes = constantesDeTexto(fonte);
+    const cabeca = expandir(fonte.split("<select")[1].split("<option")[0], constantes);
+
+    expect(/\[&>option\]:(bg|text)-/.test(cabeca)).toBe(false);
+  });
 });
+
+/**
+ * As constantes de texto do arquivo, por nome.
+ *
+ * ⚠️ SEM ISTO, A REGRA PUNIA O CÓDIGO MAIS LIMPO.
+ *
+ * Um formulário com cinco `<select>` iguais junta as classes numa constante em
+ * vez de repetir a mesma linha cinco vezes. A varredura só via
+ * `className={CLASSE_SELECT}` e acusava os cinco, embora a constante trouxesse
+ * exatamente a classe exigida — um teste que reprova a versão correta ensina a
+ * contorná-lo, e um teste contornado não protege mais nada.
+ */
+function constantesDeTexto(fonte: string): Map<string, string> {
+  const mapa = new Map<string, string>();
+
+  for (const achado of fonte.matchAll(/const (\w+)(?::\s*[^=]+)? = ("[^"]*"|`[^`]*`)/g)) {
+    mapa.set(achado[1], achado[2].slice(1, -1));
+  }
+
+  return mapa;
+}
+
+/**
+ * Troca `NOME` e `${NOME}` pelo conteúdo da constante.
+ *
+ * Duas passadas resolvem o encadeamento que existe na prática
+ * (`CLASSE_SELECT` montada sobre `CLASSE_CAMPO`) sem precisar de um grafo.
+ */
+function expandir(trecho: string, constantes: Map<string, string>): string {
+  let texto = trecho;
+
+  for (let passada = 0; passada < 2; passada++) {
+    for (const [nome, valor] of constantes) {
+      if (texto.includes(nome)) texto = texto.replaceAll(nome, valor);
+    }
+  }
+
+  return texto;
+}

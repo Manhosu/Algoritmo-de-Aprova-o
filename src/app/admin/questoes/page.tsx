@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { ImportForm } from "@/components/admin/import-form";
 import { requireAdmin } from "@/server/auth/guards";
@@ -52,6 +53,18 @@ export default async function QuestoesPage() {
         <p className="mt-2 text-pretty text-muted-foreground">
           {publicadas} no ar e {rascunhos} em rascunho.
         </p>
+
+        {/*
+          A porta de entrada da revisão questão a questão. Fica no cabeçalho
+          porque corrigir conteúdo é o que se faz aqui todo dia; importar
+          planilha é o que se faz de vez em quando.
+        */}
+        <Link
+          href="/admin/questoes/acervo"
+          className="mt-4 inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+        >
+          Ver e editar questões
+        </Link>
       </header>
 
       <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
@@ -68,13 +81,17 @@ export default async function QuestoesPage() {
       </section>
 
       {semComentario > 0 ? (
-        <p className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-pretty text-foreground">
+        <Link
+          href="/admin/questoes/acervo?situacao=published&semComentario=1"
+          className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-pretty text-foreground transition-colors hover:border-warning"
+        >
           {semComentario}{" "}
           {semComentario === 1
             ? "questão publicada está sem comentário"
             : "questões publicadas estão sem comentário"}
-          . O aluno erra e não descobre por quê.
-        </p>
+          . O aluno erra e não descobre por quê.{" "}
+          <span className="font-semibold underline underline-offset-4">Corrigir</span>
+        </Link>
       ) : null}
 
       {semAssunto > 0 ? (

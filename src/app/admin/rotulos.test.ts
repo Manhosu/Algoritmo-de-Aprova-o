@@ -101,6 +101,26 @@ const MAPAS: Array<{ arquivo: string; mapa: string; enumeracao: string }> = [
     mapa: "TECNICA",
     enumeracao: "studyTechniqueEnum",
   },
+  {
+    arquivo: "src/app/admin/materiais/page.tsx",
+    mapa: "ROTULO_ACESSO_MATERIAL",
+    enumeracao: "contentAccessLevelEnum",
+  },
+  {
+    arquivo: "src/app/admin/materiais/page.tsx",
+    mapa: "ROTULO_SITUACAO_MATERIAL",
+    enumeracao: "contentStatusEnum",
+  },
+  {
+    arquivo: "src/app/admin/questoes/acervo/page.tsx",
+    mapa: "ROTULO_DIFICULDADE",
+    enumeracao: "questionDifficultyEnum",
+  },
+  {
+    arquivo: "src/app/admin/questoes/acervo/page.tsx",
+    mapa: "ROTULO_SITUACAO",
+    enumeracao: "questionStatusEnum",
+  },
 ];
 
 describe("rótulos do painel administrativo", () => {

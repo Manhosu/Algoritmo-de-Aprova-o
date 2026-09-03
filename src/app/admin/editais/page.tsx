@@ -101,12 +101,31 @@ export default async function AdminEditaisPage() {
                     scope="row"
                     className="max-w-[16rem] px-4 py-3 text-left font-normal"
                   >
-                    <span className="block truncate font-medium text-foreground">
+                    {/*
+                      ⚠️ ABRIR E BAIXAR, os dois verbos que a cliente pediu.
+
+                      `target="_blank"` porque ela está no meio de uma lista e
+                      abrir o PDF na mesma aba perderia a posição da tabela.
+                    */}
+                    <a
+                      href={`/api/admin/editais/${edital.documentId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block truncate font-medium text-foreground underline-offset-4 hover:text-primary hover:underline"
+                      title={edital.fileName}
+                    >
                       {edital.fileName}
-                    </span>
+                    </a>
                     <span className="block text-xs text-muted-foreground">
                       {Math.round(edital.sizeBytes / 1024)} KB
                       {edital.pageCount ? ` · ${edital.pageCount} páginas` : ""}
+                      {" · "}
+                      <a
+                        href={`/api/admin/editais/${edital.documentId}?baixar=1`}
+                        className="text-primary underline underline-offset-4"
+                      >
+                        baixar
+                      </a>
                     </span>
                   </th>
 
