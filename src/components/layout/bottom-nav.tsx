@@ -122,7 +122,7 @@ function NavCell({
             */
             active
               ? "bg-primary-soft text-primary"
-              : "text-muted-foreground active:bg-muted/60",
+              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground active:bg-muted/70",
           )}
         >
           {content}
