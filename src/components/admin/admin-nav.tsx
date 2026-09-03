@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 const ABAS = [
   { href: "/admin", rotulo: "Visão geral", exato: true },
   { href: "/admin/alunos", rotulo: "Alunos" },
+  { href: "/admin/atividades", rotulo: "Atividades" },
   { href: "/admin/questoes", rotulo: "Questões" },
   { href: "/admin/materiais", rotulo: "Materiais" },
   { href: "/admin/editais", rotulo: "Editais" },

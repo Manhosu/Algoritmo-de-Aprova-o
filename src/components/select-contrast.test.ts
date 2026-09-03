@@ -96,7 +96,19 @@ describe("contraste da lista de um select", () => {
 function constantesDeTexto(fonte: string): Map<string, string> {
   const mapa = new Map<string, string>();
 
-  for (const achado of fonte.matchAll(/const (\w+)(?::\s*[^=]+)? = ("[^"]*"|`[^`]*`)/g)) {
+  /*
+    ⚠️ O `\s*` DEPOIS DO `=` NÃO É DETALHE.
+
+    Sem ele, uma constante escrita como
+
+        const CLASSE =
+          "...";
+
+    (que é o que o Prettier faz quando a linha passa de 80 colunas) não era
+    capturada, e o select que a usava aparecia como se não tivesse cor nenhuma.
+    O teste acusava código correto — de novo.
+  */
+  for (const achado of fonte.matchAll(/const (\w+)(?::\s*[^=]+)?\s*=\s*("[^"]*"|`[^`]*`)/g)) {
     mapa.set(achado[1], achado[2].slice(1, -1));
   }
 

@@ -60,7 +60,19 @@ function chavesDoMapa(codigo: string, nome: string): string[] | null {
  * Acrescentar um mapa de rótulo sem acrescentar a linha aqui deixa ele
  * desprotegido — é o preço de conferir isto lendo o código-fonte.
  */
-const MAPAS: Array<{ arquivo: string; mapa: string; enumeracao: string }> = [
+const MAPAS: Array<{
+  arquivo: string;
+  mapa: string;
+  /**
+   * O enum do banco que o mapa traduz.
+   *
+   * `null` quando não HÁ enum: o mapa traduz um tipo do TypeScript, e quem
+   * garante a cobertura é o próprio `Record<...>`, que o typecheck recusa
+   * incompleto. Continua listado aqui para não cair no teste do meio, que
+   * existe para pegar mapa esquecido.
+   */
+  enumeracao: string | null;
+}> = [
   {
     arquivo: "src/app/admin/planos/page.tsx",
     mapa: "ROTULO_PERIODO",
@@ -121,6 +133,19 @@ const MAPAS: Array<{ arquivo: string; mapa: string; enumeracao: string }> = [
     mapa: "ROTULO_SITUACAO",
     enumeracao: "questionStatusEnum",
   },
+  {
+    /*
+      ⚠️ SEM ENUM NO BANCO, de propósito.
+
+      `ActivityArea` é união de literais do TypeScript, montada na própria
+      consulta do log de atividades — as áreas não existem como coluna. Criar um
+      `pgEnum` só para o teste conferir seria inventar schema para satisfazer
+      teste.
+    */
+    arquivo: "src/app/admin/atividades/page.tsx",
+    mapa: "ROTULO_AREA",
+    enumeracao: null,
+  },
 ];
 
 describe("rótulos do painel administrativo", () => {
@@ -151,8 +176,10 @@ describe("rótulos do painel administrativo", () => {
     }
   });
 
-  it.each(MAPAS)("$mapa cobre todo o $enumeracao", ({ arquivo, mapa, enumeracao }) => {
-    const valores = enums.get(enumeracao);
+  it.each(MAPAS.filter((m) => m.enumeracao !== null))(
+    "$mapa cobre todo o $enumeracao",
+    ({ arquivo, mapa, enumeracao }) => {
+    const valores = enums.get(enumeracao!);
     expect(valores, `${enumeracao} não foi encontrado em enums.ts`).toBeTruthy();
 
     const codigo = readFileSync(join(RAIZ, arquivo), "utf8");
@@ -165,5 +192,6 @@ describe("rótulos do painel administrativo", () => {
       valor real cai no fallback e aparece cru.
     */
     expect([...chaves!].sort()).toEqual([...valores!].sort());
-  });
+    },
+  );
 });
