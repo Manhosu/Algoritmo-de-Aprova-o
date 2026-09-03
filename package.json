@@ -32,7 +32,8 @@
     "verify:edital": "tsx --conditions=react-server scripts/verify-edital.ts",
     "measure:answer": "tsx --conditions=react-server scripts/measure-answer.ts",
     "cost": "tsx --conditions=react-server scripts/estimate-cost.ts",
-    "compare:models": "tsx --conditions=react-server scripts/compare-models.ts"
+    "compare:models": "tsx --conditions=react-server scripts/compare-models.ts",
+    "build:icons": "tsx scripts/build-icons.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
