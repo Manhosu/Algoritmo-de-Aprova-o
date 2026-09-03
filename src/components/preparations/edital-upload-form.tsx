@@ -37,6 +37,12 @@ export function EditalUploadForm({
   const [file, setFile] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  /*
+    Controlado porque o botão depende do tamanho: "Ler o conteúdo colado" só
+    habilita quando há texto suficiente, e o aviso de quanto falta acompanha a
+    digitação.
+  */
+  const [conteudo, setConteudo] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   function accept(candidate: File | null | undefined) {
@@ -101,7 +107,6 @@ export function EditalUploadForm({
           accept="application/pdf,.pdf"
           className="sr-only"
           onChange={(event) => accept(event.target.files?.[0])}
-          required
         />
 
         {file ? (
@@ -146,16 +151,61 @@ export function EditalUploadForm({
         )}
       </div>
 
-      <Button type="submit" size="lg" disabled={pending || file === null}>
+      {/*
+        ⚠️ COLAR O CONTEÚDO É A SEGUNDA ENTRADA (pedido da cliente em 02/09/2026).
+
+        Palavras dela: "Envie o Edital OU Cole aqui o conteúdo que vai cair na
+        sua prova", e "mesmo que o texto venha desorganizado, com números de
+        páginas, cabeçalhos, rodapés, quebras de linha, caracteres incorretos".
+
+        O campo aceita o texto sujo de propósito: limpar é trabalho da IA, que
+        já faz isso hoje com o texto que extraímos do PDF.
+      */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <span className="h-px flex-1 bg-border" aria-hidden />
+          <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            ou cole o conteúdo
+          </span>
+          <span className="h-px flex-1 bg-border" aria-hidden />
+        </div>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="sr-only">Conteúdo programático</span>
+          <textarea
+            name="conteudo"
+            rows={6}
+            value={conteudo}
+            onChange={(evento) => setConteudo(evento.target.value)}
+            placeholder="Cole aqui o conteúdo que vai cair na sua prova. Pode colar do jeito que veio do PDF, com números de página e cabeçalhos — a gente organiza."
+            className="rounded-xl border border-border bg-input px-3 py-2.5 text-sm text-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          />
+        </label>
+
+        {conteudo.trim().length > 0 && conteudo.trim().length < 200 ? (
+          <p className="text-xs text-muted-foreground">
+            Faltam {200 - conteudo.trim().length} caracteres. Cole a lista de
+            disciplinas e assuntos inteira.
+          </p>
+        ) : null}
+      </div>
+
+      <Button
+        type="submit"
+        size="lg"
+        disabled={pending || (file === null && conteudo.trim().length < 200)}
+      >
         {pending ? (
           <>
             <Loader2 className="animate-spin" aria-hidden />
             Enviando…
           </>
         ) : retry ? (
-          "Enviar outro arquivo"
-        ) : (
+          "Enviar de novo"
+        ) : file ? (
           "Enviar e ler o edital"
+        ) : (
+          "Ler o conteúdo colado"
         )}
       </Button>
     </form>

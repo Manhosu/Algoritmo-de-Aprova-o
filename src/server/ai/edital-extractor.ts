@@ -92,7 +92,7 @@ export type ExtractionUsage = {
   model: string;
   promptVersion: string;
   /** Como o documento foi enviado — entra no log para explicar o custo. */
-  inputMode: "text_sliced" | "text_full" | "pdf";
+  inputMode: "text_sliced" | "text_full" | "pdf" | "pasted";
 };
 
 export type ExtractionOutcome =
@@ -109,6 +109,8 @@ export type ExtractionOutcome =
 
 export type UnreadableReason =
   | "scanned_image"
+  /** Conteúdo colado curto demais para ser um conteúdo programático. */
+  | "too_short"
   | "not_an_edital"
   | "no_program_section"
   | "too_large"
@@ -127,6 +129,9 @@ const UNREADABLE_MESSAGES: Record<UnreadableReason, string> = {
   no_program_section:
     "Encontramos o edital, mas não localizamos a seção de conteúdo programático. " +
     "Se ela estiver num anexo separado, envie esse anexo.",
+  too_short:
+    "O conteúdo colado está curto demais. Cole a lista de disciplinas e assuntos " +
+    "que vão cair na sua prova.",
   too_large:
     "Este edital é maior do que conseguimos processar de uma vez. " +
     "Se possível, envie apenas as páginas do conteúdo programático.",
@@ -225,9 +230,34 @@ Antes de responder, confira internamente:
  * EXTRAÇÃO
  * ========================================================================== */
 
+/** Menos que isto não é um conteúdo programático, é um trecho solto. */
+const MIN_PASTED_CHARS = 200;
+
+/**
+ * Teto do texto colado.
+ *
+ * ⚠️ EXISTE PORQUE QUEM PAGA A CHAMADA É A CLIENTE.
+ *
+ * O custo é proporcional ao texto. Colar um edital inteiro de 300 páginas faria
+ * a IA ler noventa e nove por cento de coisa que não é conteúdo programático —
+ * e é justamente esse desperdício que o recorte do PDF evita hoje.
+ */
+const MAX_PASTED_CHARS = 60_000;
+
 export type ExtractEditalInput = {
-  /** Conteúdo do PDF. */
-  pdf: Uint8Array;
+  /**
+   * Conteúdo do PDF. Ausente quando o aluno COLOU o conteúdo programático.
+   */
+  pdf?: Uint8Array;
+  /**
+   * Conteúdo programático colado (pedido da cliente em 02/09/2026).
+   *
+   * ⚠️ VEM SUJO DE PROPÓSITO, e é o ponto do pedido: "mesmo que o texto venha
+   * desorganizado, com números de páginas, cabeçalhos, rodapés, quebras de
+   * linha, caracteres incorretos". Limpar é trabalho da IA, que já faz isso com
+   * o texto que extraímos do PDF — o mesmo caminho, sem o arquivo no meio.
+   */
+  pastedText?: string;
   /** Nome do arquivo, só para mensagem de erro. */
   fileName?: string;
   /** Número de páginas, quando já conhecido — evita uma chamada cara e inútil. */
@@ -253,8 +283,41 @@ export async function extractEdital(
     };
   }
 
+  const colado = input.pastedText?.trim() ?? null;
+
   /* --- barreiras baratas, antes de gastar uma chamada ---------------------- */
-  if (input.pdf.byteLength > MAX_REQUEST_BYTES) {
+
+  if (colado !== null) {
+    if (colado.length < MIN_PASTED_CHARS) {
+      return {
+        status: "unreadable",
+        reason: "too_short",
+        message:
+          "O conteúdo colado está curto demais. Cole a lista de disciplinas e " +
+          "assuntos que vão cair na sua prova.",
+        usage: emptyUsage(),
+      };
+    }
+
+    if (colado.length > MAX_PASTED_CHARS) {
+      return {
+        status: "unreadable",
+        reason: "too_large",
+        message:
+          `O conteúdo colado tem ${colado.length.toLocaleString("pt-BR")} caracteres, ` +
+          `e o limite é ${MAX_PASTED_CHARS.toLocaleString("pt-BR")}. Cole só a parte do ` +
+          "conteúdo programático, ou envie o PDF do edital.",
+        usage: emptyUsage(),
+      };
+    }
+  } else if (!input.pdf) {
+    return {
+      status: "failed",
+      message: "Envie o PDF do edital ou cole o conteúdo programático.",
+    };
+  }
+
+  if (input.pdf && input.pdf.byteLength > MAX_REQUEST_BYTES) {
     return {
       status: "unreadable",
       reason: "too_large",
@@ -263,7 +326,11 @@ export async function extractEdital(
     };
   }
 
-  if (input.pageCount !== undefined && input.pageCount > MAX_PAGES_PER_REQUEST) {
+  if (
+    input.pdf &&
+    input.pageCount !== undefined &&
+    input.pageCount > MAX_PAGES_PER_REQUEST
+  ) {
     return {
       status: "unreadable",
       reason: "too_large",
@@ -274,7 +341,7 @@ export async function extractEdital(
 
   // PDF sem camada de texto é o caso mais comum de falha, e dá para detectar
   // localmente — sem gastar uma chamada de API que devolveria vazio.
-  if (!hasTextLayer(input.pdf)) {
+  if (input.pdf && !hasTextLayer(input.pdf)) {
     return {
       status: "unreadable",
       reason: "scanned_image",
@@ -298,10 +365,23 @@ export async function extractEdital(
    * PDF escaneado não tem camada de texto: aí o PDF original vai mesmo, porque
    * a leitura de imagem é a única chance. Melhor pagar caro do que não ler.
    */
-  const extracted = await extractEditalText(input.pdf);
-  const useText = extracted.hasUsableText && extracted.text.length > 0;
+  const extracted = input.pdf
+    ? await extractEditalText(input.pdf)
+    : null;
 
-  const documentBlock: Anthropic.ContentBlockParam = useText
+  const useText = Boolean(extracted?.hasUsableText && extracted.text.length > 0);
+
+  const documentBlock: Anthropic.ContentBlockParam = colado
+    ? {
+        type: "text",
+        text:
+          "Conteúdo programático colado pelo aluno. Pode estar desorganizado, " +
+          "com cabeçalhos, rodapés, números de página e quebras de linha fora " +
+          "de lugar. Organize antes de extrair:\n\n" +
+          colado,
+        cache_control: { type: "ephemeral" },
+      }
+    : useText && extracted
     ? {
         type: "text",
         text:
@@ -322,16 +402,23 @@ ${extracted.text}`,
         source: {
           type: "base64",
           media_type: "application/pdf",
-          data: toBase64(input.pdf),
+          /*
+            Só chega aqui com PDF: o caminho do texto colado e o do texto
+            extraído já retornaram acima. O `!` marca isso para o compilador
+            sem acrescentar um caminho de erro que não pode acontecer.
+          */
+          data: toBase64(input.pdf!),
         },
         cache_control: { type: "ephemeral" },
       };
 
-  const inputMode: ExtractionUsage["inputMode"] = useText
-    ? extracted.slicedToContent
-      ? "text_sliced"
-      : "text_full"
-    : "pdf";
+  const inputMode: ExtractionUsage["inputMode"] = colado
+    ? "pasted"
+    : useText && extracted
+      ? extracted.slicedToContent
+        ? "text_sliced"
+        : "text_full"
+      : "pdf";
 
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const startedAt = Date.now();

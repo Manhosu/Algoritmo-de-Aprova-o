@@ -74,14 +74,43 @@ export type ReceiveEditalResult =
  * 1. RECEBER O ARQUIVO
  * ========================================================================== */
 
+/** Menos que isto não é um conteúdo programático colado, é um trecho solto. */
+const MIN_PASTED_CHARS = 200;
+
 export async function receiveEdital(input: {
   preparationId: string;
   userId: string;
   fileName: string;
   bytes: Uint8Array;
+  /**
+   * Verdadeiro quando o "arquivo" é o texto que o aluno COLOU (pedido da
+   * cliente em 02/09/2026).
+   *
+   * ⚠️ O TEXTO VIAJA COMO DOCUMENTO, e a escolha é o que torna isto barato.
+   *
+   * Guardá-lo no mesmo lugar do PDF reaproveita tudo o que já existe: o teto
+   * mensal de leituras, a deduplicação por checksum (colar duas vezes o mesmo
+   * texto não paga duas chamadas de IA), o armazenamento, a linha de extração e
+   * toda a máquina de status e retentativa. Um caminho paralelo teria de
+   * reimplementar cada uma dessas garantias.
+   */
+  pasted?: boolean;
 }): Promise<ReceiveEditalResult> {
-  const invalid = validatePdf(input.bytes, input.fileName);
-  if (invalid) return { ok: false, message: invalid };
+  if (input.pasted) {
+    const texto = new TextDecoder().decode(input.bytes).trim();
+
+    if (texto.length < MIN_PASTED_CHARS) {
+      return {
+        ok: false,
+        message:
+          "O conteúdo colado está curto demais. Cole a lista de disciplinas e " +
+          "assuntos que vão cair na sua prova.",
+      };
+    }
+  } else {
+    const invalid = validatePdf(input.bytes, input.fileName);
+    if (invalid) return { ok: false, message: invalid };
+  }
 
   const preparation = await db.query.preparations.findFirst({
     where: (t, { and: a, eq: e }) => a(e(t.id, input.preparationId), e(t.userId, input.userId)),
@@ -156,7 +185,13 @@ export async function receiveEdital(input: {
           storagePath: "",
           sizeBytes: input.bytes.byteLength,
           checksum,
-          pageCount: countPdfPages(input.bytes),
+          /*
+            `countPdfPages` procura marcadores de PDF. Rodá-lo em texto colado
+            devolveria zero ou lixo, e a extração usa esse número para decidir
+            se o documento é grande demais.
+          */
+          pageCount: input.pasted ? null : countPdfPages(input.bytes),
+          mimeType: input.pasted ? "text/plain" : "application/pdf",
           source: "student_upload",
           uploadedAt: now,
         })
@@ -232,7 +267,14 @@ export async function runExtraction(extractionId: string): Promise<RunExtraction
 
   const document = await db.query.preparationDocuments.findFirst({
     where: (t, { eq: e }) => e(t.id, extraction.documentId),
-    columns: { storagePath: true, fileName: true, pageCount: true, checksum: true },
+    columns: {
+      storagePath: true,
+      fileName: true,
+      pageCount: true,
+      checksum: true,
+      /* Separa PDF de conteúdo colado — ver a nota logo abaixo. */
+      mimeType: true,
+    },
   });
 
   if (!document) return { status: "failed", message: "Arquivo do edital não encontrado." };
@@ -310,8 +352,16 @@ export async function runExtraction(extractionId: string): Promise<RunExtraction
   try {
     const bytes = await getEditalFile(document.storagePath);
 
+    /*
+      O mesmo caminho serve para PDF e para texto colado. O que separa os dois é
+      o `mime_type` gravado no envio — não uma segunda função de extração, que
+      teria de repetir barreiras, cache e tratamento de erro.
+    */
+    const colado = document.mimeType === "text/plain";
+
     const outcome = await extractEdital({
-      pdf: bytes,
+      pdf: colado ? undefined : bytes,
+      pastedText: colado ? new TextDecoder().decode(bytes) : undefined,
       fileName: document.fileName,
       pageCount: document.pageCount ?? undefined,
       targetPosition: forPosition?.targetPosition ?? null,
