@@ -79,9 +79,28 @@ export async function runQuestionImport(input: {
     const assunto = matchTopic(questao.topicName, disciplina.canonicalId, catalogo);
 
     if (assunto.canonicalId) {
+      /**
+       * ⚠️ A DISCIPLINA VEM DA DONA DO ASSUNTO, NÃO DA PLANILHA.
+       *
+       * `matchTopic` pode devolver um assunto de OUTRA disciplina por dois
+       * caminhos legítimos: um sinônimo casa antes do escopo ser aplicado, e
+       * quando a disciplina da planilha não tem assunto nenhum o matcher busca
+       * no catálogo inteiro em vez de descartar a questão.
+       *
+       * Guardar a disciplina da planilha junto com um assunto de outra faz as
+       * duas colunas discordarem. O efeito apareceu na tela: 560 questões
+       * ficaram sob "Administração" com assuntos de "Administração Pública", e
+       * o filtro do Banco — que lista assuntos pela dona real — mostrava
+       * "Administração" sem assunto nenhum. A cliente reportou exatamente isso.
+       *
+       * O assunto é o sinal mais específico e é único no sistema inteiro. Ele
+       * manda.
+       */
+      const dona = catalogo.topics.find((t) => t.id === assunto.canonicalId)?.subjectId;
+
       prontas.push({
         questao,
-        subjectId: disciplina.canonicalId,
+        subjectId: dona ?? disciplina.canonicalId,
         topicId: assunto.canonicalId,
       });
       continue;

@@ -3,6 +3,7 @@
 import {
   CircleHelp,
   Flame,
+  LayoutDashboard,
   LogOut,
   MessageSquare,
   Settings,
@@ -47,6 +48,14 @@ export type AppHeaderProps = {
   countdownLabel?: string | null;
   streakDays?: number;
   unreadNotifications?: number;
+  /**
+   * Verdadeiro quando quem está olhando é da equipe.
+   *
+   * ⚠️ Só controla a EXIBIÇÃO do atalho de volta ao painel. Quem barra o acesso
+   * a `/admin` é o `proxy.ts` e o `requireAdmin` de cada página — esconder o
+   * link não protege nada, e mostrá-lo por engano não daria acesso a ninguém.
+   */
+  isAdmin?: boolean;
 };
 
 export function AppHeader({
@@ -54,6 +63,7 @@ export function AppHeader({
   avatarUrl,
   countdownLabel,
   streakDays = 0,
+  isAdmin = false,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- volta com a tela de notificações (Marco 2)
   unreadNotifications = 0,
 }: AppHeaderProps) {
@@ -124,7 +134,7 @@ export function AppHeader({
             <span className="text-metric text-sm">{streakDays}</span>
           </span>
 
-          <AvatarMenu userName={userName} avatarUrl={avatarUrl} />
+          <AvatarMenu userName={userName} avatarUrl={avatarUrl} isAdmin={isAdmin} />
         </div>
       </div>
     </header>
@@ -135,9 +145,11 @@ export function AppHeader({
 function AvatarMenu({
   userName,
   avatarUrl,
+  isAdmin,
 }: {
   userName: string | null;
   avatarUrl?: string | null;
+  isAdmin: boolean;
 }) {
   const initials = (userName ?? "")
     .trim()
@@ -180,6 +192,28 @@ function AvatarMenu({
           o aluno concluir que a plataforma está quebrada, não que a tela ainda
           não veio.
         */}
+        {/*
+          ⚠️ A VOLTA AO PAINEL — pergunta da cliente em 02/09/2026: "depois que
+          entro na Área de Estudo, como faço para retornar ao Painel? É
+          necessário fazer logout?"
+
+          Era, e a resposta certa é que não deveria ser. O caminho de ida existia
+          (o link "Área de estudo" na navegação do painel) e o de volta, não.
+          Fica no topo do menu porque, para quem é da equipe, é o item mais
+          usado de todos.
+        */}
+        {isAdmin ? (
+          <>
+            <DropdownMenuItem asChild>
+              <Link href="/admin">
+                <LayoutDashboard aria-hidden />
+                Voltar ao Painel
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
+
         <DropdownMenuItem asChild>
           <Link href="/perfil">
             <User aria-hidden />

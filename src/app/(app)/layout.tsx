@@ -35,6 +35,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       avatarUrl={context.user.avatarUrl}
       countdownLabel={countdown?.label ?? null}
       streakDays={context.gamification.currentStreak}
+      isAdmin={context.user.role === "admin"}
     >
       {children}
     </AppShell>

@@ -91,6 +91,16 @@ const MAPAS: Array<{ arquivo: string; mapa: string; enumeracao: string }> = [
     mapa: "ROTULO_STATUS",
     enumeracao: "extractionStatusEnum",
   },
+  {
+    arquivo: "src/app/admin/alunos/[id]/page.tsx",
+    mapa: "ROTULO_STATUS",
+    enumeracao: "userStatusEnum",
+  },
+  {
+    arquivo: "src/app/admin/alunos/[id]/page.tsx",
+    mapa: "TECNICA",
+    enumeracao: "studyTechniqueEnum",
+  },
 ];
 
 describe("rótulos do painel administrativo", () => {
@@ -106,7 +116,12 @@ describe("rótulos do painel administrativo", () => {
     const encontrados = globSync("src/app/admin/**/page.tsx", { cwd: RAIZ })
       .flatMap((arquivo) => {
         const codigo = readFileSync(join(RAIZ, arquivo), "utf8");
-        return [...codigo.matchAll(/const (ROTULO_\w+)/g)].map(
+        /*
+          `ROTULO_` e `TECNICA`: os dois prefixos que mapas de rótulo usam hoje.
+          Um nome fora desses dois passa despercebido — o teste do meio da lista
+          existe justamente para o dia em que isso acontecer.
+        */
+        return [...codigo.matchAll(/const (ROTULO_\w+|TECNICA)\b/g)].map(
           (m) => `${arquivo.replaceAll("\\", "/")}:${m[1]}`,
         );
       });

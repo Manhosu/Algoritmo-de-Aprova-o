@@ -90,8 +90,21 @@ export default async function AdminLojaPage() {
                 key={item.id}
                 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-border bg-card px-4 py-3 text-sm"
               >
-                <span className="min-w-0 flex-1 text-pretty font-medium text-foreground">
-                  {item.name}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-pretty font-medium text-foreground">
+                    {item.name}
+                  </span>
+                  {/*
+                    ⚠️ O CÓDIGO PRECISA APARECER AQUI (pedido de 02/09/2026).
+
+                    Ele é a chave de edição — salvar com um código existente
+                    atualiza aquele item. Sem vê-lo na listagem, a cliente não
+                    tinha como saber qual código digitar para editar um produto:
+                    a instrução existia no formulário e a informação, não.
+                  */}
+                  <span className="text-metric block text-xs text-muted-foreground">
+                    {item.code}
+                  </span>
                 </span>
                 <span className="text-metric shrink-0 text-primary">
                   {item.costCoins} moedas

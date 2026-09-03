@@ -70,3 +70,79 @@ export async function publishEngineConfigAction(
     message: `Publicado. Versão ${resultado.version}, valendo a partir de agora.`,
   };
 }
+
+/**
+ * Publica os intervalos do Motor 2 — a periodicidade das revisões.
+ *
+ * ⚠️ AÇÃO PRÓPRIA, e não o `EngineForm` genérico.
+ *
+ * Aquele formulário edita configuração PLANA de números, e `review_intervals` é
+ * um array. Forçá-lo a caber ali exigiria um campo por posição com nomes
+ * inventados, e a regra que importa — os intervalos serem estritamente
+ * crescentes — não teria onde morar.
+ *
+ * A conferência de verdade continua no schema Zod: é ele que recusa
+ * "1, 7, 5, 60" com a mensagem que explica por que uma curva do esquecimento
+ * não anda para trás.
+ */
+export async function publishReviewIntervalsAction(
+  _prev: EngineFormState,
+  formData: FormData,
+): Promise<EngineFormState> {
+  const session = await requireAdmin();
+
+  const bruto = formData.get("intervals");
+  if (typeof bruto !== "string") {
+    return { ok: false, message: "Informe os intervalos." };
+  }
+
+  /*
+    Aceita vírgula, ponto e vírgula ou espaço como separador. Quem digita
+    "1, 7, 30" e quem digita "1 7 30" quer a mesma coisa, e recusar um dos dois
+    seria exigir que a pessoa adivinhe o formato.
+  */
+  const numeros = bruto
+    .split(/[,;\s]+/)
+    .map((parte) => parte.trim())
+    .filter(Boolean)
+    .map(Number);
+
+  if (numeros.length === 0 || numeros.some((n) => !Number.isInteger(n))) {
+    return {
+      ok: false,
+      message: "Use números inteiros de dias, separados por vírgula. Ex.: 1, 7, 30, 60, 90",
+    };
+  }
+
+  const resultado = await publishEngineConfig({
+    kind: "review_intervals",
+    payload: {
+      intervalsInDays: numeros,
+      /*
+        As duas decisões de comportamento ficam como estão: a cliente pediu para
+        editar a PERIODICIDADE, e mudar "conta a partir da execução real" ou
+        "desempenho ruim reinicia o ciclo" muda o significado da métrica de
+        aderência. São decisões de produto, não de calibração.
+      */
+      countNextFromCompletion: true,
+      resetCycleOnPoorPerformance: false,
+    },
+    userId: session.user.id,
+    note: (formData.get("note") as string | null) ?? null,
+  });
+
+  if (!resultado.ok) {
+    return {
+      ok: false,
+      message: "A configuração não passou na conferência.",
+      problems: resultado.problems,
+    };
+  }
+
+  revalidatePath("/admin/algoritmo");
+
+  return {
+    ok: true,
+    message: `Publicado. Versão ${resultado.version}: revisões em ${numeros.join(", ")} dias.`,
+  };
+}

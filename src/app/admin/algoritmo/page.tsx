@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { EngineForm } from "@/components/admin/engine-form";
 import { camposDe } from "@/components/admin/engine-fields";
+import { ReviewIntervalsForm } from "@/components/admin/review-intervals-form";
 import type {
   CoinValues,
   DailyTaskWeights,
@@ -69,14 +70,17 @@ export const dynamic = "force-dynamic";
 export default async function AlgoritmoPage() {
   await requireAdmin();
 
-  const [pesos, xp, moedas, versoesPesos, versoesXp, versoesMoedas] = await Promise.all([
-    getActiveConfig("daily_task_weights"),
-    getActiveConfig("xp_values"),
-    getActiveConfig("coin_values"),
-    listConfigVersions("daily_task_weights"),
-    listConfigVersions("xp_values"),
-    listConfigVersions("coin_values"),
-  ]);
+  const [pesos, xp, moedas, revisoes, versoesPesos, versoesXp, versoesMoedas, versoesRevisoes] =
+    await Promise.all([
+      getActiveConfig("daily_task_weights"),
+      getActiveConfig("xp_values"),
+      getActiveConfig("coin_values"),
+      getActiveConfig("review_intervals"),
+      listConfigVersions("daily_task_weights"),
+      listConfigVersions("xp_values"),
+      listConfigVersions("coin_values"),
+      listConfigVersions("review_intervals"),
+    ]);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-8">
@@ -149,6 +153,26 @@ export default async function AlgoritmoPage() {
         />
 
         <Historico versoes={versoesMoedas} />
+      </section>
+
+      <section className="flex flex-col gap-4 border-t border-border pt-8">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            Periodicidade das revisões
+          </h2>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            Quando cada revisão de um assunto vence, contando do dia em que ele
+            foi estudado. Vale para as séries que nascerem daqui em diante — as
+            já agendadas mantêm o intervalo com que foram criadas.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            No ar: versão {revisoes.version}
+          </p>
+        </div>
+
+        <ReviewIntervalsForm atuais={revisoes.value.intervalsInDays} />
+
+        <Historico versoes={versoesRevisoes} />
       </section>
     </div>
   );
