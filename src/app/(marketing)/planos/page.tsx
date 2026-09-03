@@ -2,7 +2,9 @@ import { Check } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { SubscribeButton } from "@/components/plans/subscribe-button";
 import { Button } from "@/components/ui/button";
+import { getCurrentSession } from "@/server/auth/session";
 import {
   annualSavings,
   describeLimit,
@@ -27,13 +29,17 @@ export const metadata: Metadata = {
  * criaria uma promessa separada da regra, e no dia em que a cliente mudasse o
  * teto do Free esta página continuaria anunciando o antigo.
  *
- * A contratação em si é do Marco 2 (Mercado Pago). Até lá o botão leva ao
- * cadastro, que é o passo que existe — nunca a um checkout que não abre.
+ * ⚠️ O BOTÃO MUDA CONFORME QUEM OLHA.
+ *
+ * Sem sessão ele leva ao cadastro: um checkout precisa de conta, e mandar
+ * alguém para o Mercado Pago antes disso deixaria um pagamento sem dono. Com
+ * sessão, ele abre o checkout direto.
  */
 export const dynamic = "force-dynamic";
 
 export default async function PlansPage() {
-  const plans = await listPublicPlans();
+  const [plans, session] = await Promise.all([listPublicPlans(), getCurrentSession()]);
+  const logado = Boolean(session);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6 sm:py-24">
@@ -141,16 +147,30 @@ export default async function PlansPage() {
               <Feature>Tarefa do Dia, revisões e cronograma adaptativo</Feature>
             </ul>
 
-            <Button
-              asChild
-              size="lg"
-              variant={plan.isFeatured ? "default" : "outline"}
-              className="mt-6"
-            >
-              <Link href="/cadastrar">
-                {plan.monthlyCents ? "Começar no Free e migrar" : "Criar conta grátis"}
-              </Link>
-            </Button>
+            {logado && plan.monthlyCents ? (
+              <SubscribeButton
+                planCode={plan.code}
+                billingPeriod="monthly"
+                label={`Assinar ${plan.name}`}
+                variant={plan.isFeatured ? "default" : "outline"}
+                className="mt-6"
+              />
+            ) : (
+              <Button
+                asChild
+                size="lg"
+                variant={plan.isFeatured ? "default" : "outline"}
+                className="mt-6"
+              >
+                <Link href={logado ? "/inicio" : "/cadastrar"}>
+                  {plan.monthlyCents
+                    ? "Começar no Free e migrar"
+                    : logado
+                      ? "Você já tem conta"
+                      : "Criar conta grátis"}
+                </Link>
+              </Button>
+            )}
 
             {/*
               Botão só do anual (pedido da cliente em 27/08/2026). O desconto
@@ -161,7 +181,15 @@ export default async function PlansPage() {
               const savings = annualSavings(plan.monthlyCents, plan.annualCents);
               if (!savings) return null;
 
-              return (
+              return logado ? (
+                <SubscribeButton
+                  planCode={plan.code}
+                  billingPeriod="annual"
+                  label={`Quero o plano anual · ${savings.percentOff}% OFF`}
+                  variant="outline"
+                  className="mt-2"
+                />
+              ) : (
                 <Button asChild size="lg" variant="outline" className="mt-2 border-primary/50">
                   <Link href="/cadastrar">
                     Quero o plano anual · {savings.percentOff}% OFF
@@ -174,13 +202,12 @@ export default async function PlansPage() {
       </div>
 
       {/*
-        Honestidade sobre o que ainda não existe. Anunciar contratação com
-        cartão antes de o checkout existir é o tipo de promessa que queima a
-        confiança na primeira tentativa.
+        O aviso de "contratação em finalização" SAIU junto com o checkout. Ele
+        existia para não prometer o que não havia; mantê-lo agora faria o oposto,
+        desanimando quem acabou de ver o botão de assinar.
       */}
       <p className="reveal mt-10 max-w-2xl text-sm text-pretty text-muted-foreground">
-        A contratação dos planos pagos está sendo finalizada. Enquanto isso, você
-        pode criar sua conta no plano gratuito e usar a plataforma inteira — o
+        Você pode criar sua conta no plano gratuito e usar a plataforma inteira — o
         algoritmo, as revisões e o cronograma não têm versão reduzida. O que muda
         entre os planos é exatamente o que está listado acima: quantas questões
         você pratica por dia, quantas leituras de edital faz por mês e quantas
