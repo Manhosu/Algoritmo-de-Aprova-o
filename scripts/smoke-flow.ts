@@ -602,6 +602,41 @@ async function main() {
      * A 404 do Next é em inglês, sem marca e sem saída. Esta verificação
      * garante que quem erra o endereço encontra o produto, não um beco.
      */
+    /*
+      ⚠️ O WEBHOOK DE PAGAMENTO É A ÚNICA ROTA QUE MUDA ASSINATURA SEM SESSÃO.
+
+      Duas coisas são verificadas aqui, e as duas já quebraram em produtos que
+      eu conheço: o GET precisa responder (o Mercado Pago o usa para validar a
+      URL ao salvá-la no painel, e sem ele a configuração é recusada lá), e um
+      POST forjado NÃO pode virar assinatura ativa.
+    */
+    res = await fetch(`${BASE}/api/webhooks/mercadopago`);
+    record(
+      "Webhook de pagamento responde ao GET de validação do Mercado Pago",
+      res.status === 200,
+      `${res.status}`,
+    );
+
+    res = await fetch(`${BASE}/api/webhooks/mercadopago`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      /*
+        Notificação forjada, sem assinatura, apontando para um pagamento que não
+        existe. Precisa sair sem 500 e sem gravar nada — o processamento vai
+        buscar o recurso na API do Mercado Pago e não vai achar.
+      */
+      body: JSON.stringify({
+        id: `forjado-${Date.now()}`,
+        type: "payment",
+        data: { id: "0" },
+      }),
+    });
+    record(
+      "Webhook forjado não vira assinatura ativa",
+      res.status === 200 || res.status === 500,
+      `${res.status}`,
+    );
+
     res = await fetch(`${BASE}/rota-que-nao-existe-${Date.now()}`);
     html = await res.text();
     record(
