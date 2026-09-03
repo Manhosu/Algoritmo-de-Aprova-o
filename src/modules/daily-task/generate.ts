@@ -1,3 +1,4 @@
+import { spreadAcrossSubjects } from "@/modules/shared/spread-subjects";
 import type {
   DailyTaskWeights,
   ScheduleParams,
@@ -202,7 +203,7 @@ export function generateDailyTask(input: GenerateDailyTaskInput): DailyTaskPlan 
   let usedMinutes = 0;
   let truncatedByMinutes = false;
 
-  const ordered = spreadAcrossSubjects(scored);
+  const ordered = spreadAcrossSubjects(scored, (item) => item.topic.planSubjectId);
 
   for (const { topic, priority } of ordered) {
     if (blocks.length >= input.scheduleParams.maxDailyTaskItems) break;
@@ -347,31 +348,6 @@ export function chooseTechnique(
   return fresh[0];
 }
 
-/**
- * Reordena para não empilhar blocos da mesma disciplina em sequência.
- *
- * Não muda a prioridade: apenas evita que uma tarefa de seis blocos seja seis
- * vezes Português. Variar a disciplina ao longo do dia é o que faz a sessão de
- * estudo parecer viável em vez de repetitiva — e a diferença de score entre o
- * 3º e o 4º colocados costuma ser pequena demais para justificar a monotonia.
- */
-function spreadAcrossSubjects<T extends { topic: TopicSnapshot }>(scored: T[]): T[] {
-  const remaining = [...scored];
-  const result: T[] = [];
-  let lastSubject: string | null = null;
-
-  while (remaining.length > 0) {
-    let pickIndex = remaining.findIndex((item) => item.topic.planSubjectId !== lastSubject);
-    // Só sobrou a mesma disciplina: aceita a repetição em vez de descartar.
-    if (pickIndex === -1) pickIndex = 0;
-
-    const [picked] = remaining.splice(pickIndex, 1);
-    result.push(picked);
-    lastSubject = picked.topic.planSubjectId;
-  }
-
-  return result;
-}
 
 /* ========================================================================== *
  * DIVISÃO DO DIA ENTRE PREPARAÇÕES

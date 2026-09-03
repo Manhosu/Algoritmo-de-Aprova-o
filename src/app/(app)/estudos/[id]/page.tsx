@@ -42,10 +42,36 @@ export default async function MaterialPage({
     A URL assinada é gerada no servidor e expira. O caminho no bucket nunca
     chega ao navegador — quem tiver o HTML não consegue montar um endereço
     permanente para o arquivo.
+
+    ⚠️ A FALHA DA ASSINATURA NÃO PODE DERRUBAR A PÁGINA.
+
+    Este era o erro intermitente que a cliente reportou duas vezes:
+    "em alguns momentos ele funciona normalmente e, em outros, apresenta o
+    erro", e "apareceu também quando eu cliquei seguidamente em todas as
+    tarefas das Missões do Dia".
+
+    `signContentUrl` faz uma chamada HTTP ao Supabase e LANÇA em qualquer
+    resposta que não seja 200 — arquivo removido do bucket, instabilidade de
+    rede, ou o limite de requisições que vários cliques seguidos disparam ao
+    mesmo tempo. Sem captura, isso derruba o Server Component inteiro e o aluno
+    vê a tela de erro em vez do material.
+
+    Falhar aqui devolve `null`, o corpo da página se adapta e o aviso abaixo
+    explica o que houve. Perder o arquivo é ruim; perder a página inteira, com
+    o botão de marcar como estudado e o caminho de volta, é pior.
   */
-  const arquivo = material.storagePath
-    ? await signContentUrl(material.storagePath)
-    : material.externalUrl;
+  let arquivo: string | null = material.externalUrl;
+  let falhouAoAbrir = false;
+
+  if (material.storagePath) {
+    try {
+      arquivo = await signContentUrl(material.storagePath);
+    } catch (erro) {
+      console.error("[estudos] falha ao assinar a URL do material", material.id, erro);
+      arquivo = null;
+      falhouAoAbrir = true;
+    }
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-6 pb-bottom-nav">
@@ -121,6 +147,21 @@ export default async function MaterialPage({
 
           {material.type === "audio" && arquivo ? (
             <audio src={arquivo} controls className="w-full" />
+          ) : null}
+
+          {/*
+            O aviso aparece só quando a assinatura falhou. Um material sem
+            arquivo nenhum cadastrado (baralho de flashcards, por exemplo) não
+            passa por aqui.
+          */}
+          {falhouAoAbrir ? (
+            <p
+              role="status"
+              className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-pretty text-foreground"
+            >
+              Não consegui carregar o arquivo agora. Atualize a página em alguns
+              segundos. Se continuar, avise no Suporte que eu verifico.
+            </p>
           ) : null}
 
           <MarkComplete contentItemId={material.id} alreadyDone={material.completed} />

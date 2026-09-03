@@ -1,3 +1,5 @@
+import { spreadAcrossSubjects } from "@/modules/shared/spread-subjects";
+
 import type { ScheduleParams } from "@/modules/engine-config/schemas";
 import { addDays, daysBetween, weekdayOf, type CivilDate } from "@/modules/shared/dates";
 
@@ -319,10 +321,19 @@ function buildWeeks(args: {
 }): ScheduleWeek[] {
   const weeks: ScheduleWeek[] = [];
 
-  // Fila de assuntos por prioridade, com o tempo restante de cada um.
-  const queue = [...args.pendingTopics]
-    .sort((a, b) => b.priorityScore - a.priorityScore)
-    .map((topic) => ({ ...topic, left: Math.max(0, topic.remainingMinutes) }));
+  /*
+    Fila de assuntos por prioridade, com o tempo restante de cada um.
+
+    ⚠️ E COM A MESMA ALTERNÂNCIA DE DISCIPLINAS DA TAREFA DO DIA.
+
+    Sem ela, as duas telas ordenavam o MESMO conjunto de formas diferentes e a
+    cliente via um assunto no cronograma de 02/09 e sete outros nas Missões do
+    mesmo dia. Ver a nota em `modules/shared/spread-subjects`.
+  */
+  const queue = spreadAcrossSubjects(
+    [...args.pendingTopics].sort((a, b) => b.priorityScore - a.priorityScore),
+    (topic) => topic.planSubjectId,
+  ).map((topic) => ({ ...topic, left: Math.max(0, topic.remainingMinutes) }));
 
   let cursor = 0;
   let queueIndex = 0;
