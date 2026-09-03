@@ -53,6 +53,30 @@ export function StoreGrid({
         {items.map((item) => (
           <li key={item.id}>
             <Surface className="flex h-full min-w-0 flex-col gap-3 p-4">
+              {/*
+                ⚠️ `<img>` cru, e não `next/image`.
+
+                O endereço é externo e cadastrado pela cliente (Drive, Canva, o
+                que ela usar). `next/image` exigiria declarar cada domínio em
+                `next.config` — e ela cadastraria um item novo hoje que só
+                apareceria depois de um deploy meu.
+
+                `onError` esconde a imagem quebrada em vez de deixar o ícone de
+                falha do navegador no meio do card.
+              */}
+              {item.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.imageUrl}
+                  alt=""
+                  loading="lazy"
+                  className="h-32 w-full rounded-lg border border-border object-cover"
+                  onError={(evento) => {
+                    evento.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : null}
+
               <div className="min-w-0 flex-1">
                 <p className="text-pretty font-semibold text-foreground">{item.name}</p>
                 {item.description ? (

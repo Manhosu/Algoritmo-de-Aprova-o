@@ -282,6 +282,8 @@ export async function upsertStoreItem(input: {
   code: string;
   name: string;
   description?: string | null;
+  /** Endereço da imagem do item (pedido da cliente em 02/09/2026). */
+  imageUrl?: string | null;
   costCoins: number;
   stock?: number | null;
   isActive?: boolean;
@@ -292,6 +294,7 @@ export async function upsertStoreItem(input: {
       code: input.code,
       name: input.name,
       description: input.description ?? null,
+      imageUrl: input.imageUrl ?? null,
       costCoins: input.costCoins,
       stock: input.stock ?? null,
       isActive: input.isActive ?? true,
@@ -301,6 +304,7 @@ export async function upsertStoreItem(input: {
       set: {
         name: input.name,
         description: input.description ?? null,
+        imageUrl: input.imageUrl ?? null,
         costCoins: input.costCoins,
         stock: input.stock ?? null,
         isActive: input.isActive ?? true,

@@ -50,10 +50,21 @@ export async function saveStoreItemAction(
     return { ok: false, message: "O estoque precisa ser um inteiro, ou vazio para ilimitado." };
   }
 
+  const imagem = texto(formData, "imageUrl") || null;
+
+  if (imagem && !/^https?:\/\//i.test(imagem)) {
+    /*
+      Sem o esquema, o navegador trata "imagens.com/x.png" como caminho relativo
+      e o card fica com a imagem quebrada dentro da nossa própria loja.
+    */
+    return { ok: false, message: "O endereço da imagem precisa começar com https://" };
+  }
+
   await upsertStoreItem({
     code: codigo,
     name: nome,
     description: texto(formData, "description") || null,
+    imageUrl: imagem,
     costCoins: custo,
     stock: estoque,
     isActive: formData.get("isActive") === "on",

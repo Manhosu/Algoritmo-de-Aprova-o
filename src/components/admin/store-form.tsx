@@ -99,6 +99,29 @@ export function StoreForm() {
         />
       </div>
 
+      {/*
+        Imagem do item (pedido da cliente em 02/09/2026): "adicionar uma imagem
+        para cada item da Loja, deixa a apresentação mais visual".
+
+        É um ENDEREÇO, não um upload. O acervo de imagens dela já vive no Google
+        Drive e no Canva; montar upload aqui exigiria bucket, política de
+        tamanho e uma tela de galeria para um punhado de itens.
+      */}
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="imageUrl">Imagem do item</Label>
+        <input
+          id="imageUrl"
+          name="imageUrl"
+          type="url"
+          inputMode="url"
+          placeholder="https://"
+          className={ENTRADA}
+        />
+        <p className="text-xs text-muted-foreground">
+          Opcional. Sem imagem, o card mostra o ícone de moeda.
+        </p>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="costCoins">Custo em moedas</Label>

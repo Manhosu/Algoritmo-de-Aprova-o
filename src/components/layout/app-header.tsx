@@ -24,6 +24,7 @@ import {
 import { APP_TAGLINE } from "@/config/app";
 import { cn } from "@/lib/utils";
 
+import { Pomodoro } from "./pomodoro";
 import { ThemeToggle } from "./theme-toggle";
 
 /**
@@ -123,6 +124,15 @@ export function AppHeader({
             comunica "vem depois": comunica que alguma coisa não funciona. Ele
             volta junto com a tela.
           */}
+          {/*
+            Pomodoro (pedido da cliente em 02/09/2026): "um cronômetro de tempo
+            na barra superior, com a função pomodoro".
+
+            Fica antes da sequência porque é um CONTROLE, e controle vem antes
+            de indicador: o dedo procura o que dá para tocar.
+          */}
+          <Pomodoro />
+
           <span
             className={cn(
               "flex items-center gap-1.5 rounded-full px-2.5 py-1.5",
