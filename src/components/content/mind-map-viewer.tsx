@@ -1,7 +1,9 @@
 "use client";
 
-import { Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { Maximize2, Minimize2, Minus, Plus, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 /**
  * O VISUALIZADOR DE MAPA MENTAL, COM ZOOM (README 2.2).
@@ -55,6 +57,24 @@ export function MindMapViewer({
   const origem = useRef<{ x: number; y: number } | null>(null);
   const [arrastando, setArrastando] = useState(false);
 
+  /**
+   * ⚠️ O NAVEGADOR É A FONTE DA VERDADE SOBRE TELA CHEIA, não o nosso clique.
+   *
+   * A cliente relatou duas coisas na tela cheia: uma faixa vazia embaixo do
+   * mapa e nenhuma forma visível de sair. A segunda tinha um agravante — o
+   * Esc sai do modo por conta do navegador, e como nada disso passava pelo
+   * nosso estado, o botão continuaria dizendo "Tela cheia" depois de já ter
+   * saído dela. Ouvir `fullscreenchange` cobre o clique, o Esc e o gesto do
+   * sistema com um caminho só.
+   */
+  const [emTelaCheia, setEmTelaCheia] = useState(false);
+
+  useEffect(() => {
+    const aoMudar = () => setEmTelaCheia(document.fullscreenElement === caixa.current);
+    document.addEventListener("fullscreenchange", aoMudar);
+    return () => document.removeEventListener("fullscreenchange", aoMudar);
+  }, []);
+
   const ajustar = useCallback((proxima: number) => {
     const limitada = Math.min(MAX, Math.max(MIN, proxima));
     setEscala(limitada);
@@ -86,7 +106,12 @@ export function MindMapViewer({
     }
   };
 
-  const abrirTelaCheia = () => {
+  const alternarTelaCheia = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.();
+      return;
+    }
+
     void caixa.current?.requestFullscreen?.().catch(() => {
       /* Safari em iPhone não expõe fullscreen em div; os botões de zoom bastam. */
     });
@@ -96,7 +121,18 @@ export function MindMapViewer({
     <figure className="flex flex-col gap-2">
       <div
         ref={caixa}
-        className="relative flex flex-col overflow-hidden rounded-xl border border-border bg-card"
+        /*
+          ⚠️ EM TELA CHEIA A CAIXA PRECISA DE ALTURA E FUNDO PRÓPRIOS.
+
+          O elemento em fullscreen não herda mais o fundo da página, e sem uma
+          altura declarada ele encolhe ao tamanho do conteúdo — sobrando a
+          faixa escura que a cliente viu. `h-screen` com a área da imagem em
+          `flex-1` faz o mapa ocupar tudo menos a barra de controles.
+        */
+        className={cn(
+          "relative flex flex-col overflow-hidden border-border bg-card",
+          emTelaCheia ? "h-screen w-screen" : "rounded-xl border",
+        )}
       >
         {/*
           ⚠️ A ÁREA DA IMAGEM TEM ALTURA PRÓPRIA, e os controles ficam ABAIXO
@@ -114,7 +150,10 @@ export function MindMapViewer({
           onPointerUp={encerrarArrasto}
           onPointerCancel={encerrarArrasto}
           onDoubleClick={() => ajustar(escala >= MAX ? MIN : escala + 1)}
-          className="flex max-h-[70vh] min-h-64 touch-none items-center justify-center overflow-hidden"
+          className={cn(
+            "flex touch-none items-center justify-center overflow-hidden",
+            emTelaCheia ? "min-h-0 flex-1" : "max-h-[70vh] min-h-64",
+          )}
           style={{ cursor: escala === 1 ? "zoom-in" : arrastando ? "grabbing" : "grab" }}
         >
           {/*
@@ -130,7 +169,10 @@ export function MindMapViewer({
             width={width ?? undefined}
             height={height ?? undefined}
             draggable={false}
-            className="max-h-[70vh] max-w-full origin-center object-contain select-none"
+            className={cn(
+              "max-w-full origin-center object-contain select-none",
+              emTelaCheia ? "max-h-full" : "max-h-[70vh]",
+            )}
             style={{
               transform: `translate(${posicao.x}px, ${posicao.y}px) scale(${escala})`,
               transition: arrastando ? "none" : "transform 150ms ease-out",
@@ -167,8 +209,16 @@ export function MindMapViewer({
             <RotateCcw />
           </Botao>
 
-          <Botao rotulo="Tela cheia" onClick={abrirTelaCheia}>
-            <Maximize2 />
+          {/*
+            O mesmo botão abre e fecha, e o rótulo diz qual dos dois é. Um
+            "Tela cheia" que continua igual depois de abrir deixa a pessoa
+            presa procurando a saída — foi o relato da cliente.
+          */}
+          <Botao
+            rotulo={emTelaCheia ? "Sair da tela cheia" : "Tela cheia"}
+            onClick={alternarTelaCheia}
+          >
+            {emTelaCheia ? <Minimize2 /> : <Maximize2 />}
           </Botao>
         </div>
       </div>

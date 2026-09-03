@@ -111,7 +111,18 @@ function NavCell({
           className={cn(
             shared,
             "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-            active ? "text-primary" : "text-muted-foreground",
+            /*
+              ⚠️ O ITEM ATIVO GANHOU FUNDO (pedido da cliente em 02/09/2026).
+
+              Antes a única diferença era a cor do texto, e num rótulo de 0,65rem
+              em caixa alta isso é sutil demais: numa barra de cinco itens, o
+              olho não acha em qual tela está sem parar para ler. O fundo dá a
+              marca que se enxerga de relance, e o `active:` responde ao toque —
+              no celular não há hover, então sem ele o botão não acusa o clique.
+            */
+            active
+              ? "bg-primary-soft text-primary"
+              : "text-muted-foreground active:bg-muted/60",
           )}
         >
           {content}

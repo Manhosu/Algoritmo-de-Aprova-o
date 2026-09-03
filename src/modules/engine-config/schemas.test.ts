@@ -92,4 +92,30 @@ describe("coin_values", () => {
       coinValuesSchema.safeParse({ ...DEFAULT_COIN_VALUES, streakDay: 2.5 }).success,
     ).toBe(false);
   });
+  /**
+   * ⚠️ ESTE TESTE PROTEGE UM DEPLOY, não uma regra de produto.
+   *
+   * `materialStudied` foi acrescentado em 03/09/2026, depois de a cliente já ter
+   * publicado versões da tabela de moedas. Essas versões estão gravadas como
+   * JSON em `engine_configs` e NÃO têm o campo. Sem o `default`, a primeira
+   * leitura depois do deploy falharia a validação — e como todo caminho que paga
+   * moeda passa por aqui, a falha derrubaria responder questão, concluir revisão
+   * e terminar a Tarefa do Dia, para todos os alunos, de uma vez.
+   *
+   * O mesmo vale para o próximo campo que alguém acrescentar.
+   */
+  it("aceita uma configuração publicada antes do campo existir", () => {
+    const publicadaAntes = {
+      dailyTaskCompleted: 25,
+      reviewCompleted: 5,
+      streakDay: 10,
+    };
+
+    const lida = coinValuesSchema.safeParse(publicadaAntes);
+
+    expect(lida.success).toBe(true);
+    expect(lida.success && lida.data.materialStudied).toBe(
+      DEFAULT_COIN_VALUES.materialStudied,
+    );
+  });
 });

@@ -123,7 +123,7 @@ export default async function MaterialPage({
             <audio src={arquivo} controls className="w-full" />
           ) : null}
 
-          <MarkComplete contentItemId={material.id} />
+          <MarkComplete contentItemId={material.id} alreadyDone={material.completed} />
         </>
       )}
     </div>

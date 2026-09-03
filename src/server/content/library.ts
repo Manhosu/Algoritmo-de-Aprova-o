@@ -251,6 +251,18 @@ export type MaterialDetail = {
   imageHeight: number | null;
   durationSeconds: number | null;
   locked: boolean;
+  /**
+   * O aluno já marcou este material como estudado?
+   *
+   * ⚠️ PRECISA VIR DO BANCO, e não faltava por acaso.
+   *
+   * O botão "Marcar como estudado" nascia sempre em `done: false`, então
+   * reabrir um mapa mental já estudado mostrava o botão de novo, como se o
+   * clique anterior não tivesse existido. A cliente reportou como "o status
+   * Estudado não atualiza nos flashcards e mapas mentais" — o registro sempre
+   * foi gravado; era a tela que não o lia de volta.
+   */
+  completed: boolean;
   cards: Array<{ id: string; front: string; back: string; hint: string | null }>;
 };
 
@@ -273,10 +285,18 @@ export async function getMaterial(input: {
       subjectName: canonicalSubjects.name,
       topicName: canonicalTopics.name,
       topicSlug: canonicalTopics.slug,
+      progressStatus: contentProgress.status,
     })
     .from(contentItems)
     .leftJoin(canonicalSubjects, eq(canonicalSubjects.id, contentItems.canonicalSubjectId))
     .leftJoin(canonicalTopics, eq(canonicalTopics.id, contentItems.canonicalTopicId))
+    .leftJoin(
+      contentProgress,
+      and(
+        eq(contentProgress.contentItemId, contentItems.id),
+        eq(contentProgress.userId, input.userId),
+      ),
+    )
     .where(
       and(
         eq(contentItems.id, input.contentItemId),
@@ -324,6 +344,7 @@ export async function getMaterial(input: {
     imageHeight: linha.imageHeight,
     durationSeconds: linha.durationSeconds,
     locked: bloqueado,
+    completed: linha.progressStatus === "completed",
     cards: cartoes,
   };
 }

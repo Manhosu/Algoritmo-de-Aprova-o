@@ -43,6 +43,12 @@ const ROTULOS_MOEDAS: Record<keyof CoinValues, { rotulo: string; ajuda?: string 
     rotulo: "Dia de sequência",
     ajuda: "Uma vez por dia, na primeira atividade — não a cada questão.",
   },
+  materialStudied: {
+    rotulo: "Material estudado",
+    ajuda:
+      "Uma vez por material da biblioteca. É um clique auto declarado, então " +
+      "vale menos que uma revisão.",
+  },
 };
 
 const ROTULOS_XP: Record<keyof XpValues, { rotulo: string; ajuda?: string }> = {

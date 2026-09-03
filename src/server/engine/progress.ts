@@ -170,7 +170,21 @@ function clamp01(value: number): number {
  * 2. XP
  * ========================================================================== */
 
-export type XpSource = "question" | "study_log" | "review_occurrence" | "achievement";
+/**
+ * As origens que um lançamento de XP pode ter.
+ *
+ * ⚠️ É UMA UNIÃO FECHADA porque `source_type` faz parte do índice único que
+ * garante a idempotência. Uma origem escrita à mão com outra grafia
+ * ("contentItem" em vez de "content_item") criaria uma chave diferente, e o
+ * mesmo material passaria a pagar duas vezes sem nada acusar.
+ */
+export type XpSource =
+  | "question"
+  | "study_log"
+  | "review_occurrence"
+  | "achievement"
+  /** Material da biblioteca marcado como estudado, fora da Tarefa do Dia. */
+  | "content_item";
 
 /**
  * Credita XP no livro-razão e atualiza o saldo consolidado.

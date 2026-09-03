@@ -117,6 +117,22 @@ export const coinValuesSchema = z
     reviewCompleted: coins,
     /** 🔥 Cada novo dia da sequência. */
     streakDay: coins,
+    /**
+     * 📚 Material da biblioteca marcado como estudado.
+     *
+     * ⚠️ TEM `default`, e não é preguiça de migração.
+     *
+     * As configurações já publicadas estão gravadas como JSON em
+     * `engine_configs`, e nenhuma delas tem este campo. Sem o padrão, a
+     * primeira leitura depois do deploy falharia a validação e derrubaria toda
+     * atividade que consulta valores de moeda — em produção, para todos os
+     * alunos ao mesmo tempo.
+     *
+     * O valor é baixo de propósito: marcar como estudado é um clique auto
+     * declarado, sem prova de aprendizado. Pagar como uma revisão convidaria a
+     * varrer a biblioteca clicando em tudo.
+     */
+    materialStudied: coins.default(2),
   })
   .refine((v) => v.dailyTaskCompleted + v.reviewCompleted + v.streakDay > 0, {
     message:
@@ -136,6 +152,7 @@ export const DEFAULT_COIN_VALUES: CoinValues = {
   dailyTaskCompleted: 25,
   reviewCompleted: 5,
   streakDay: 10,
+  materialStudied: 2,
 };
 
 /* ========================================================================== *
