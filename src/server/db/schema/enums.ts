@@ -355,6 +355,14 @@ export const attemptSourceEnum = pgEnum("attempt_source", [
   "daily_task",
   "question_bank",
   "review",
+  /**
+   * Prova de domínio da Trilha (pedido da cliente em 02/09/2026).
+   *
+   * ⚠️ SEPARADA DAS OUTRAS de propósito. São 20 questões seguidas do mesmo
+   * assunto, respondidas de uma vez: misturá-las com o banco livre distorceria
+   * o Horário de Ouro e o desempenho por disciplina, que medem estudo espontâneo.
+   */
+  "mastery_check",
 ]);
 
 export const importBatchStatusEnum = pgEnum("import_batch_status", [

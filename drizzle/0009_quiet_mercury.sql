@@ -1,0 +1,1 @@
+ALTER TYPE "public"."attempt_source" ADD VALUE 'mastery_check';

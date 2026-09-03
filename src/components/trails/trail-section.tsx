@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Surface } from "@/components/shared/surface";
 import { cn } from "@/lib/utils";
+import { MASTERY_MIN_QUESTIONS } from "@/modules/trails/mastery";
 import type { Trail, TrailTopic } from "@/server/engine/trails";
 
 /**
@@ -139,15 +140,40 @@ function TopicRow({ assunto }: { assunto: TrailTopic }) {
     );
   }
 
+  /*
+    ⚠️ COMPROVAR DOMÍNIO (pedido da cliente em 02/09/2026).
+
+    Aparece só quando o acervo tem questões suficientes para a prova medir
+    alguma coisa. Um botão que abre uma tela dizendo "ainda não dá" é pior que
+    botão nenhum: ele promete e retira na tela seguinte.
+
+    Some quando o assunto JÁ está dominado — não há o que provar duas vezes.
+  */
+  const podeProvar =
+    assunto.availableQuestions >= MASTERY_MIN_QUESTIONS && assunto.status !== "mastered";
+
   return (
+    <div className="flex items-center gap-1">
     <Link
       href={`/questoes?assunto=${assunto.topicSlug}`}
       className={cn(
         classe,
+        "min-w-0 flex-1",
         "transition-colors hover:bg-background/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
       )}
     >
       {conteudo}
     </Link>
+
+      {podeProvar ? (
+        <Link
+          href={`/trilhas/dominio/${assunto.planTopicId}`}
+          className="shrink-0 rounded-lg border border-primary/40 px-2.5 py-1.5 text-center text-[0.7rem] font-semibold text-primary transition-colors hover:bg-primary/10"
+        >
+          Comprovar
+          <span className="sr-only"> domínio de {assunto.name}</span>
+        </Link>
+      ) : null}
+    </div>
   );
 }

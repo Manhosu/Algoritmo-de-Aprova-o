@@ -1,11 +1,12 @@
 import "server-only";
 
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import { computeCoverage } from "@/modules/metrics";
 import { db } from "@/server/db";
 import {
   canonicalTopics,
+  questions,
   studyPlanSubjects,
   studyPlanTopics,
   topicStates,
@@ -42,6 +43,16 @@ export type TrailTopic = {
   questionsAnswered: number;
   accuracyPercent: number | null;
   reviewsCompleted: number;
+  /**
+   * Quantas questões publicadas existem deste assunto no acervo.
+   *
+   * ⚠️ É O QUE DECIDE SE O BOTÃO "COMPROVAR DOMÍNIO" APARECE.
+   *
+   * A prova precisa de um mínimo para medir domínio em vez de sorte, e o acervo
+   * ainda está em expansão. Contar aqui evita que a trilha ofereça um botão que
+   * abre uma tela dizendo "ainda não dá".
+   */
+  availableQuestions: number;
 };
 
 export type Trail = {
@@ -79,6 +90,18 @@ export async function getTrails(preparationId: string): Promise<Trail[]> {
       questionsAnswered: topicStates.questionsAnswered,
       questionsCorrect: topicStates.questionsCorrect,
       reviewsCompleted: topicStates.reviewsCompleted,
+
+      /*
+        Subconsulta, e não `join` com `group by`: um join com `questions`
+        multiplicaria a linha do assunto por questão, e todo agregado de
+        `topic_states` acima passaria a ser somado uma vez por questão.
+      */
+      availableQuestions: sql<number>`(
+        select count(*)::int from ${questions}
+         where ${questions.canonicalTopicId} = ${studyPlanTopics.canonicalTopicId}
+           and ${questions.status} = 'published'
+           and ${questions.deletedAt} is null
+      )`,
     })
     .from(studyPlanTopics)
     .innerJoin(
@@ -133,6 +156,7 @@ export async function getTrails(preparationId: string): Promise<Trail[]> {
       depth: linha.depth,
       status,
       topicSlug: linha.topicSlug,
+      availableQuestions: Number(linha.availableQuestions ?? 0),
       questionsAnswered: linha.questionsAnswered ?? 0,
       accuracyPercent:
         linha.questionsAnswered && linha.questionsAnswered > 0
