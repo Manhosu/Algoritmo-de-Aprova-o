@@ -22,7 +22,7 @@
  */
 
 export const PRIVACY_POLICY_DRAFT = {
-  version: "1.1",
+  version: "1.2",
   title: "Política de Privacidade",
   content: `# Política de Privacidade
 
@@ -81,6 +81,19 @@ Compartilhamos o mínimo necessário, com fornecedores que atuam como operadores
 | Mercado Pago | Dados de cobrança | Processar assinaturas |
 
 Não vendemos seus dados. Não os compartilhamos para publicidade de terceiros.
+
+### 3.1 O que outros alunos veem sobre você
+
+O Ranking mostra **seu primeiro nome** ao lado da sua posição, do seu XP, do seu
+nível e da sua sequência de dias. Ele fica visível para os outros alunos da
+plataforma.
+
+Seu sobrenome, e-mail, WhatsApp e desempenho por disciplina **não** aparecem
+para ninguém além de você e da nossa equipe.
+
+Se você preferir não ter o nome exibido, desligue a opção "Aparecer com meu nome
+no Ranking" nas Configurações. Sua posição continua contando; no lugar do nome,
+os outros alunos veem "Aluno".
 
 ## 4. Por quanto tempo guardamos
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, ShieldAlert } from "lucide-react";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 
 import { Field, FormError } from "@/components/auth/field";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   deleteAccountAction,
   requestResetAction,
   resetPasswordAction,
+  toggleRankingNameAction,
   type AccountFormState,
 } from "./actions";
 
@@ -271,6 +272,50 @@ export function DeleteAccountForm() {
           )}
         </Button>
       </div>
+    </form>
+  );
+}
+
+/**
+ * A chave de exibição do nome no Ranking.
+ *
+ * ⚠️ SALVA NA HORA DE MARCAR, sem botão "salvar".
+ *
+ * Uma preferência de privacidade com botão separado tem um estado intermediário
+ * em que a tela mostra uma coisa e o banco guarda outra. O aluno desmarca,
+ * fecha a página achando que resolveu, e o nome continua lá.
+ */
+export function RankingNameForm({ enabled }: { enabled: boolean }) {
+  const [state, formAction] = useActionState(toggleRankingNameAction, IDLE);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <form className="flex flex-col gap-3">
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          name="showNameInRanking"
+          defaultChecked={enabled}
+          disabled={pending}
+          onChange={(evento) => {
+            const dados = new FormData();
+            if (evento.target.checked) dados.set("showNameInRanking", "on");
+            startTransition(() => formAction(dados));
+          }}
+          className="mt-0.5 size-4 shrink-0 accent-primary"
+        />
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-foreground">
+            Aparecer com meu nome no Ranking
+          </span>
+          <span className="block text-xs text-pretty text-muted-foreground">
+            Os outros alunos veem seu primeiro nome ao lado da sua posição.
+            Desligado, você aparece como “Aluno” e sua posição continua contando.
+          </span>
+        </span>
+      </label>
+
+      <Feedback state={state} />
     </form>
   );
 }

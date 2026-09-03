@@ -156,15 +156,25 @@ function Row({ linha }: { linha: RankingRow }) {
         {linha.levelEmoji}
       </span>
 
+      {/*
+        ⚠️ "VOCÊ" GANHA DO NOME na própria linha, e o nível desce para a
+        segunda.
+
+        Ver o próprio nome no meio de uma lista não ajuda a se achar nela: o
+        aluno já sabe como se chama. "Você" é o rótulo que o olho encontra.
+
+        Para os outros, o primeiro nome vem primeiro e o nível fica embaixo.
+        Quem desligou a exibição vira "Aluno" — a linha continua ali, com a
+        posição e os números, porque escondê-la mudaria a colocação de todo
+        mundo abaixo.
+      */}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-foreground">
-          {linha.isMe ? "Você" : linha.levelName}
+          {linha.isMe ? "Você" : (linha.firstName ?? "Aluno")}
         </span>
-        {linha.isMe ? (
-          <span className="block truncate text-xs text-muted-foreground">
-            {linha.levelName}
-          </span>
-        ) : null}
+        <span className="block truncate text-xs text-muted-foreground">
+          {linha.levelName}
+        </span>
       </span>
 
       {/*

@@ -14,26 +14,37 @@ import {
  * RANKING — comparativo entre alunos por XP e consistência (README 2.4).
  * ============================================================================
  *
- * ⚠️ NINGUÉM APARECE COM NOME, E ISSO NÃO É TIMIDEZ DE PRODUTO.
+ * ⚠️ O PRIMEIRO NOME APARECE, E O CAMINHO ATÉ AQUI IMPORTA.
  *
- * A Política de Privacidade que os alunos aceitaram no cadastro não prevê
- * exibir o nome de um aluno para outro. Publicar nomes seria uma finalidade de
- * tratamento nova, não informada — e sob a LGPD isso não se resolve com um
- * aviso depois, resolve-se com a política atualizada e o consentimento colhido
- * ANTES.
+ * Até 03/09/2026 este ranking era anônimo, porque a Política de Privacidade que
+ * os alunos aceitaram não previa mostrar o nome de um aluno para outro. Exibir
+ * nomes é uma finalidade de tratamento, e sob a LGPD ela precisa estar descrita
+ * ANTES do primeiro nome chegar à tela, não depois.
  *
- * Então o ranking mostra POSIÇÃO, XP, sequência e nível, e identifica só o
- * próprio aluno ("Você"). Todo mundo que quiser comparar consegue comparar; o
- * que ninguém consegue é descobrir quem é quem.
+ * A cliente autorizou, e o que entrou junto foi:
  *
- * Para virar um ranking com nomes: um parágrafo na política, um campo de
- * consentimento por aluno (opt-in, nunca marcado por padrão) e o nome só
- * aparece para quem marcou. É decisão da cliente, não minha — e é barata de
- * fazer depois, porque nada aqui depende do anonimato.
+ *   • a seção 3.1 da Política de Privacidade 1.2, dizendo o que outros alunos
+ *     veem (primeiro nome, posição, XP, nível, sequência) e o que não veem;
+ *   • `users.show_name_in_ranking`, para quem não quiser aparecer.
+ *
+ * ⚠️ SÓ O PRIMEIRO NOME, e o sobrenome fica no servidor.
+ *
+ * "Ana" identifica o suficiente para a comparação ter graça. "Ana Carolina
+ * Fernandes de Souza" identifica uma pessoa específica na internet, e o ranking
+ * é visível para qualquer aluno da plataforma. O corte acontece AQUI, na
+ * consulta: o sobrenome não entra no payload que vai para o navegador, então
+ * nenhuma mudança de tela pode vazá-lo por acidente.
  */
 
 export type RankingRow = {
   position: number;
+  /**
+   * O primeiro nome, ou `null` para quem desligou a exibição.
+   *
+   * ⚠️ NUNCA O NOME COMPLETO. Ver a nota do topo: o corte é feito na consulta,
+   * não na tela.
+   */
+  firstName: string | null;
   totalXp: number;
   currentStreak: number;
   levelName: string;
@@ -88,6 +99,18 @@ export async function getRanking(input: {
     db
       .select({
         userId: users.id,
+        /*
+          `split_part(name, ' ', 1)` no BANCO, e não `name.split(" ")[0]` no
+          servidor. O sobrenome nunca sai da tabela: se um dia alguém acrescentar
+          um campo ao `select` sem pensar, não haverá nome completo em memória
+          para vazar junto.
+
+          `show_name_in_ranking` desligado devolve nulo, e a tela mostra "Aluno".
+        */
+        firstName: sql<string | null>`case
+          when ${users.showNameInRanking} then nullif(split_part(coalesce(${users.name}, ''), ' ', 1), '')
+          else null
+        end`,
         position: posicao,
         totalXp: userGamificationStates.totalXp,
         currentStreak: userGamificationStates.currentStreak,
@@ -147,6 +170,7 @@ export async function getRanking(input: {
     linha: (typeof linhas)[number],
   ): RankingRow => ({
     position: Number(linha.position),
+    firstName: linha.firstName,
     totalXp: linha.totalXp,
     currentStreak: linha.currentStreak,
     /*

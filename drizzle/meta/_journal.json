@@ -57,6 +57,13 @@
       "when": 1788282605556,
       "tag": "0007_heavy_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788458239355,
+      "tag": "0008_gray_corsair",
+      "breakpoints": true
     }
   ]
 }

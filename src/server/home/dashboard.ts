@@ -10,6 +10,7 @@ import {
   sumXp,
   type LevelProgress,
 } from "@/modules/gamification";
+import { computeCatalogReadiness, type CatalogReadiness, type ReadinessKind } from "@/modules/metrics/catalog-readiness";
 import {
   buildEvolutionSeries,
   computeCoverage,
@@ -134,6 +135,8 @@ export type HomeData = {
   coverage: Coverage;
   /** Assuntos em que ele mais erra. */
   gaps: Gap[];
+  /** Quanto do material do edital dele já está pronto. */
+  catalogReadiness: CatalogReadiness;
   /** XP por atividade, vindo da configuração versionada — nunca de constante. */
   xp: { study: number; questionCorrect: number; review: number; dailyGoal: number };
 };
@@ -181,6 +184,8 @@ export async function getHomeData(input: {
       loadInsights(input.userId, input.preparationId),
     ]);
 
+  const catalogReadiness = await loadCatalogReadiness(input.preparationId);
+
   return {
     today,
     missions,
@@ -197,6 +202,7 @@ export async function getHomeData(input: {
     goldenHour: insights.goldenHour,
     coverage: insights.coverage,
     gaps: insights.gaps,
+    catalogReadiness,
     xp: {
       // `xpForStudy` e companhia devolvem LANÇAMENTOS, não números: um acerto
       // rende dois (a resposta e o bônus). Somar aqui é o que garante que a
@@ -732,4 +738,94 @@ async function loadBestTechnique(preparationId: string): Promise<BestTechnique> 
 /** Garante a linha de gamificação do aluno. Chamada na primeira visita à Home. */
 export async function ensureGamificationState(userId: string): Promise<void> {
   await db.insert(userGamificationStates).values({ userId }).onConflictDoNothing();
+}
+
+/**
+ * ACERVO DE ESTUDOS — quanto do edital do aluno já tem material (pedido de 03/09/2026).
+ *
+ * ⚠️ UMA CONSULTA SÓ, e ela devolve PARES (assunto, tipo).
+ *
+ * O caminho ingênuo seria perguntar quatro vezes por assunto: "tem questão?",
+ * "tem mapa?", "tem flashcard?", "tem resumo?". Num edital de 79 assuntos isso
+ * são 316 idas ao banco, na tela que já é a mais pesada do produto e num pool
+ * com teto de 15 conexões.
+ *
+ * A união devolve cada par que EXISTE, uma linha por par, e o agrupamento é
+ * feito em memória sobre algumas centenas de linhas.
+ *
+ * ⚠️ QUESTÃO E MATERIAL MORAM EM TABELAS DIFERENTES, por isso a união.
+ * Questão está em `questions`; mapa, flashcard e resumo estão em
+ * `content_items`. A cliente listou os quatro lado a lado no card, então o
+ * card precisa tratá-los como quatro tipos de uma coisa só.
+ */
+async function loadCatalogReadiness(preparationId: string): Promise<CatalogReadiness> {
+  const [assuntos, pares] = await Promise.all([
+    db
+      .select({
+        planTopicId: studyPlanTopics.id,
+        canonicalTopicId: studyPlanTopics.canonicalTopicId,
+      })
+      .from(studyPlanTopics)
+      .innerJoin(studyPlanSubjects, eq(studyPlanSubjects.id, studyPlanTopics.planSubjectId))
+      .where(
+        and(
+          eq(studyPlanSubjects.preparationId, preparationId),
+          eq(studyPlanTopics.isActive, true),
+        ),
+      ),
+
+    /*
+      Os pares que existem, para os assuntos canônicos DESTA preparação. O
+      `where` amarrado à preparação evita varrer o acervo inteiro: sem ele, um
+      edital de 79 assuntos leria os 1.046 registros de questão e os 66 de
+      material para descartar quase tudo em memória.
+    */
+    db.execute<{ canonical_topic_id: string; kind: string }>(sql`
+      select distinct q.canonical_topic_id, 'questions' as kind
+        from questions q
+       where q.deleted_at is null
+         and q.status = 'published'
+         and q.canonical_topic_id in (
+           select t.canonical_topic_id from study_plan_topics t
+             join study_plan_subjects s on s.id = t.plan_subject_id
+            where s.preparation_id = ${preparationId}
+              and t.is_active
+              and t.canonical_topic_id is not null
+         )
+      union
+      select distinct c.canonical_topic_id, c.type::text as kind
+        from content_items c
+       where c.deleted_at is null
+         and c.status = 'published'
+         and c.type in ('mind_map', 'flashcard_deck', 'study_text')
+         and c.canonical_topic_id in (
+           select t.canonical_topic_id from study_plan_topics t
+             join study_plan_subjects s on s.id = t.plan_subject_id
+            where s.preparation_id = ${preparationId}
+              and t.is_active
+              and t.canonical_topic_id is not null
+         )
+    `),
+  ]);
+
+  const porAssunto = new Map<string, ReadinessKind[]>();
+  for (const linha of pares) {
+    const atual = porAssunto.get(linha.canonical_topic_id) ?? [];
+    atual.push(linha.kind as ReadinessKind);
+    porAssunto.set(linha.canonical_topic_id, atual);
+  }
+
+  return computeCatalogReadiness({
+    topics: assuntos.map((assunto) => ({
+      planTopicId: assunto.planTopicId,
+      /*
+        Assunto do edital que não casou com o catálogo entra com zero tipos, e
+        não fica de fora. Ele É parte do que a cliente ainda precisa produzir —
+        omiti-lo inflaria o percentual de pronto justamente onde falta mais.
+      */
+      availableKinds: assunto.canonicalTopicId
+        ? (porAssunto.get(assunto.canonicalTopicId) ?? [])
+        : [],
+    })),
+  });
 }

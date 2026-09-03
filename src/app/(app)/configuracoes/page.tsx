@@ -1,4 +1,4 @@
-import { AlertTriangle, KeyRound, Mail, Trash2, User } from "lucide-react";
+import { AlertTriangle, Eye, KeyRound, Mail, Trash2, User } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -7,6 +7,7 @@ import {
   ChangeEmailForm,
   ChangePasswordForm,
   DeleteAccountForm,
+  RankingNameForm,
 } from "@/components/account/account-forms";
 import { SectionTitle, Surface } from "@/components/shared/surface";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,19 @@ export default async function SettingsPage() {
         <SectionTitle icon={<Mail className="size-4" />}>Trocar e-mail</SectionTitle>
         <div className="mt-4">
           <ChangeEmailForm currentEmail={context.user.email ?? ""} />
+        </div>
+      </Surface>
+
+      {/*
+        Privacidade fica ANTES de "Excluir conta", de propósito.
+
+        Quem procura como parar de aparecer no Ranking desce a página e o
+        primeiro bloco que encontra não pode ser o de apagar a conta.
+      */}
+      <Surface className="p-4 sm:p-5">
+        <SectionTitle icon={<Eye className="size-4" />}>Privacidade</SectionTitle>
+        <div className="mt-4">
+          <RankingNameForm enabled={context.user.showNameInRanking} />
         </div>
       </Surface>
 

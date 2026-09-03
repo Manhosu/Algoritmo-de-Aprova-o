@@ -87,6 +87,23 @@ export const users = pgTable(
     avatarUrl: text(),
 
     /**
+     * O aluno aparece com o primeiro nome no Ranking?
+     *
+     * ⚠️ NASCE LIGADO, e a decisão tem dono: a cliente autorizou a exibição em
+     * 03/09/2026, e a Política de Privacidade 1.2 passou a descrever a prática
+     * na seção 3.1, antes de qualquer nome ir para a tela.
+     *
+     * A chave existe porque o direito de oposição (art. 18 da LGPD) não some
+     * quando a finalidade está informada. Sem ela, um aluno que não quer o nome
+     * exposto teria como única saída apagar a conta.
+     *
+     * Desligado, a linha dele continua no ranking com posição, XP e sequência.
+     * Só o nome vira "Aluno" — esconder a linha inteira mudaria a posição de
+     * todo mundo abaixo e faria o ranking mentir sobre quantos alunos existem.
+     */
+    showNameInRanking: boolean().notNull().default(true),
+
+    /**
      * HMAC-SHA256(ANONYMIZATION_PEPPER, id). Chave pseudônima estável que
      * acompanha os eventos de telemetria.
      *

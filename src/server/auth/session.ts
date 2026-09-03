@@ -46,6 +46,8 @@ export type SessionUser = {
   status: "active" | "suspended" | "anonymized";
   timezone: string;
   avatarUrl: string | null;
+  /** Mostra o primeiro nome dele no Ranking? Ver a nota em `engine/ranking`. */
+  showNameInRanking: boolean;
 };
 
 export type ActiveSession = {
@@ -117,6 +119,7 @@ export async function resolveSession(
       status: users.status,
       timezone: users.timezone,
       avatarUrl: users.avatarUrl,
+      showNameInRanking: users.showNameInRanking,
     })
     .from(authSessions)
     .innerJoin(users, eq(users.id, authSessions.userId))
@@ -155,6 +158,7 @@ export async function resolveSession(
       role: row.role,
       status: row.status,
       timezone: row.timezone,
+      showNameInRanking: row.showNameInRanking,
       avatarUrl: row.avatarUrl,
     },
   };

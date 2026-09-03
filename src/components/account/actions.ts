@@ -3,7 +3,11 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
+import { eq } from "drizzle-orm";
+
 import { requireApiUser } from "@/server/auth/guards";
+import { db } from "@/server/db";
+import { users } from "@/server/db/schema";
 import {
   changePassword,
   confirmEmailChange,
@@ -197,4 +201,39 @@ export async function confirmEmailAction(token: string): Promise<AccountFormStat
   }
 
   return { status: "ok", message: result.email };
+}
+
+/**
+ * Liga ou desliga a exibição do primeiro nome no Ranking.
+ *
+ * ⚠️ É O DIREITO DE OPOSIÇÃO DO ART. 18 DA LGPD, em forma de botão.
+ *
+ * A cliente autorizou mostrar nomes e a Política 1.2 descreve a prática na
+ * seção 3.1. Isso torna a exibição legítima, e não dispensa dar ao aluno como
+ * sair dela. Sem esta ação, quem não quer o nome exposto teria de apagar a
+ * conta.
+ */
+export async function toggleRankingNameAction(
+  _prev: AccountFormState,
+  formData: FormData,
+): Promise<AccountFormState> {
+  const session = await requireApiUser();
+
+  const mostrar = formData.get("showNameInRanking") === "on";
+
+  await db
+    .update(users)
+    .set({ showNameInRanking: mostrar, updatedAt: new Date() })
+    .where(eq(users.id, session.user.id));
+
+  /* O ranking é `force-dynamic`, mas o cache de rota guarda o HTML anterior. */
+  revalidatePath("/ranking");
+  revalidatePath("/configuracoes");
+
+  return {
+    status: "ok",
+    message: mostrar
+      ? "Seu primeiro nome aparece no Ranking."
+      : "Você aparece como “Aluno” no Ranking.",
+  };
 }

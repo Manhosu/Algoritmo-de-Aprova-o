@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "show_name_in_ranking" boolean DEFAULT true NOT NULL;

@@ -20,6 +20,7 @@ import {
   GoldenHourCard,
   LevelCard,
   PreparationIndexCard,
+  StudyCatalogCard,
   QuickAccess,
   ReviewsTodayCard,
   StatsStrip,
@@ -308,6 +309,15 @@ async function ActiveDashboard({
             <GoldenHourCard goldenHour={home.goldenHour} />
             <GapsCard gaps={home.gaps} />
             <PreparationIndexCard index={home.preparationIndex} />
+
+            {/*
+              ⚠️ DEPOIS do Índice de Preparação, e a posição é o pedido.
+
+              A grade tem cinco cards em duas colunas, então o Índice ficava
+              sozinho na última linha com a célula ao lado vazia. Foi essa célula
+              que a cliente apontou na captura que mandou.
+            */}
+            <StudyCatalogCard readiness={home.catalogReadiness} />
           </div>
 
           <EvolutionCard points={home.evolution} />

@@ -6,6 +6,7 @@ import {
   PieChart,
   RotateCcw,
   Target,
+  Library,
   Timer,
   TriangleAlert,
   Trophy,
@@ -913,6 +914,75 @@ export function GapsCard({ gaps }: { gaps: Gap[] }) {
           <ArrowRight aria-hidden />
         </Link>
       </Button>
+    </Surface>
+  );
+}
+
+/**
+ * ACERVO DE ESTUDOS — quanto do material do edital do aluno já está pronto.
+ *
+ * A cliente desenhou este card em 03/09/2026, incluindo o texto pequeno do pé.
+ *
+ * ⚠️ O AVISO DE IA É PARTE DO PEDIDO, e não um detalhe de rodapé.
+ *
+ * "Questões e materiais de estudo estão em produção com auxílio de Inteligência
+ * Artificial." é a frase dela, palavra por palavra. Ela explica ao aluno por que
+ * o número não é 100% e de onde vem o material que ele lê — e diz isso ANTES de
+ * ele perguntar, que é a diferença entre transparência e desculpa.
+ *
+ * ⚠️ SEM EDITAL, O CARD NÃO MOSTRA PERCENTUAL NENHUM.
+ *
+ * "0% disponível" no primeiro dia do aluno soaria como plataforma vazia, quando
+ * o que falta é ele cadastrar a preparação.
+ */
+export function StudyCatalogCard({
+  readiness,
+}: {
+  readiness: HomeData["catalogReadiness"];
+}) {
+  return (
+    <Surface className="flex flex-col p-4 sm:p-5">
+      <SectionTitle icon={<Library className="size-4" />}>Acervo de estudos</SectionTitle>
+
+      {readiness.totalPairs === 0 ? (
+        <p className="mt-4 text-sm text-pretty text-muted-foreground">
+          Cadastre sua preparação para acompanhar quanto do seu material já está
+          pronto.
+        </p>
+      ) : (
+        <>
+          {/*
+            A cliente desenhou duas linhas de texto, com o rótulo em negrito e o
+            percentual ao lado. Mantive assim: são dois números que somam 100, e
+            duas barras onde uma é o complemento da outra dizem a mesma coisa
+            duas vezes.
+          */}
+          <dl className="mt-4 flex flex-col gap-2 text-sm">
+            <div className="flex items-baseline gap-2">
+              <dt className="font-semibold text-foreground">Materiais disponíveis:</dt>
+              <dd className="text-metric text-foreground">
+                {readiness.availablePercent}%
+              </dd>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <dt className="font-semibold text-foreground">Materiais em produção:</dt>
+              <dd className="text-metric text-muted-foreground">
+                {readiness.inProductionPercent}%
+              </dd>
+            </div>
+          </dl>
+
+          <p className="mt-3 text-xs text-pretty text-muted-foreground">
+            Conta questões, mapas mentais, flashcards e resumos dos{" "}
+            {readiness.topicCount} assuntos do seu edital.
+          </p>
+        </>
+      )}
+
+      <p className="mt-4 text-xs text-pretty text-muted-foreground italic">
+        Questões e materiais de estudo estão em produção com auxílio de
+        Inteligência Artificial.
+      </p>
     </Surface>
   );
 }
