@@ -6,7 +6,7 @@ import { env } from "@/config/env";
 import { db } from "@/server/db";
 import { planPrices, plans, subscriptions, users } from "@/server/db/schema";
 
-import { createPreapproval, isMercadoPagoConfigured } from "./mercadopago";
+import { createPreapproval, isMercadoPagoConfigured, MercadoPagoError } from "./mercadopago";
 
 /**
  * ASSINATURA — do clique em "Assinar" até a volta do Mercado Pago.
@@ -141,6 +141,33 @@ export async function startSubscriptionCheckout(input: {
     await db.delete(subscriptions).where(eq(subscriptions.id, pendente.id));
 
     console.error("[mercadopago] falha ao criar assinatura", erro);
+
+    /*
+      ⚠️ O ERRO DO AMBIENTE DE TESTE MERECE A PRÓPRIA MENSAGEM.
+
+      Com credenciais de teste, o Mercado Pago recusa qualquer pagador que não
+      seja um usuário de teste: "Both payer and collector must be real or test
+      users". Aconteceu na primeira vez que a cliente clicou em Assinar com a
+      conta dela.
+
+      A mensagem genérica ("tente de novo em alguns minutos") manda a pessoa
+      repetir para sempre uma ação que nunca vai funcionar. Dizer o que é
+      transforma um beco sem saída numa instrução — e some sozinha quando as
+      credenciais de produção entrarem, porque o erro deixa de acontecer.
+    */
+    const recusaDeAmbiente =
+      erro instanceof MercadoPagoError &&
+      /must be real or test users|guest_site_mismatch/i.test(erro.message);
+
+    if (recusaDeAmbiente) {
+      return {
+        ok: false,
+        message:
+          "O pagamento está em modo de teste, e nele só uma conta de teste do " +
+          "Mercado Pago consegue assinar. Com as credenciais de produção, " +
+          "qualquer conta funciona.",
+      };
+    }
 
     return {
       ok: false,
