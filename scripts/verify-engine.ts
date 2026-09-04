@@ -209,6 +209,22 @@ async function main() {
         title: "Analista Judiciário",
         status: "extracting",
         isCurrent: true,
+        /*
+          ⚠️ COM DATA DE PROVA, e ela é obrigatória desde 04/09/2026.
+
+          A Tarefa do Dia passou a usar o orçamento que o Cronograma reserva
+          para hoje, e o Cronograma calcula esse orçamento com a data da prova:
+          `necessário ÷ disponível até lá`. Sem data, o horizonte cai nos 90
+          dias padrão e seis assuntos se espalham tanto que hoje recebe o piso
+          de um bloco — pouco para exercitar as verificações abaixo, que
+          esperam um dia com vários blocos.
+
+          Um dia é o cenário de "prova amanhã", em que o ritmo é preso em 1 e
+          o dia inteiro é usado — o único que produz uma tarefa com blocos
+          suficientes para as verificações abaixo distinguirem assunto com
+          questão de assunto sem.
+        */
+        examDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       })
       .returning({ id: schema.preparations.id });
 

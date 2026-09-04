@@ -161,19 +161,28 @@ export async function ensureDailyTask(input: {
 
   const hojeNoCronograma = projecao?.weeks[0]?.days.find((dia) => dia.date === today);
 
-  const minutosDeEstudo =
-    hojeNoCronograma !== undefined
-      ? hojeNoCronograma.topics.reduce((soma, t) => soma + t.minutes, 0)
-      : minutosDaPreparacao;
+  const reservadoHoje =
+    hojeNoCronograma?.topics.reduce((soma, t) => soma + t.minutes, 0) ?? null;
 
-  /*
-    Dia que o Cronograma deixou vazio NÃO gera Tarefa do Dia. É a folga que o
-    ritmo produziu de propósito, e preencher com "só um assunto" desfaria a
-    distribuição que a tela ao lado promete.
-  */
-  if (hojeNoCronograma !== undefined && minutosDeEstudo <= 0) {
-    return { status: "skipped", reason: "no_topics" };
-  }
+  /**
+   * ⚠️ DIA VAZIO NO CRONOGRAMA VIRA UM BLOCO, e não tarefa nenhuma.
+   *
+   * O ritmo produz dias sem conteúdo de propósito: com poucos assuntos e muito
+   * tempo até a prova, o acumulado leva dias para juntar um bloco de verdade.
+   * O Cronograma mostra isso como folga, e está certo.
+   *
+   * Minha primeira versão fez a Tarefa do Dia sumir nesses dias. É agreement
+   * demais: a cliente pediu que os dois números CONCORDASSEM, não que existissem
+   * dias em que o aluno abre o aplicativo e não tem o que fazer. Num produto de
+   * estudo, dia em branco é o convite a fechar o aplicativo e não voltar.
+   *
+   * O piso de um bloco resolve os dois lados. O número que ela viu cai de 6
+   * para 1 ou 2, na escala do Cronograma, e ninguém fica sem tarefa.
+   */
+  const minutosDeEstudo =
+    reservadoHoje === null
+      ? minutosDaPreparacao
+      : Math.max(reservadoHoje, scheduleParams.value.defaultStudyBlockMinutes);
 
   const plan = generateDailyTask({
     now,
