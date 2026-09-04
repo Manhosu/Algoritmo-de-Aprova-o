@@ -1,6 +1,7 @@
 import { asc, eq, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 
+import { formatCents, getFinanceSummary } from "@/server/admin/finance";
 import { requireAdmin } from "@/server/auth/guards";
 import { db } from "@/server/db";
 import {
@@ -56,7 +57,8 @@ const ROTULO_PERIODO: Record<string, string> = {
 export default async function AdminPlanosPage() {
   await requireAdmin();
 
-  const [linhas, precos, acessos] = await Promise.all([
+  const [financeiro, linhas, precos, acessos] = await Promise.all([
+    getFinanceSummary(),
     db
       .select({
         id: plans.id,
@@ -116,6 +118,58 @@ export default async function AdminPlanosPage() {
           O que cada plano libera e quantas pessoas estão em cada um.
         </p>
       </header>
+
+      {/*
+        ASSINATURAS E FINANCEIRO (pedido da cliente em 02/09/2026).
+
+        ⚠️ VEM ANTES DA LISTA DE PLANOS, e a ordem responde à pergunta dela:
+        "acompanhar não apenas o número de usuários, mas também a saúde
+        financeira". A configuração de cada plano é consulta ocasional; a saúde
+        do negócio é o que se olha ao abrir a aba.
+      */}
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+        <div>
+          <h2 className="font-semibold text-foreground">Assinaturas e financeiro</h2>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            Tudo somado de assinaturas e pagamentos reais. Nada é projetado.
+          </p>
+        </div>
+
+        <dl className="grid gap-4 sm:grid-cols-3">
+          <Indicador rotulo="Assinantes ativos" valor={String(financeiro.totalSubscribers)} />
+          <Indicador rotulo="Assinantes pagos" valor={String(financeiro.payingSubscribers)} />
+          <Indicador
+            rotulo="Inadimplência"
+            valor={String(financeiro.pastDue)}
+            ajuda="Cobranças que falharam e ainda não foram resolvidas."
+          />
+
+          <Indicador
+            rotulo="MRR"
+            valor={formatCents(financeiro.mrrCents)}
+            ajuda="Receita recorrente mensal. Plano anual entra dividido por 12."
+          />
+          <Indicador rotulo="ARR" valor={formatCents(financeiro.arrCents)} ajuda="MRR × 12." />
+          <Indicador
+            rotulo="Recebido em 30 dias"
+            valor={formatCents(financeiro.revenueLast30Cents)}
+            ajuda={`${financeiro.paymentsLast30} ${
+              financeiro.paymentsLast30 === 1 ? "pagamento aprovado" : "pagamentos aprovados"
+            }.`}
+          />
+
+          <Indicador rotulo="Cancelamentos (30d)" valor={String(financeiro.canceledLast30)} />
+          <Indicador rotulo="Upgrades (30d)" valor={String(financeiro.upgrades)} />
+          <Indicador rotulo="Downgrades (30d)" valor={String(financeiro.downgrades)} />
+        </dl>
+
+        {financeiro.payingSubscribers === 0 ? (
+          <p className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-pretty text-muted-foreground">
+            Ainda não há assinante pago. Os valores acima passam a se mover
+            assim que a primeira assinatura for confirmada pelo Mercado Pago.
+          </p>
+        ) : null}
+      </section>
 
       <ul className="flex flex-col gap-4">
         {linhas.map((plano) => {
@@ -209,4 +263,27 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
 /** NULO significa sem teto, e "—" seria lido como "não tem". */
 function ilimitado(valor: number | null): string {
   return valor === null ? "Ilimitado" : String(valor);
+}
+
+/** Um número do painel financeiro, com a explicação do que ele mede. */
+function Indicador({
+  rotulo,
+  valor,
+  ajuda,
+}: {
+  rotulo: string;
+  valor: string;
+  ajuda?: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        {rotulo}
+      </dt>
+      <dd className="text-metric mt-1 text-xl text-foreground">{valor}</dd>
+      {ajuda ? (
+        <dd className="mt-0.5 text-xs text-pretty text-muted-foreground">{ajuda}</dd>
+      ) : null}
+    </div>
+  );
 }
