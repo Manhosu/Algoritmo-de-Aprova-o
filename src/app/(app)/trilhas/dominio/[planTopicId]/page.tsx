@@ -82,7 +82,9 @@ export default async function ProvaDeDominioPage({
             assunto produzir primeiro.
           */}
           <p className="text-pretty text-muted-foreground">
-            {prova.reason === "sem_assunto"
+            {prova.reason === "nao_e_seu"
+              ? "Este assunto não faz parte das suas preparações."
+              : prova.reason === "sem_assunto"
               ? "Este assunto ainda não está ligado ao nosso catálogo de questões."
               : `O acervo tem ${prova.available} ${
                   prova.available === 1 ? "questão" : "questões"

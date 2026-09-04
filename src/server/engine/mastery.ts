@@ -11,6 +11,7 @@ import {
 import { db } from "@/server/db";
 import {
   canonicalTopics,
+  preparations,
   questionOptions,
   questions,
   studyPlanTopics,
@@ -42,7 +43,36 @@ export type MasteryQuestion = {
 
 export type MasteryExam =
   | { ok: true; topicName: string; questions: MasteryQuestion[] }
-  | { ok: false; reason: "sem_assunto" | "acervo_insuficiente"; available: number };
+  | {
+      ok: false;
+      reason: "sem_assunto" | "acervo_insuficiente" | "nao_e_seu";
+      available: number;
+    };
+
+/**
+ * O assunto pertence a uma preparação DESTE aluno?
+ *
+ * ⚠️ SEM ISTO, O `planTopicId` DA URL VALE PARA QUALQUER ASSUNTO DO BANCO.
+ *
+ * Ele vem do endereço, e o endereço é digitável. Sem a conferência, um aluno
+ * abriria a prova de um assunto do edital de outra pessoa e — pior — a correção
+ * marcaria `topic_states` DAQUELA preparação como dominado, tirando o assunto
+ * da fila de alguém que nunca fez prova nenhuma.
+ *
+ * É o tipo de falha que nenhum teste de tela encontra, porque a tela nunca
+ * oferece o link errado. Encontrei ao tentar abrir a prova por URL direta
+ * durante a validação.
+ */
+async function ehDoAluno(userId: string, planTopicId: string): Promise<boolean> {
+  const [linha] = await db
+    .select({ id: studyPlanTopics.id })
+    .from(studyPlanTopics)
+    .innerJoin(preparations, eq(preparations.id, studyPlanTopics.preparationId))
+    .where(and(eq(studyPlanTopics.id, planTopicId), eq(preparations.userId, userId)))
+    .limit(1);
+
+  return Boolean(linha);
+}
 
 /**
  * Monta a prova.
@@ -58,6 +88,10 @@ export async function buildMasteryExam(input: {
   userId: string;
   planTopicId: string;
 }): Promise<MasteryExam> {
+  if (!(await ehDoAluno(input.userId, input.planTopicId))) {
+    return { ok: false, reason: "nao_e_seu", available: 0 };
+  }
+
   const [assunto] = await db
     .select({
       planTopicId: studyPlanTopics.id,
@@ -164,6 +198,17 @@ export async function gradeMasteryExam(input: {
   answers: Array<{ questionId: string; optionId: string }>;
 }): Promise<MasteryResult> {
   if (input.answers.length === 0) {
+    return { verdict: judgeMastery({ total: 0, correct: 0 }), markedAsMastered: false };
+  }
+
+  /*
+    ⚠️ CONFERIDO DE NOVO NA CORREÇÃO, e não só na montagem da prova.
+
+    A montagem e o envio são duas requisições. Confiar na primeira deixaria a
+    porta aberta para um POST direto com o `planTopicId` de outra pessoa — sem
+    nunca abrir a tela.
+  */
+  if (!(await ehDoAluno(input.userId, input.planTopicId))) {
     return { verdict: judgeMastery({ total: 0, correct: 0 }), markedAsMastered: false };
   }
 
