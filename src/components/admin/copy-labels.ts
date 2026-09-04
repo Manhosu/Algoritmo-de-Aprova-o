@@ -62,6 +62,45 @@ export const ROTULOS_POR_CHAVE: Record<string, string> = {
   cta: "Botão",
 
   stickyCta: "Botão fixo do celular",
+
+  /* ---------------------------------------------------------------------- *
+   * A copy de 04/09/2026
+   * ---------------------------------------------------------------------- */
+
+  pains: "Você já passou por isso?",
+  audience: "Para quem é",
+  comparison: "Comparativo",
+  game: "Virou um jogo",
+  mission: "A missão do dia",
+  system: "Um sistema só",
+  science: "Neurociência e IA",
+  materials: "Formas de estudar",
+  cycle: "O ciclo",
+  evolution: "Sua evolução",
+  time: "Seu tempo",
+  better: "Estudar melhor",
+  worth: "Quanto vale",
+  faq: "Perguntas frequentes",
+
+  items: "Itens",
+  rows: "Linhas",
+  badges: "Etiquetas",
+  lines: "Linhas de texto",
+  denials: "O que ele não é",
+  steps2: "Etapas",
+  questions: "Perguntas",
+  question: "Pergunta",
+  answer: "Resposta",
+  intro: "Texto de abertura",
+  chaosLabel: "Coluna da esquerda",
+  chaosNote: "Legenda da esquerda",
+  smartLabel: "Coluna da direita",
+  smartNote: "Legenda da direita",
+  chaos: "Lado do estudo caótico",
+  smart: "Lado do Algoritmo",
+  closing1: "Fecho, linha 1",
+  closing2: "Fecho, linha 2",
+  closing3: "Fecho, linha 3",
 };
 
 /** Por caminho completo. Vence o mapa por chave. */
@@ -71,6 +110,14 @@ export const ROTULOS_POR_CAMINHO: Record<string, string> = {
   "stickyCta.label": "Texto do botão",
   "stickyCta.note": "Frase abaixo do botão",
   "closing.note": "Frase abaixo do botão",
+
+  /*
+    `steps` já significa "os quatro passos" em `howItWorks`. No ciclo ele é
+    outra coisa, e o mapa por caminho existe justamente para esses choques.
+  */
+  "cycle.steps": "As nove etapas do ciclo",
+  "pains.closing1": "Fecho, linha 1",
+  "science.subtitle": "Frase que apresenta a lista",
 };
 
 export function rotular(chave: string, caminho?: string): string {

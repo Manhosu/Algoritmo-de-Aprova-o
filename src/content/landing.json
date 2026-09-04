@@ -5,21 +5,37 @@
   },
   "hero": {
     "eyebrow": "Para quem estuda para concurso",
-    "titleLine1": "Pare de decidir o que estudar.",
-    "titleLine2": "Comece a estudar.",
-    "subtitle": "Você sobe o edital do seu concurso. A partir dele, a plataforma monta seu plano de estudo e o reajusta a cada questão que você responde. Sem planilha, sem cronograma que envelhece na primeira semana.",
-    "primaryCta": "Começar agora, é grátis",
+    "titleLine1": "Você não precisa de mais horas.",
+    "titleLine2": "Precisa da direção certa.",
+    "subtitle": "O Algoritmo da Aprovação transforma seu edital em um plano de estudos personalizado e indica, todos os dias, o próximo passo rumo à sua aprovação.",
+    "primaryCta": "Começar grátis",
     "secondaryCta": "Ver como funciona",
-    "note": "Não pedimos cartão para começar."
+    "note": "Sem cartão de crédito. Leva menos de 1 minuto."
   },
   "mockup": {
     "title": "Sua tarefa de hoje",
     "badge": "1h disponível",
     "tasks": [
-      { "label": "Estude", "value": "Mapa Mental — Crase", "done": true },
-      { "label": "Pratique", "value": "Questões — Crase", "done": true },
-      { "label": "Estude", "value": "Concordância verbal", "done": false },
-      { "label": "Revise", "value": "Atos administrativos", "done": false }
+      {
+        "label": "Estude",
+        "value": "Mapa Mental — Crase",
+        "done": true
+      },
+      {
+        "label": "Pratique",
+        "value": "Questões — Crase",
+        "done": true
+      },
+      {
+        "label": "Estude",
+        "value": "Concordância verbal",
+        "done": false
+      },
+      {
+        "label": "Revise",
+        "value": "Atos administrativos",
+        "done": false
+      }
     ],
     "footnote": "Montada pelo algoritmo a partir do seu edital, do seu diagnóstico e do tempo que você tem hoje."
   },
@@ -54,9 +70,18 @@
       "title": "Dois motores, não um",
       "body": "Um decide o que estudar hoje cruzando cinco sinais: seu desempenho, o peso no edital, a proximidade da prova, há quanto tempo você não vê o assunto e onde estão suas lacunas. O outro cuida das revisões, em trilho próprio.",
       "metrics": [
-        { "value": "5", "label": "sinais de priorização" },
-        { "value": "24h→90d", "label": "ciclo de revisão" },
-        { "value": "1", "label": "decisão por dia" }
+        {
+          "value": "5",
+          "label": "sinais de priorização"
+        },
+        {
+          "value": "24h→90d",
+          "label": "ciclo de revisão"
+        },
+        {
+          "value": "1",
+          "label": "decisão por dia"
+        }
       ]
     },
     "cards": {
@@ -71,12 +96,266 @@
     }
   },
   "closing": {
-    "title": "Sua próxima sessão de estudo já está decidida.",
-    "cta": "Criar minha conta grátis",
+    "title": "Receba sua primeira missão e comece a jogar rumo à sua aprovação.",
+    "cta": "Começar minha jornada",
     "note": "Leva menos de um minuto. Você pode apagar sua conta quando quiser."
   },
   "stickyCta": {
     "label": "Começar agora, é grátis",
     "note": "Não pedimos cartão."
+  },
+  "pains": {
+    "title": "Você já passou por isso?",
+    "items": [
+      "Montou um cronograma e abandonou na primeira semana.",
+      "Perdeu tempo organizando matérias em vez de estudá-las.",
+      "Não sabe se deve estudar, revisar ou fazer questões.",
+      "Estuda bastante, mas continua errando os mesmos assuntos.",
+      "Está perto da prova e não sabe onde concentrar seus esforços."
+    ],
+    "closing1": "O problema nem sempre é falta de disciplina.",
+    "closing2": "Muitas vezes, é falta de direção.",
+    "closing3": "É para isso que existe o Algoritmo da Aprovação."
+  },
+  "audience": {
+    "title": "O Algoritmo da Aprovação é para você que...",
+    "items": [
+      {
+        "title": "Está começando do zero",
+        "body": "e não quer perder semanas tentando descobrir como dar o primeiro passo."
+      },
+      {
+        "title": "Já estuda há meses",
+        "body": "mas sente que está rodando em círculos e estudando sem uma estratégia clara."
+      },
+      {
+        "title": "Trabalha e tem pouco tempo",
+        "body": "precisando extrair o máximo de rendimento de cada hora disponível."
+      },
+      {
+        "title": "Está com a prova se aproximando",
+        "body": "e precisa priorizar urgentemente apenas o que realmente cai."
+      },
+      {
+        "title": "Já abandonou vários cronogramas",
+        "body": "e precisa de um sistema adaptativo que acompanhe a sua rotina real."
+      }
+    ]
+  },
+  "comparison": {
+    "title": "Não é só mais uma plataforma de questões",
+    "chaosLabel": "Plataformas tradicionais",
+    "chaosNote": "Estudo caótico",
+    "smartLabel": "Algoritmo da Aprovação",
+    "smartNote": "Estudo inteligente",
+    "rows": [
+      {
+        "chaos": "Perda de tempo decidindo o que estudar todos os dias",
+        "smart": "Sua única preocupação é cumprir a missão do dia"
+      },
+      {
+        "chaos": "Cronograma engessado que acumula matérias atrasadas",
+        "smart": "Cronograma adaptativo que ajusta a rota em tempo real"
+      },
+      {
+        "chaos": "Conteúdo genérico e igual para todos os alunos",
+        "smart": "Estratégia personalizada com base no seu desempenho"
+      },
+      {
+        "chaos": "Sobrecarga mental tentando lembrar o que e quando revisar",
+        "smart": "Revisões automáticas agendadas na hora certa pelo sistema"
+      },
+      {
+        "chaos": "Questões erradas geram frustração e bloqueio",
+        "smart": "O algoritmo mapeia seus erros e os transforma em pontos de evolução"
+      },
+      {
+        "chaos": "Ferramentas soltas e estudo descentralizado",
+        "smart": "Centralização total: edital, questões, conteúdo e revisões numa jornada"
+      }
+    ],
+    "closing": "Mais do que oferecer conteúdo, o Algoritmo decide o que fazer com ele."
+  },
+  "game": {
+    "title": "Seu concurso virou um jogo",
+    "badges": [
+      "XP",
+      "Conquistas",
+      "Streaks",
+      "Missões",
+      "Níveis",
+      "Desafios",
+      "Metas"
+    ],
+    "lines": [
+      "Você começa.",
+      "Cumpre missões.",
+      "Acumula experiência.",
+      "Evolui.",
+      "E não vai querer parar até ver seu nome na lista de aprovados."
+    ]
+  },
+  "mission": {
+    "title": "Cada dia tem uma missão",
+    "subtitle": "Você sabe exatamente o que precisa fazer.",
+    "items": [
+      "Cada tarefa gera progresso.",
+      "Cada erro gera informação.",
+      "Cada conquista aproxima você do objetivo."
+    ],
+    "closing1": "Você não estuda apenas para cumprir horas.",
+    "closing2": "Você estuda para cumprir missões, superar desafios e evoluir."
+  },
+  "system": {
+    "title": "Um sistema. Uma jornada.",
+    "denials": [
+      "Não é apenas um banco de questões.",
+      "Não é apenas um cronograma.",
+      "Não é apenas um dashboard.",
+      "Não é apenas gamificação."
+    ],
+    "closing1": "É tudo conectado.",
+    "closing2": "O seu desempenho alimenta o próximo passo."
+  },
+  "science": {
+    "title": "Tecnologia + Neurociência + IA",
+    "intro": "Tecnologia e inteligência artificial encontram a Neurociência para transformar cada dado da sua preparação em decisões mais inteligentes sobre o que estudar, revisar e praticar.",
+    "subtitle": "Por trás da plataforma, estão estratégias de aprendizagem respaldadas por evidências científicas, que estimulam processos essenciais como:",
+    "items": [
+      "Recuperação ativa",
+      "Revisão espaçada e Curva do Esquecimento",
+      "Prática por questões",
+      "Aprendizagem a partir dos erros",
+      "Prática deliberada",
+      "Alternância e combinação de conteúdos",
+      "Feedback sobre desempenho",
+      "Motivação e recompensa"
+    ],
+    "closing": "O objetivo não é apenas estudar. É aprender."
+  },
+  "materials": {
+    "title": "Estude. Revise. Consolide.",
+    "subtitle": "O algoritmo combina diferentes formas de aprendizagem para tornar seus estudos mais ativos e estratégicos.",
+    "items": [
+      {
+        "title": "Mapas Mentais",
+        "body": "Clareza imediata sem overdose de informação."
+      },
+      {
+        "title": "Resumos Direcionados",
+        "body": "Absorção rápida do que realmente cai."
+      },
+      {
+        "title": "Flashcards",
+        "body": "Memorização ativa sem esforço contínuo."
+      },
+      {
+        "title": "Questões",
+        "body": "Prática inteligente para revelar e superar suas lacunas."
+      },
+      {
+        "title": "Revisão Espaçada",
+        "body": "Reforce o conhecimento antes que ele seja esquecido."
+      }
+    ],
+    "closing": "Menos tempo procurando informação. Mais tempo aprendendo."
+  },
+  "cycle": {
+    "title": "O ciclo da aprovação",
+    "steps": [
+      "Edital",
+      "Diagnóstico",
+      "Cronograma",
+      "Missão",
+      "Estudo",
+      "Questões",
+      "Erros",
+      "Revisão",
+      "Novo diagnóstico"
+    ],
+    "closing1": "O ciclo continua.",
+    "closing2": "Você configura uma vez. O algoritmo se adapta continuamente.",
+    "closing3": "Você não precisa enxergar o caminho inteiro. Só precisa dar o próximo passo."
+  },
+  "evolution": {
+    "title": "Veja sua evolução",
+    "subtitle": "Transforme sua preparação em dados.",
+    "items": [
+      {
+        "title": "Acompanhe seus resultados",
+        "body": "Percentual de acertos, questões respondidas, desempenho por disciplina e assunto."
+      },
+      {
+        "title": "Identifique suas lacunas",
+        "body": "Descubra onde você domina e onde precisa evoluir."
+      },
+      {
+        "title": "Meça seu progresso",
+        "body": "Compare seu desempenho ao longo da preparação."
+      }
+    ],
+    "closing": "Você estuda. Mede. Analisa. Ajusta. Evolui."
+  },
+  "time": {
+    "title": "Porque o seu tempo é valioso",
+    "items": [
+      "Trabalho.",
+      "Família.",
+      "Responsabilidades.",
+      "Cansaço.",
+      "Uma quantidade limitada de horas para estudar."
+    ],
+    "closing1": "Você não precisa estudar o dia inteiro.",
+    "closing2": "Precisa fazer cada momento de estudo valer a pena."
+  },
+  "better": {
+    "title": "Não é sobre estudar mais.",
+    "subtitle": "É sobre estudar melhor.",
+    "items": [
+      "Saber o que estudar.",
+      "Saber quando estudar.",
+      "Saber o que revisar.",
+      "Aprender com seus erros.",
+      "Adaptar sua preparação à sua evolução."
+    ],
+    "closing": "Estudar com propósito. Persistir com consistência. Evoluir todos os dias."
+  },
+  "worth": {
+    "title": "E quanto vale a sua aprovação?",
+    "intro": "Pare por alguns segundos e pense.",
+    "questions": [
+      "Quanto vale conquistar a carreira que você deseja?",
+      "Quanto vale ter mais segurança para planejar o futuro?",
+      "Quanto vale melhorar sua condição financeira?",
+      "Quanto vale proporcionar mais tranquilidade para você e sua família?"
+    ],
+    "closing1": "A aprovação pode mudar muita coisa.",
+    "closing2": "Mas tudo começa com uma decisão:",
+    "closing3": "Começar."
+  },
+  "faq": {
+    "title": "Ainda está com dúvidas? A gente responde.",
+    "items": [
+      {
+        "question": "Preciso saber montar meu próprio cronograma?",
+        "answer": "Não. Esqueça as planilhas complexas e a perda de tempo organizando matérias. O Algoritmo da Aprovação lê o seu edital e entrega exatamente o que você precisa estudar a cada dia, pronto para executar."
+      },
+      {
+        "question": "Preciso entender de técnicas de estudo, como curva do esquecimento ou revisões?",
+        "answer": "Não. A plataforma já foi construída sobre princípios da Neurociência e Ciência da Aprendizagem. O sistema agenda suas revisões, seleciona os materiais certos e direciona suas tarefas de forma automática."
+      },
+      {
+        "question": "Preciso cadastrar meu cartão de crédito para começar a usar?",
+        "answer": "Não. Você pode criar sua conta e dar os primeiros passos de graça, sem precisar inserir nenhum dado financeiro ou cartão de crédito no momento do cadastro."
+      },
+      {
+        "question": "A plataforma funciona para qualquer tipo de concurso?",
+        "answer": "Sim. O Algoritmo foi desenvolvido para adaptar a estratégia ao edital, à data da prova e à disponibilidade de tempo do aluno."
+      },
+      {
+        "question": "Posso cancelar minha assinatura a qualquer momento?",
+        "answer": "Sim, com total liberdade. Você tem controle absoluto sobre a sua assinatura e pode efetuar o cancelamento a qualquer momento, diretamente pela plataforma, sem burocracia ou letras miúdas."
+      }
+    ]
   }
 }

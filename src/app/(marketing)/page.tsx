@@ -10,6 +10,20 @@ import {
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import {
+  AudienceSection,
+  ComparisonSection,
+  CycleSection,
+  EvolutionSection,
+  FaqSection,
+  GameSection,
+  MaterialsSection,
+  PainsSection,
+  ScienceSection,
+  SystemSection,
+  TimeSection,
+  WorthSection,
+} from "@/components/marketing/copy-sections";
 import { StickyCta } from "@/components/marketing/sticky-cta";
 import { Button } from "@/components/ui/button";
 import { APP_DESCRIPTION, APP_TAGLINE } from "@/config/app";
@@ -369,6 +383,25 @@ export default async function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ==================================================================== *
+       * A COPY DE 04/09/2026
+       *
+       * A ordem é a do documento dela: dor, para quem é, comparativo, jogo,
+       * sistema, ciência, materiais, ciclo, evolução, tempo, quanto vale, FAQ.
+       * ==================================================================== */}
+      <PainsSection copy={LANDING.pains} />
+      <AudienceSection copy={LANDING.audience} />
+      <ComparisonSection copy={LANDING.comparison} />
+      <GameSection copy={LANDING.game} mission={LANDING.mission} />
+      <SystemSection copy={LANDING.system} />
+      <ScienceSection copy={LANDING.science} />
+      <MaterialsSection copy={LANDING.materials} />
+      <CycleSection copy={LANDING.cycle} />
+      <EvolutionSection copy={LANDING.evolution} />
+      <TimeSection copy={LANDING.time} better={LANDING.better} />
+      <WorthSection copy={LANDING.worth} cta={LANDING.closing.cta} />
+      <FaqSection copy={LANDING.faq} />
 
       {/* ==================================================================== *
        * ENCERRAMENTO — aqui, sim, centralizado

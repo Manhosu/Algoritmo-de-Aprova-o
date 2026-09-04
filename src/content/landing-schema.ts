@@ -109,6 +109,132 @@ export const landingSchema = z.object({
     }),
   }),
 
+  /* ======================================================================== *
+   * SEÇÕES DA COPY DE 04/09/2026
+   *
+   * A cliente escreveu uma copy completa e pediu para acomodá-la sem
+   * comprometer o layout. Cada bloco abaixo é uma seção dela, com o limite de
+   * caracteres medido no lugar onde a tela NÃO quebra linha.
+   *
+   * ⚠️ AS LISTAS TÊM TAMANHO FIXO, e isso é de propósito. A tabela comparativa
+   * tem duas colunas: uma linha a mais de um lado desalinha o par inteiro. As
+   * grades de cards têm largura calculada para a contagem declarada.
+   * ======================================================================== */
+
+  pains: z.object({
+    title: texto(80),
+    items: z.array(texto(120)).length(5, "são cinco marcações"),
+    closing1: texto(120),
+    closing2: texto(120),
+    closing3: texto(120),
+  }),
+
+  audience: z.object({
+    title: texto(80),
+    items: z
+      .array(z.object({ title: texto(60), body: texto(200) }))
+      .length(5, "são cinco perfis"),
+  }),
+
+  comparison: z.object({
+    title: texto(80),
+    chaosLabel: texto(60),
+    chaosNote: texto(40),
+    smartLabel: texto(60),
+    smartNote: texto(40),
+    /* Cada par é uma linha da tabela: o problema e a resposta. */
+    rows: z
+      .array(z.object({ chaos: texto(140), smart: texto(140) }))
+      .length(6, "são seis linhas"),
+    closing: texto(160),
+  }),
+
+  game: z.object({
+    title: texto(80),
+    /* As sete etiquetas cabem em duas fileiras no celular. */
+    badges: z.array(texto(24)).length(7, "são sete etiquetas"),
+    lines: z.array(texto(80)).length(5, "são cinco linhas"),
+  }),
+
+  mission: z.object({
+    title: texto(80),
+    subtitle: texto(160),
+    items: z.array(texto(120)).length(3, "são três itens"),
+    closing1: texto(160),
+    closing2: texto(160),
+  }),
+
+  system: z.object({
+    title: texto(80),
+    denials: z.array(texto(80)).length(4, "são quatro negações"),
+    closing1: texto(80),
+    closing2: texto(160),
+  }),
+
+  science: z.object({
+    title: texto(90),
+    intro: texto(400),
+    subtitle: texto(300),
+    items: z.array(texto(60)).length(8, "são oito princípios"),
+    closing: texto(120),
+  }),
+
+  materials: z.object({
+    title: texto(80),
+    subtitle: texto(220),
+    items: z
+      .array(z.object({ title: texto(40), body: texto(140) }))
+      .length(5, "são cinco tipos"),
+    closing: texto(120),
+  }),
+
+  cycle: z.object({
+    title: texto(80),
+    steps: z.array(texto(24)).length(9, "são nove etapas"),
+    closing1: texto(80),
+    closing2: texto(160),
+    closing3: texto(160),
+  }),
+
+  evolution: z.object({
+    title: texto(80),
+    subtitle: texto(120),
+    items: z
+      .array(z.object({ title: texto(60), body: texto(200) }))
+      .length(3, "são três itens"),
+    closing: texto(120),
+  }),
+
+  time: z.object({
+    title: texto(80),
+    items: z.array(texto(60)).length(5, "são cinco itens"),
+    closing1: texto(120),
+    closing2: texto(120),
+  }),
+
+  better: z.object({
+    title: texto(60),
+    subtitle: texto(60),
+    items: z.array(texto(80)).length(5, "são cinco itens"),
+    closing: texto(160),
+  }),
+
+  worth: z.object({
+    title: texto(80),
+    intro: texto(120),
+    questions: z.array(texto(120)).length(4, "são quatro perguntas"),
+    closing1: texto(120),
+    closing2: texto(120),
+    closing3: texto(40),
+  }),
+
+  faq: z.object({
+    title: texto(80),
+    items: z
+      .array(z.object({ question: texto(140), answer: texto(500) }))
+      .length(5, "são cinco perguntas"),
+  }),
+
   closing: z.object({
     title: texto(90),
     cta: texto(40),
