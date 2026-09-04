@@ -28,6 +28,7 @@ import {
 import { markFunnelStage } from "@/server/preparations/service";
 
 import { getActiveConfig, requireConfigId } from "./config";
+import { getSchedule } from "./schedule";
 
 /**
  * MOTOR 1 LIGADO AO BANCO.
@@ -125,13 +126,67 @@ export async function ensureDailyTask(input: {
     urgencyExponent: scheduleParams.value.urgencyAllocationExponent,
   });
 
+  const minutosDaPreparacao = budget.get(input.preparationId) ?? availableMinutes;
+
+  /**
+   * ⚠️ O ORÇAMENTO DE HOJE VEM DO CRONOGRAMA, e não da disponibilidade crua.
+   *
+   * Este era o segundo relato da cliente sobre o mesmo assunto: "na dashboard
+   * apareceram 6 tarefas para o dia, enquanto no cronograma não aparece nenhum
+   * assunto para hoje. Essa prova será em dezembro, então está com no máximo 2
+   * assuntos para cada dia".
+   *
+   * Ela estava certa, e a causa não era ordem — essa eu já tinha corrigido.
+   * Era RITMO. O Cronograma calcula `necessário ÷ disponível até a prova` e
+   * distribui o conteúdo por todo o período, para o plano terminar na data da
+   * prova. A Tarefa do Dia não conhecia esse número: ela enchia os minutos
+   * livres do dia até o teto de blocos. Com prova em dezembro, um dizia 1
+   * assunto e o outro dizia 6.
+   *
+   * Agora a Tarefa do Dia recebe os minutos que o Cronograma reservou para
+   * HOJE. Os dois passam a contar a mesma história por construção, e não por
+   * coincidência de fórmulas parecidas mantidas em dois lugares.
+   *
+   * ⚠️ FALHA PARA O COMPORTAMENTO ANTIGO se a projeção não vier.
+   *
+   * Sem data de prova, ou com preparação recém-criada, `getSchedule` pode
+   * devolver nulo. Aí o certo é oferecer o dia inteiro: um aluno sem tarefa
+   * nenhuma é pior que um aluno com tarefa generosa.
+   */
+  const projecao = await getSchedule({
+    userId: input.userId,
+    preparationId: input.preparationId,
+    now,
+  });
+
+  const hojeNoCronograma = projecao?.weeks[0]?.days.find((dia) => dia.date === today);
+
+  const minutosDeEstudo =
+    hojeNoCronograma !== undefined
+      ? hojeNoCronograma.topics.reduce((soma, t) => soma + t.minutes, 0)
+      : minutosDaPreparacao;
+
+  /*
+    Dia que o Cronograma deixou vazio NÃO gera Tarefa do Dia. É a folga que o
+    ritmo produziu de propósito, e preencher com "só um assunto" desfaria a
+    distribuição que a tela ao lado promete.
+  */
+  if (hojeNoCronograma !== undefined && minutosDeEstudo <= 0) {
+    return { status: "skipped", reason: "no_topics" };
+  }
+
   const plan = generateDailyTask({
     now,
     timeZone: APP_TIMEZONE,
     today,
     examDate: preparation.examDate as CivilDate | null,
     examDateIsEstimated: preparation.examDateIsEstimated,
-    availableMinutes: budget.get(input.preparationId) ?? availableMinutes,
+    /*
+      Os minutos do cronograma já são LÍQUIDOS: `buildWeeks` desconta a reserva
+      de revisão antes de distribuir. Somá-la de volta aqui faria o desconto
+      acontecer duas vezes e o dia encolher sem motivo.
+    */
+    availableMinutes: minutosDeEstudo + reservedReviewMinutes,
     reservedReviewMinutes,
     topics,
     weights: weights.value,

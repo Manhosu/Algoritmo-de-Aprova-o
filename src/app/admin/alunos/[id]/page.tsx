@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 
 import { MetricGrid } from "@/components/admin/funnel";
 import { StudentSchedule } from "@/components/admin/student-schedule";
+import { PlanOverrideForm } from "@/components/admin/plan-override-form";
+import { listAssignablePlans } from "@/server/admin/plan-override";
 import { requireAdmin } from "@/server/auth/guards";
 import { getStudentProfile } from "@/server/admin/student-detail";
 import { getSchedule } from "@/server/engine/schedule";
@@ -66,6 +68,8 @@ export default async function AlunoPage({
     cadastrado tem ficha e nada mais — e a tela precisa dizer isso em vez de
     mostrar zeros que parecem desempenho ruim.
   */
+  const planosDisponiveis = await listAssignablePlans();
+
   const [home, cronograma] = perfil.preparation
     ? await Promise.all([
         getHomeData({ userId: perfil.id, preparationId: perfil.preparation.id }),
@@ -120,6 +124,20 @@ export default async function AlunoPage({
             }
           />
         </dl>
+
+        {/*
+          A troca manual de plano (pedido da cliente em 04/09/2026: liberar
+          Premium para a irmã sem cobrança). Fica no bloco do Cadastro porque é
+          onde o plano atual aparece, e nasce fechada: é a única ação do painel
+          que concede acesso pago de graça.
+        */}
+        <div className="mt-4 border-t border-border pt-4">
+          <PlanOverrideForm
+            userId={perfil.id}
+            currentPlanName={perfil.planName}
+            plans={planosDisponiveis}
+          />
+        </div>
       </section>
 
       {!home ? (
