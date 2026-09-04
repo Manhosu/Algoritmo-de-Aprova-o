@@ -56,6 +56,51 @@ export default async function TrilhasPage() {
         </p>
       </header>
 
+      {/*
+        ⚠️ A LEGENDA DO CICLO (pergunta da cliente em 02/09/2026).
+
+        Ela perguntou: "quando um assunto é estudado, ele sai do cronograma?" e
+        "alguns sinais parecem considerar informações que deixam de fazer
+        sentido depois que o assunto já foi estudado".
+
+        A resposta estava correta no código e em lugar nenhum na tela. Os quatro
+        estados já apareciam ao lado de cada assunto; o que faltava era dizer o
+        que move um para o próximo — e por que estudar uma vez não basta para o
+        assunto sair da fila.
+      */}
+      <details className="rounded-xl border border-border bg-card">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-foreground">
+          Como um assunto avança até sair do cronograma
+        </summary>
+
+        <ol className="flex flex-col gap-2 border-t border-border px-4 py-3 text-sm">
+          <li className="text-pretty text-muted-foreground">
+            <strong className="text-foreground">Não iniciado</strong> — ainda não
+            entrou em nenhuma Tarefa do Dia.
+          </li>
+          <li className="text-pretty text-muted-foreground">
+            <strong className="text-warning">Em andamento</strong> — você estudou
+            pelo menos uma vez. O assunto continua no cronograma: uma leitura não
+            é aprendizado, e é a revisão espaçada que fixa.
+          </li>
+          <li className="text-pretty text-muted-foreground">
+            <strong className="text-primary">Estudado</strong> — você já fez ao
+            menos uma revisão dele.
+          </li>
+          <li className="text-pretty text-muted-foreground">
+            <strong className="text-success">Dominado</strong> — três revisões
+            concluídas, ou prova de domínio aprovada. Só aqui o assunto sai da
+            fila e deixa de aparecer no cronograma.
+          </li>
+        </ol>
+
+        <p className="border-t border-border px-4 py-3 text-xs text-pretty text-muted-foreground">
+          Enquanto isso, o algoritmo continua reordenando: quanto mais recente o
+          seu contato com um assunto, mais para trás ele vai. Ele não some, mas
+          para de disputar as primeiras posições do dia.
+        </p>
+      </details>
+
       {trilhas.length === 0 ? (
         <EmptyState
           title="Nenhuma disciplina no plano"
