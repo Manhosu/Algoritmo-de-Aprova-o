@@ -71,7 +71,9 @@ export default async function ProvaDeDominioPage({
       ) : (
         <div className="flex flex-col items-start gap-4 rounded-xl border border-border bg-card p-6">
           <h1 className="text-lg font-bold text-foreground">
-            Ainda não dá para provar este assunto
+            {prova.reason === "nao_e_seu"
+              ? "Assunto não encontrado"
+              : "Ainda não dá para provar este assunto"}
           </h1>
 
           {/*
@@ -91,10 +93,17 @@ export default async function ProvaDeDominioPage({
                 } deste assunto, e a prova precisa de pelo menos ${MASTERY_MIN_QUESTIONS}. Uma amostra menor mediria sorte, não domínio.`}
           </p>
 
-          <p className="text-sm text-pretty text-muted-foreground">
-            Estamos produzindo mais questões. Assim que houver volume, o botão
-            aparece sozinho na trilha.
-          </p>
+          {/*
+            A frase de apoio só cabe quando o problema é acervo. Para um assunto
+            que não é do aluno, prometer "mais questões em breve" seria responder
+            outra pergunta.
+          */}
+          {prova.reason !== "nao_e_seu" ? (
+            <p className="text-sm text-pretty text-muted-foreground">
+              Estamos produzindo mais questões. Assim que houver volume, o botão
+              aparece sozinho na trilha.
+            </p>
+          ) : null}
 
           <Button asChild variant="outline">
             <Link href="/trilhas">Voltar às trilhas</Link>
