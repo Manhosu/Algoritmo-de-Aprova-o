@@ -33,7 +33,8 @@
     "measure:answer": "tsx --conditions=react-server scripts/measure-answer.ts",
     "cost": "tsx --conditions=react-server scripts/estimate-cost.ts",
     "compare:models": "tsx --conditions=react-server scripts/compare-models.ts",
-    "build:icons": "tsx scripts/build-icons.ts"
+    "build:icons": "tsx scripts/build-icons.ts",
+    "verify:billing": "tsx --conditions=react-server scripts/verify-billing.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
