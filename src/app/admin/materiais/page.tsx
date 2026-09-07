@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { MaterialImportForm } from "@/components/admin/material-import-form";
 import { requireAdmin } from "@/server/auth/guards";
+import { MATERIAL_SHEET_COLUMNS } from "@/server/import/materials";
 import { materialsBySubject } from "@/server/admin/catalog-stats";
 import { listMaterialsForAdmin } from "@/server/admin/material-admin";
 
@@ -85,6 +87,24 @@ export default async function MateriaisPage({
           Cadastrar material
         </Link>
       </header>
+
+      {/*
+        A importação em lote fica ANTES da lista. O cadastro item a item existe
+        logo acima, no botão do cabeçalho; quem chega aqui com uma planilha de
+        duzentas linhas precisa achar isto sem rolar.
+      */}
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+        <div>
+          <h2 className="font-semibold text-foreground">Importar planilha</h2>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            Cada linha é conferida antes de gravar. Reenviar a mesma planilha
+            atualiza os materiais em vez de duplicar, então dá para corrigir um
+            endereço e mandar de novo.
+          </p>
+        </div>
+
+        <MaterialImportForm colunas={MATERIAL_SHEET_COLUMNS} />
+      </section>
 
       {query.aviso === "arquivado" ? (
         <p
