@@ -337,6 +337,125 @@ async function main() {
     res = await fetch(`${BASE}/cronograma`, { headers: { cookie } });
     record("Tela de cronograma renderiza", res.ok, `${res.status}`);
 
+    /* ====================================================================== *
+     * O CHECKLIST DE ACEITE DO MARCO 2, conferido no HTML de produção.
+     *
+     * ⚠️ ESTES ITENS SÓ EXISTIAM NA MINHA MEMÓRIA até 07/09/2026.
+     *
+     * O verify-engine cobre as REGRAS e o smoke cobria as telas responderem.
+     * Faltava a ponte: os itens do aceite que são sobre o que aparece na tela.
+     * Dizer "está pronto" sobre algo que ninguém conferiu desde que foi escrito
+     * é como o produto passa a divergir do que foi combinado, um item por vez.
+     * ====================================================================== */
+
+    res = await fetch(`${BASE}/inicio`, { headers: { cookie } });
+    html = await res.text();
+
+    /*
+      A contagem regressiva só aparece com data de prova, e este aluno não tem.
+      Dar a data aqui é o que torna o item verificável de verdade — sem ela, a
+      verificação passaria a medir a ausência do recurso.
+    */
+    await sql`
+      update preparations set exam_date = current_date + 30 where id = ${preparationId}
+    `;
+
+    res = await fetch(`${BASE}/inicio`, { headers: { cookie } });
+    html = await res.text();
+
+    record(
+      "Aceite 1 · Home traz o nome do aluno e a contagem para a prova",
+      html.includes(NOME_DE_TESTE.split(" ")[0]) && /dias? para a prova/.test(html),
+      "nome + contagem",
+    );
+
+    record(
+      "Aceite 2 · As quatro métricas estão na Home",
+      ["HORÁRIO DE OURO", "COBERTURA DO EDITAL", "LACUNAS", "HORAS ESTUDADAS"].every(
+        (rotulo) => html.toUpperCase().includes(rotulo),
+      ),
+      "horário de ouro, cobertura, lacunas, horas",
+    );
+
+    record(
+      "Aceite 3 · O card diz Índice de Preparação, nunca de Aprovação",
+      html.toUpperCase().includes("ÍNDICE DE PREPARAÇÃO") &&
+        !html.toUpperCase().includes("ÍNDICE DE APROVAÇÃO"),
+      "rótulo correto",
+    );
+
+    record(
+      "Aceite 5 · A barra inferior é fixa",
+      /class="[^"]*fixed[^"]*inset-x-0[^"]*bottom-0/.test(html),
+      "fixed inset-x-0 bottom-0",
+    );
+
+    /*
+      ⚠️ O CONTEÚDO DO MENU DO AVATAR NÃO ESTÁ NO HTML DO SERVIDOR.
+
+      O menu é do Radix e só monta ao abrir, então procurar "Meu Perfil" na
+      resposta seria procurar algo que nunca vai estar lá — e a verificação
+      falharia para sempre com o produto certo.
+      
+      O que dá para provar por HTTP é o que importa: os quatro destinos do menu
+      existem e abrem. Um item de menu que leva a 404 é o defeito real; o menu
+      fechado não é.
+    */
+    for (const [rota, item] of [
+      ["/perfil", "Meu Perfil"],
+      ["/configuracoes", "Configurações"],
+      ["/suporte", "Feedback & Suporte"],
+      ["/ajuda", "Central de Ajuda"],
+    ] as const) {
+      res = await fetch(`${BASE}${rota}`, { headers: { cookie } });
+      record(`Aceite 6 · "${item}" do menu abre`, res.ok, `${rota} — ${res.status}`);
+    }
+
+    /*
+      O seletor de tema também vive dentro do menu. O que chega ao HTML é o
+      atributo que o `next-themes` escreve na raiz, e é ele que prova que os
+      dois temas estão montados.
+    */
+    res = await fetch(`${BASE}/inicio`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Aceite 7 · O tema está montado na página",
+      /class="[^"]*(dark|light)/.test(html) || html.includes("color-scheme"),
+      "next-themes na raiz",
+    );
+
+    /*
+      `Nível {numero}` sai do React com o número em nó de texto separado, então
+      um regex de "NÍVEL 1" no HTML cru não casa nunca. As duas palavras juntas
+      são o que prova o card.
+    */
+    record(
+      "Aceite 8 · O nível do aluno aparece com nome e faixa de XP",
+      /Nível/.test(html) && /XP/.test(html) && /Iniciante|Constante|Competitivo|Estrategista/.test(html),
+      "nível, nome da faixa e XP",
+    );
+
+    /*
+      Item 4: o gráfico não plota ponto em dia sem questões. Este aluno não
+      respondeu nada, então a série precisa estar VAZIA — e a tela precisa
+      dizer isso em vez de desenhar uma linha reta no zero, que seria uma
+      afirmação falsa sobre o desempenho dele.
+    */
+    record(
+      "Aceite 4 · Sem questões respondidas, a evolução não inventa pontos",
+      html.includes("Com alguns dias de prática"),
+      "estado vazio da evolução",
+    );
+
+    res = await fetch(`${BASE}/estudos`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Aceite 12 · A biblioteca mostra o acervo inteiro, não só o edital",
+      res.ok && !html.includes("Nenhum material"),
+      `${res.status}`,
+    );
+
+
     /*
       "Entenda o Algoritmo" abre mesmo SEM tarefa gerada.
 
@@ -565,6 +684,33 @@ async function main() {
         `${res.status}`,
       );
     }
+
+    /*
+      Os dois itens do aceite que vivem no painel. Ficam aqui porque a sessão só
+      vira de admin acima — mais cedo, as duas rotas devolveriam 307.
+    */
+    res = await fetch(`${BASE}/admin/algoritmo`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Aceite 10 · O painel edita valores de XP e pesos do algoritmo",
+      res.ok && /pesos/i.test(html) && /XP por atividade/i.test(html),
+      `${res.status}`,
+    );
+
+    res = await fetch(`${BASE}/admin`, { headers: { cookie } });
+    html = await res.text();
+    /*
+      A palavra "funil" está nos comentários do código, não na tela. O que a
+      cliente vê são as quatro etapas dele, e são elas que precisam estar lá.
+    */
+    record(
+      "Aceite 17 · As métricas do funil aparecem no painel",
+      res.ok &&
+        ["Ativação", "Retenção", "Monetização", "Cadastros"].every((etapa) =>
+          html.includes(etapa),
+        ),
+      `${res.status}`,
+    );
 
     await sql`update users set role = 'student' where id = ${userId}`;
 
