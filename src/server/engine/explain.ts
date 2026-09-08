@@ -4,7 +4,11 @@ import { and, desc, eq } from "drizzle-orm";
 
 import type { SignalName } from "@/modules/daily-task/signals";
 import type { CivilDate } from "@/modules/shared/dates";
-import type { DailyTaskWeights } from "@/modules/engine-config/schemas";
+import {
+  dailyTaskWeightsSchema,
+  DEFAULT_DAILY_TASK_WEIGHTS,
+  type DailyTaskWeights,
+} from "@/modules/engine-config/schemas";
 import { db } from "@/server/db";
 import {
   dailyTaskItems,
@@ -115,7 +119,21 @@ export async function explainDailyTask(input: {
 
   if (!config) return null;
 
-  const weights = config.payload as DailyTaskWeights;
+  /*
+    ⚠️ PASSA PELO SCHEMA, e não por um cast.
+
+    As versões de `engine_configs` gravadas antes de 08/09/2026 têm a chave
+    `performance`, que o schema traduz para `hardReviews`. Com o cast cru, a
+    tela mostraria "undefined%" ao lado do primeiro sinal — e o erro apareceria
+    só para quem abrisse a explicação de uma tarefa antiga.
+
+    Se um dia o payload for irrecuperável, os padrões entram no lugar: esta tela
+    explica o passado, e explicar com o peso errado é melhor que não abrir.
+  */
+  const analise = dailyTaskWeightsSchema.safeParse(config.payload);
+  const weights: DailyTaskWeights = analise.success
+    ? analise.data
+    : DEFAULT_DAILY_TASK_WEIGHTS;
 
   const topics = linhas
     .map((linha) => ({
@@ -125,8 +143,13 @@ export async function explainDailyTask(input: {
       score: linha.score,
       rank: 0,
       reason: linha.reason,
-      signals: linha.breakdown.signals,
-      contributions: linha.breakdown.contributions,
+      /*
+        O mesmo problema dos pesos, agora no JSONB de cada item: as linhas
+        criadas antes da troca guardam `performance`. Traduzir na leitura mantém
+        o registro histórico intacto — reescrevê-lo seria mudar o passado.
+      */
+      signals: comNomeNovo(linha.breakdown.signals),
+      contributions: comNomeNovo(linha.breakdown.contributions),
     }))
     .sort((a, b) => b.score - a.score)
     .map((topico, indice) => ({ ...topico, rank: indice + 1 }));
@@ -175,4 +198,17 @@ export async function weightsChangedAt(): Promise<Date | null> {
     .limit(1);
 
   return linha?.activatedAt ?? null;
+}
+
+/**
+ * Traduz `performance` para `hardReviews` num breakdown gravado antes de
+ * 08/09/2026. Ver a nota em `hardReviewsSignal`.
+ */
+function comNomeNovo(bruto: Record<string, number>): Record<SignalName, number> {
+  if ("hardReviews" in bruto || !("performance" in bruto)) {
+    return bruto as Record<SignalName, number>;
+  }
+
+  const { performance, ...resto } = bruto;
+  return { ...resto, hardReviews: performance } as Record<SignalName, number>;
 }

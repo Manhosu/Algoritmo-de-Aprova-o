@@ -469,7 +469,8 @@ async function main() {
     record(
       "Entenda o Algoritmo abre e lista os cinco sinais",
       res.ok &&
-        html.includes("Seu desempenho") &&
+        /* "Seu desempenho" saiu em 08/09/2026 — ver a nota em `hardReviewsSignal`. */
+        html.includes("Revisões difíceis") &&
         html.includes("Peso no edital") &&
         html.includes("Tempo até a prova") &&
         html.includes("Suas lacunas"),
