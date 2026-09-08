@@ -276,3 +276,63 @@ export function toPaymentMethod(
       return "other";
   }
 }
+
+/* ========================================================================== *
+ * QUEM SOMOS NÓS NO MERCADO PAGO
+ * ========================================================================== */
+
+export type MercadoPagoAccount = {
+  /** Apelido da conta. Conta de teste vem como "TESTUSER…". */
+  nickname: string;
+  /** `true` quando a conta é de TESTE — é o que decide se cobra de verdade. */
+  isTestAccount: boolean;
+  email: string | null;
+};
+
+/**
+ * Com qual conta do Mercado Pago este servidor está falando.
+ *
+ * ⚠️ EXISTE POR CAUSA DE UM RELATO DA CLIENTE EM 08/09/2026.
+ *
+ * Ela clicou em "Assinar Premium" e recebeu "o pagamento está em modo de teste".
+ * A mensagem estava certa — o Mercado Pago recusa quando pagador e recebedor não
+ * são ambos reais ou ambos de teste —, mas ninguém tinha como conferir QUAL
+ * credencial o servidor estava usando sem abrir o painel da Vercel e comparar
+ * dois textos de setenta caracteres que começam igual: os dois tokens do Mercado
+ * Pago, o de teste e o de produção, começam com `APP_USR-`.
+ *
+ * A conta responde isso em uma chamada, e ela é a única fonte que não erra: não
+ * importa o que se acha que foi configurado, é com esta conta que a cobrança
+ * acontece.
+ *
+ * Devolve `null` quando não há credencial ou o Mercado Pago não responde. A tela
+ * trata o desconhecido como desconhecido — dizer "produção" por falta de
+ * resposta seria a mentira mais cara possível aqui.
+ */
+export async function getMercadoPagoAccount(): Promise<MercadoPagoAccount | null> {
+  if (!isMercadoPagoConfigured()) return null;
+
+  try {
+    const conta = await chamar<{
+      nickname?: string;
+      email?: string;
+      tags?: string[];
+    }>("/users/me");
+
+    return {
+      nickname: conta.nickname ?? "(sem apelido)",
+      /*
+        A etiqueta `test_user` é do próprio Mercado Pago e é a resposta dele,
+        não uma dedução nossa pelo formato do token. O apelido entra como
+        segunda pista porque conta de teste sempre nasce "TESTUSER…".
+      */
+      isTestAccount:
+        (conta.tags ?? []).includes("test_user") ||
+        (conta.nickname ?? "").startsWith("TESTUSER"),
+      email: conta.email ?? null,
+    };
+  } catch (erro) {
+    console.error("[mercadopago] falha ao identificar a conta", erro);
+    return null;
+  }
+}

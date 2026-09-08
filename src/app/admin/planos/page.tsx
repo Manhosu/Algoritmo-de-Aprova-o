@@ -2,6 +2,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 
 import { formatCents, getFinanceSummary } from "@/server/admin/finance";
+import { getMercadoPagoAccount } from "@/server/billing/mercadopago";
 import { requireAdmin } from "@/server/auth/guards";
 import { db } from "@/server/db";
 import {
@@ -57,8 +58,9 @@ const ROTULO_PERIODO: Record<string, string> = {
 export default async function AdminPlanosPage() {
   await requireAdmin();
 
-  const [financeiro, linhas, precos, acessos] = await Promise.all([
+  const [financeiro, contaMp, linhas, precos, acessos] = await Promise.all([
     getFinanceSummary(),
+    getMercadoPagoAccount(),
     db
       .select({
         id: plans.id,
@@ -118,6 +120,21 @@ export default async function AdminPlanosPage() {
           O que cada plano libera e quantas pessoas estão em cada um.
         </p>
       </header>
+
+      {/*
+        ⚠️ COM QUAL CONTA DO MERCADO PAGO O SITE ESTÁ FALANDO.
+
+        Em 08/09/2026 a cliente clicou em "Assinar Premium" e recebeu "o
+        pagamento está em modo de teste". A mensagem estava certa, e ainda assim
+        ninguém tinha como conferir qual credencial o servidor usava sem abrir o
+        painel da Vercel e comparar dois textos de setenta caracteres que
+        começam igual — os dois tokens do Mercado Pago, o de teste e o de
+        produção, começam com `APP_USR-`.
+
+        Esta linha responde pela conta que de fato recebe a cobrança, e não pelo
+        que se acha que foi configurado.
+      */}
+      <ModoDePagamento conta={contaMp} />
 
       {/*
         ASSINATURAS E FINANCEIRO (pedido da cliente em 02/09/2026).
@@ -266,6 +283,54 @@ function ilimitado(valor: number | null): string {
 }
 
 /** Um número do painel financeiro, com a explicação do que ele mede. */
+/**
+ * O aviso de qual conta do Mercado Pago está no ar.
+ *
+ * ⚠️ TRÊS ESTADOS, e o terceiro é o que evita a mentira mais cara.
+ *
+ * Conta de teste, conta de produção, e DESCONHECIDA — quando não há credencial
+ * ou o Mercado Pago não respondeu. Tratar o desconhecido como produção faria a
+ * tela dizer "está cobrando de verdade" para um site que não cobra nada.
+ */
+function ModoDePagamento({
+  conta,
+}: {
+  conta: { nickname: string; isTestAccount: boolean; email: string | null } | null;
+}) {
+  if (conta === null) {
+    return (
+      <p className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-pretty text-foreground">
+        <strong>Pagamento não configurado.</strong> Não há credencial do Mercado
+        Pago no servidor, ou ele não respondeu. Ninguém consegue assinar enquanto
+        isso.
+      </p>
+    );
+  }
+
+  if (conta.isTestAccount) {
+    return (
+      <div className="rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-pretty text-foreground">
+        <p>
+          <strong>Pagamento em modo de TESTE.</strong> Nenhuma cobrança é real e
+          só uma conta de teste do Mercado Pago consegue assinar — é por isso que
+          o checkout recusa uma conta comum.
+        </p>
+        <p className="mt-1 text-muted-foreground">
+          Conta em uso: {conta.nickname}. Para cobrar de verdade, troque
+          MERCADOPAGO_ACCESS_TOKEN pela credencial de produção.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <p className="rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-sm text-pretty text-foreground">
+      <strong>Pagamento em PRODUÇÃO.</strong> As cobranças são reais, na conta{" "}
+      {conta.nickname}.
+    </p>
+  );
+}
+
 function Indicador({
   rotulo,
   valor,
