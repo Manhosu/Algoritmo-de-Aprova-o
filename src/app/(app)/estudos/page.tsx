@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { FORMATOS, LibraryFilterMenus } from "@/components/content/library-filters";
+import { LibraryFilterMenus } from "@/components/content/library-filters";
 import { MaterialGrid } from "@/components/content/material-grid";
+import { LIBRARY_FORMATS } from "@/config/library-formats";
 import { getStudentContext } from "@/server/auth/current-user";
 import { requireUser } from "@/server/auth/guards";
 import { getLibrary, type LibraryFilters } from "@/server/content/library";
@@ -116,7 +117,7 @@ export default async function EstudosPage({ searchParams }: Params) {
           subjects={biblioteca.subjects}
           hrefFor={{
             ...Object.fromEntries(
-              FORMATOS.map((formato) => [
+              LIBRARY_FORMATS.map((formato) => [
                 `tipo:${formato.valor ?? ""}`,
                 comFiltro({ tipo: formato.valor }),
               ]),

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
+import { LIBRARY_FORMATS } from "@/config/library-formats";
 import { cn } from "@/lib/utils";
 
 /**
@@ -34,24 +35,6 @@ export type LibraryFilterMenusProps = {
   /** Monta a URL preservando os outros filtros. Vem da página. */
   hrefFor: Record<string, string>;
 };
-
-/**
- * Os formatos, do jeito que o aluno chama.
- *
- * ⚠️ ÁUDIO E PDF ENTRARAM AGORA. Os dois já existiam no cadastro e no player;
- * só a biblioteca não os listava, então material de áudio publicado ficava
- * alcançável apenas por "Tudo" — e invisível para quem filtrasse por qualquer
- * formato.
- */
-export const FORMATOS: Array<{ valor: string | null; rotulo: string }> = [
-  { valor: null, rotulo: "Todos os formatos" },
-  { valor: "mind_map", rotulo: "Mapas mentais" },
-  { valor: "flashcard_deck", rotulo: "Flashcards" },
-  { valor: "study_text", rotulo: "Resumos" },
-  { valor: "video", rotulo: "Videoaulas" },
-  { valor: "audio", rotulo: "Áudios" },
-  { valor: "pdf", rotulo: "PDFs" },
-];
 
 /*
  * ⚠️ `[&>option]` NÃO É ENFEITE, e há um teste que o exige.
@@ -92,7 +75,7 @@ export function LibraryFilterMenus({ type, subjectId, subjects, hrefFor }: Libra
           onChange={(evento) => ir("tipo", evento.target.value)}
           className={CLASSE_MENU}
         >
-          {FORMATOS.map((formato) => (
+          {LIBRARY_FORMATS.map((formato) => (
             <option key={formato.rotulo} value={formato.valor ?? ""}>
               {formato.rotulo}
             </option>
