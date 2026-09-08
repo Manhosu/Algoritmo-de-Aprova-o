@@ -469,13 +469,50 @@ async function main() {
     );
 
     /* --- 13. o motor não oferece prática sem acervo ------------------------ */
-    const semAcervo =
-      missions?.blocks.filter((block) => block.practice === null).length ?? 0;
+
+    /*
+      ⚠️ A VERIFICAÇÃO PASSOU A OLHAR O BANCO, e não a composição do dia.
+
+      Ela exigia que houvesse pelo menos um bloco SEM prática, o que só
+      acontece quando um assunto sem questões cai entre os do dia. Depois que a
+      Tarefa do Dia passou a respeitar o ritmo do Cronograma, o dia encolheu e
+      esse assunto às vezes ficava de fora: a verificação falhava sem nada estar
+      errado.
+
+      Verificação intermitente é pior que verificação quebrada — ela ensina a
+      ignorar o vermelho. A propriedade real não é "existe um bloco só de
+      estudo", é "nenhum bloco oferece prática de um assunto sem questão". Essa
+      dá para afirmar sobre os blocos que existirem, quantos forem.
+    */
+    /*
+      Os itens de prática saem da tabela, e não do bloco: `MissionBlock` guarda
+      só o id do item, e é `daily_task_items` que sabe de qual assunto ele é.
+    */
+    const itensDePratica = await db
+      .select({
+        planTopicId: schema.dailyTaskItems.planTopicId,
+        questoes: sql<number>`(
+          select count(*)::int from ${schema.questions} q
+           join ${schema.studyPlanTopics} t on t.canonical_topic_id = q.canonical_topic_id
+          where t.id = ${schema.dailyTaskItems.planTopicId}
+            and q.status = 'published'
+            and q.deleted_at is null
+        )`,
+      })
+      .from(schema.dailyTaskItems)
+      .where(
+        and(
+          eq(schema.dailyTaskItems.preparationId, preparationId),
+          eq(schema.dailyTaskItems.kind, "questions"),
+        ),
+      );
+
+    const praticaSemAcervo = itensDePratica.filter((i) => Number(i.questoes) === 0);
+
     check(
-      "Assunto sem questão NÃO ganha item de prática vazio",
-      // Direito Administrativo não tem questões no acervo semeado.
-      semAcervo > 0,
-      `${semAcervo} bloco(s) só de estudo`,
+      "Nenhum bloco oferece prática de assunto sem questão no acervo",
+      praticaSemAcervo.length === 0,
+      `${itensDePratica.length} item(ns) de prática, ${praticaSemAcervo.length} sem acervo`,
     );
 
     /* --- 14. responder questão ------------------------------------------- */
