@@ -164,6 +164,8 @@ export type MaterialInput = {
   externalUrl: string | null;
   /** Caminho no acervo, quando a cliente enviou o arquivo em vez de um link. */
   storagePath?: string | null;
+  /** Medido no arquivo já gravado, não no que o navegador declarou. */
+  fileSizeBytes?: number | null;
 };
 
 export type SaveMaterialResult =
@@ -243,6 +245,8 @@ export async function saveMaterial(input: MaterialInput): Promise<SaveMaterialRe
     canonicalTopicId: input.canonicalTopicId,
     externalUrl: url,
     storagePath: arquivo,
+    /* Sem arquivo não há tamanho: um número velho apontando para nada engana. */
+    fileSizeBytes: arquivo ? (input.fileSizeBytes ?? null) : null,
     /*
       `published_at` marca a PRIMEIRA publicação e não é reescrito depois: é a
       data que ordena "o que chegou de novo" na biblioteca. Reescrevê-la a cada

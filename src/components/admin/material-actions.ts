@@ -46,6 +46,7 @@ export async function saveMaterialAction(
       controle só o inclui no formulário quando há um caminho de verdade.
     */
     storagePath: texto(formData, "storagePath") || null,
+    fileSizeBytes: Number(texto(formData, "storagePath:bytes")) || null,
   });
 
   if (!resultado.ok) return { ok: false, message: resultado.message };

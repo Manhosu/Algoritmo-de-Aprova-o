@@ -85,7 +85,7 @@ export async function prepareContentUpload(
 }
 
 export type ConfirmUploadResult =
-  | { ok: true; mimeType: ContentMimeType }
+  | { ok: true; mimeType: ContentMimeType; sizeBytes: number | null }
   | { ok: false; message: string };
 
 /**
@@ -100,10 +100,10 @@ export async function confirmContentUpload(input: {
   /** O que `prepareContentUpload` decidiu. A família dele precisa se confirmar. */
   expected: ContentMimeType;
 }): Promise<ConfirmUploadResult> {
-  let cabecalho: Uint8Array;
+  let sonda: Awaited<ReturnType<typeof probeContentFile>>;
 
   try {
-    cabecalho = await probeContentFile(input.storagePath);
+    sonda = await probeContentFile(input.storagePath);
   } catch (erro) {
     console.error("[uploads] falha ao conferir o arquivo", input.storagePath, erro);
     return {
@@ -112,7 +112,7 @@ export async function confirmContentUpload(input: {
     };
   }
 
-  const media = identifyMedia(cabecalho);
+  const media = identifyMedia(sonda.header);
 
   if (!media || !ehTipoAceito(media.mimeType)) {
     await deleteContentFile(input.storagePath).catch(() => {});
@@ -142,7 +142,7 @@ export async function confirmContentUpload(input: {
     };
   }
 
-  return { ok: true, mimeType: media.mimeType };
+  return { ok: true, mimeType: media.mimeType, sizeBytes: sonda.sizeBytes };
 }
 
 function rotulo(mime: string): string {

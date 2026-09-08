@@ -251,10 +251,12 @@ export async function createContentUploadUrl(input: {
  * quatro quilobytes traz o cabeçalho do arquivo de volta e `identifyMedia`
  * decide o que ele é de verdade, pagando alguns kilobytes em vez do arquivo.
  */
-export async function probeContentFile(storagePath: string): Promise<Uint8Array> {
+export async function probeContentFile(
+  storagePath: string,
+): Promise<{ header: Uint8Array; sizeBytes: number | null }> {
   if (!isRemoteStorageConfigured()) {
     const inteiro = await getLocal(`${CONTENT_BUCKET}/${storagePath}`);
-    return inteiro.slice(0, 4096);
+    return { header: inteiro.slice(0, 4096), sizeBytes: inteiro.byteLength };
   }
 
   const response = await fetch(remoteUrl(storagePath, CONTENT_BUCKET), {
@@ -267,7 +269,18 @@ export async function probeContentFile(storagePath: string): Promise<Uint8Array>
     );
   }
 
-  return new Uint8Array(await response.arrayBuffer());
+  /*
+    O tamanho vem DE GRAÇA no cabeçalho da resposta parcial: `Content-Range` traz
+    "bytes 0-4095/11234567", e o número depois da barra é o arquivo inteiro. Uma
+    requisição HEAD só para descobrir isso seria uma ida a mais ao Supabase por
+    um dado que já chegou.
+  */
+  const total = response.headers.get("content-range")?.split("/")[1];
+
+  return {
+    header: new Uint8Array(await response.arrayBuffer()),
+    sizeBytes: total && /^\d+$/.test(total) ? Number(total) : null,
+  };
 }
 
 /**

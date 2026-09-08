@@ -46,7 +46,7 @@ export type FileUploadFieldProps = {
 type Estado =
   | { fase: "vazio" }
   | { fase: "enviando"; nome: string; percentual: number }
-  | { fase: "pronto"; nome: string; caminho: string }
+  | { fase: "pronto"; nome: string; caminho: string; bytes: number | null }
   | { fase: "erro"; mensagem: string };
 
 export function FileUploadField({
@@ -60,7 +60,7 @@ export function FileUploadField({
 }: FileUploadFieldProps) {
   const [estado, setEstado] = useState<Estado>(
     defaultValue
-      ? { fase: "pronto", nome: nomeDoCaminho(defaultValue), caminho: defaultValue }
+      ? { fase: "pronto", nome: nomeDoCaminho(defaultValue), caminho: defaultValue, bytes: null }
       : { fase: "vazio" },
   );
   const inputRef = useRef<HTMLInputElement>(null);
@@ -143,7 +143,14 @@ export function FileUploadField({
       return;
     }
 
-    setEstado({ fase: "pronto", nome: arquivo.name, caminho: autorizacao.storagePath });
+    setEstado({
+      fase: "pronto",
+      nome: arquivo.name,
+      caminho: autorizacao.storagePath,
+      /* O tamanho vem do SERVIDOR, medido no arquivo gravado — `arquivo.size` é
+         o que o navegador diz, e o que ele diz não prova o que subiu. */
+      bytes: conferido.sizeBytes,
+    });
 
     const tipoDeMaterial = tipoDeMaterialPara(conferido.mimeType);
     if (tipoDeMaterial) onTipoDetectado?.(tipoDeMaterial);
@@ -159,7 +166,12 @@ export function FileUploadField({
         apagaria o arquivo já cadastrado a cada salvamento de outro campo.
       */}
       {estado.fase === "pronto" ? (
-        <input type="hidden" name={name} value={estado.caminho} />
+        <>
+          <input type="hidden" name={name} value={estado.caminho} />
+          {estado.bytes !== null ? (
+            <input type="hidden" name={`${name}:bytes`} value={estado.bytes} />
+          ) : null}
+        </>
       ) : null}
 
       <input
