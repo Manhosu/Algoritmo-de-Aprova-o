@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Zap } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -25,7 +25,7 @@ import { isActive } from "./sidebar";
  *     Sem isso, o último bloco de qualquer tela fica escondido atrás da barra —
  *     e o aluno nunca descobre que existe algo ali.
  *
- * O "+" é o botão central elevado que inicia uma preparação (README 1.4).
+ * O botão central elevado abre o Mind-X, o feed de dicas em vídeo.
  */
 export function BottomNav() {
   const pathname = usePathname();
@@ -37,9 +37,7 @@ export function BottomNav() {
     <nav
       aria-label="Navegação rápida"
       className={cn(
-        // ⚠️ Sem `lg:hidden`: a cliente pediu a barra fixa também no
-        // desktop. O botão "+" de nova preparação vive aqui, e escondê-lo em
-        // tela grande obrigava a passar por Minhas preparações.
+        // ⚠️ Sem `lg:hidden`: a cliente pediu a barra fixa também no desktop.
         "fixed inset-x-0 bottom-0 z-40",
         "border-t border-border/60 bg-card/80 backdrop-blur-xl",
         "pb-safe",
@@ -50,10 +48,21 @@ export function BottomNav() {
           <NavCell key={item.href} item={item} active={isActive(pathname, item.href)} />
         ))}
 
+        {/*
+          ⚠️ O "+" LEVA AO MIND-X (pedido da cliente em 04/09/2026).
+
+          Palavras dela: "na área principal já temos um botão + que hoje serve
+          para subir edital e quase não é utilizado. Pensei em mudar".
+
+          Ela tem razão sobre o uso: criar preparação é uma ação que acontece
+          uma vez por concurso, e ocupava o lugar mais alcançável da tela. O
+          caminho de nova preparação continua em "Minhas preparações", que é
+          onde alguém procura por ele quando precisa.
+        */}
         <li className="relative -mt-8 flex w-16 justify-center">
           <Link
-            href="/preparacoes/nova"
-            aria-label="Criar nova preparação"
+            href="/mind-x"
+            aria-label="Abrir o Mind-X"
             className={cn(
               "flex size-14 items-center justify-center rounded-full",
               "border-2 border-primary bg-card text-primary",
@@ -62,7 +71,11 @@ export function BottomNav() {
               "focus-visible:ring-offset-background focus-visible:outline-none",
             )}
           >
-            <Plus className="size-7" aria-hidden />
+            {/*
+              O raio é do Mind-X, não do "adicionar". Manter o "+" apontando
+              para um feed de vídeo prometeria criar alguma coisa.
+            */}
+            <Zap className="size-7" aria-hidden />
           </Link>
         </li>
 
