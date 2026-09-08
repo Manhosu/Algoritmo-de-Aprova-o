@@ -91,7 +91,15 @@ export const SEED_SUBJECTS: SeedSubject[] = [
       },
       { name: "Atos administrativos", aliases: ["Ato administrativo", "Atos da Administração"] },
       { name: "Poderes administrativos", aliases: ["Poderes da Administração Pública"] },
-      { name: "Licitações e contratos", aliases: ["Lei 14.133/2021", "Licitação"] },
+      {
+        name: "Licitações e contratos",
+        aliases: [
+          "Lei 14.133/2021",
+          "Licitação",
+          "Modalidades de licitação",
+          "Dispensa e inexigibilidade",
+        ],
+      },
       { name: "Agentes públicos", aliases: ["Servidores públicos", "Regime jurídico"] },
       { name: "Improbidade administrativa", aliases: ["Lei 8.429/1992"] },
       { name: "Organização administrativa", aliases: ["Administração direta e indireta"] },
@@ -110,6 +118,26 @@ export const SEED_SUBJECTS: SeedSubject[] = [
           "Direitos fundamentais",
           "Constituição - Arts. 5º ao 17",
           "Dos direitos e deveres individuais e coletivos",
+          /*
+            ⚠️ OS REMÉDIOS CONSTITUCIONAIS SÃO COBRADOS PELO NOME, sempre.
+
+            Edital nenhum escreve "direitos e garantias fundamentais" na linha
+            do habeas corpus: escreve "habeas corpus". Sem estes sinônimos, cada
+            um deles caía na fila do painel para ser mapeado à mão, e o material
+            de vídeo da cliente — nomeado exatamente assim — ficava sem assunto.
+          */
+          "Remédios constitucionais",
+          "Habeas corpus",
+          "Habeas data",
+          "Mandado de segurança",
+          "Mandado de injunção",
+          "Ação popular",
+          "Liberdade de expressão",
+          "Liberdade de reunião",
+          "Liberdade de associação",
+          "Inviolabilidade do domicílio",
+          "Presunção de inocência",
+          "Direitos políticos",
         ],
       },
       { name: "Organização do Estado", aliases: ["Da organização do Estado"] },
@@ -139,7 +167,11 @@ export const SEED_SUBJECTS: SeedSubject[] = [
     icon: "calculator",
     aliases: ["Matemática Básica", "Noções de Matemática"],
     topics: [
-      { name: "Razão e proporção", aliases: ["Razões e proporções", "Regra de três"] },
+      {
+        name: "Razão e proporção",
+        /* "Regra de 3" com algarismo é como ela nomeia, e como muito edital escreve. */
+        aliases: ["Razões e proporções", "Regra de três", "Regra de 3"],
+      },
       { name: "Porcentagem" },
       { name: "Juros simples e compostos", aliases: ["Matemática financeira", "Juros"] },
       { name: "Conjuntos numéricos", aliases: ["Números e operações"] },

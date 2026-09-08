@@ -77,7 +77,14 @@ type Planned = {
   path: string;
   title: string;
   sortOrder: number;
-  mimeType: "image/png" | "image/jpeg" | "application/pdf";
+  /*
+    ⚠️ Sai de `identifyMedia`, não de uma lista repetida aqui.
+
+    Quando vídeo e áudio entraram no acervo, esta cópia da união ficou para
+    trás e o typecheck acusou. Amarrar ao tipo da origem faz o próximo formato
+    novo chegar sozinho.
+  */
+  mimeType: NonNullable<ReturnType<typeof identifyMedia>>["mimeType"];
   width: number | null;
   height: number | null;
   bytes: Uint8Array;
@@ -100,7 +107,7 @@ for (const path of files) {
   const media = identifyMedia(bytes);
 
   if (!media) {
-    skipped.push(`${basename(path)} — não é PNG, JPEG nem PDF`);
+    skipped.push(`${basename(path)} — formato não reconhecido pelos bytes`);
     continue;
   }
 

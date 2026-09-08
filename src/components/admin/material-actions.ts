@@ -40,6 +40,12 @@ export async function saveMaterialAction(
     canonicalSubjectId: texto(formData, "canonicalSubjectId") || null,
     canonicalTopicId: texto(formData, "canonicalTopicId") || null,
     externalUrl: texto(formData, "externalUrl") || null,
+    /*
+      O caminho vem do campo escondido que o controle de upload preenche depois
+      de gravar e conferir o arquivo. Campo vazio significa "sem arquivo", e o
+      controle só o inclui no formulário quando há um caminho de verdade.
+    */
+    storagePath: texto(formData, "storagePath") || null,
   });
 
   if (!resultado.ok) return { ok: false, message: resultado.message };

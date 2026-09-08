@@ -17,7 +17,14 @@ import "server-only";
  */
 
 export type MediaInfo = {
-  mimeType: "image/png" | "image/jpeg" | "application/pdf";
+  mimeType:
+    | "image/png"
+    | "image/jpeg"
+    | "application/pdf"
+    | "video/mp4"
+    | "video/webm"
+    | "audio/mpeg"
+    | "audio/mp4";
   width: number | null;
   height: number | null;
 };
@@ -36,7 +43,94 @@ export function identifyMedia(bytes: Uint8Array): MediaInfo | null {
     return { mimeType: "application/pdf", width: null, height: null };
   }
 
+  /*
+    ⚠️ VÍDEO E ÁUDIO TAMBÉM SÃO IDENTIFICADOS PELOS BYTES.
+
+    Os vídeos do Mind-X chegaram do Drive com nomes como "CF - Habeas
+    Corpus.mp4", e o nome pode vir sem extensão ou com a errada — foi o que
+    aconteceu com os mapas mentais. A dimensão fica nula: descobri-la exigiria
+    ler a caixa `moov`, e o player de vídeo não precisa dela como o visualizador
+    de imagem precisa.
+  */
+  if (isMp4(bytes)) {
+    /*
+      ⚠️ M4A É O MESMO CONTÊINER DO MP4, e a marca é o único jeito de separar.
+
+      Áudio do iPhone e do WhatsApp chega como `.m4a` com o mesmo `ftyp` de um
+      vídeo. Sem olhar a marca, todo áudio desses entraria no acervo como
+      videoaula e abriria num player de vídeo com a tela preta.
+    */
+    return {
+      mimeType: temMarcaDeAudio(bytes) ? "audio/mp4" : "video/mp4",
+      width: null,
+      height: null,
+    };
+  }
+
+  if (isWebm(bytes)) {
+    return { mimeType: "video/webm", width: null, height: null };
+  }
+
+  if (isMp3(bytes)) {
+    return { mimeType: "audio/mpeg", width: null, height: null };
+  }
+
   return null;
+}
+
+/**
+ * MP4 e derivados (MOV, M4A) trazem "ftyp" nos bytes 4 a 8.
+ *
+ * O tamanho da primeira caixa vem antes, então a assinatura não está no começo
+ * do arquivo — testar os primeiros bytes como se faz com PNG não funciona aqui.
+ */
+function isMp4(b: Uint8Array): boolean {
+  return (
+    b.length > 12 &&
+    b[4] === 0x66 && // f
+    b[5] === 0x74 && // t
+    b[6] === 0x79 && // y
+    b[7] === 0x70 //   p
+  );
+}
+
+/**
+ * A marca do contêiner, nos bytes 8 a 12, logo depois de "ftyp".
+ *
+ * "M4A ", "M4B " e "mp42" com faixa só de áudio são os que a Apple e o
+ * WhatsApp produzem. Vídeo traz "isom", "mp42", "avc1" ou "qt  ".
+ */
+function temMarcaDeAudio(b: Uint8Array): boolean {
+  if (b.length < 12) return false;
+
+  const marca = String.fromCharCode(b[8], b[9], b[10], b[11]).toLowerCase();
+  return marca === "m4a " || marca === "m4b " || marca === "m4p ";
+}
+
+/** WebM e Matroska começam com o cabeçalho EBML. */
+function isWebm(b: Uint8Array): boolean {
+  return (
+    b.length > 4 &&
+    b[0] === 0x1a &&
+    b[1] === 0x45 &&
+    b[2] === 0xdf &&
+    b[3] === 0xa3
+  );
+}
+
+/**
+ * MP3 com tag ID3 no começo, ou o quadro cru.
+ *
+ * `0xff` seguido de um byte com os três bits altos ligados é o sincronismo de
+ * quadro. Sem a tag ID3, é a única assinatura que o formato tem.
+ */
+function isMp3(b: Uint8Array): boolean {
+  if (b.length < 3) return false;
+
+  const temId3 = b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33; // I D 3
+  const temSync = b[0] === 0xff && (b[1] & 0xe0) === 0xe0;
+
+  return temId3 || temSync;
 }
 
 function isPng(b: Uint8Array): boolean {

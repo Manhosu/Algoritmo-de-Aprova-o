@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 
+import { FileUploadField } from "./file-upload-field";
 import {
   archiveMaterialAction,
   saveMaterialAction,
@@ -34,6 +35,7 @@ export type MaterialFormProps = {
     canonicalSubjectId: string | null;
     canonicalTopicId: string | null;
     externalUrl: string | null;
+    storagePath: string | null;
   } | null;
   subjects: Array<{ id: string; name: string }>;
   topics: Array<{ id: string; name: string; subjectId: string }>;
@@ -54,6 +56,15 @@ export function MaterialForm({ material, subjects, topics }: MaterialFormProps) 
   const [estado, dispatch] = useActionState(saveMaterialAction, INICIAL);
   const [salvando, startTransition] = useTransition();
   const [disciplinaId, setDisciplinaId] = useState(material?.canonicalSubjectId ?? "");
+  /*
+    ⚠️ O TIPO VIROU CAMPO CONTROLADO por causa do upload.
+
+    Quem sobe um MP4 com o seletor em "Resumo" cadastra uma videoaula que a tela
+    do aluno tenta abrir como link — o card abre uma aba em branco. O arquivo
+    sabe o que é; deixar o acerto por conta de quem cadastra é criar um erro
+    silencioso e frequente.
+  */
+  const [tipo, setTipo] = useState(material?.type ?? "study_text");
 
   /*
     ⚠️ A AÇÃO É CHAMADA DE DENTRO DO `onSubmit`, e não por `action={}`.
@@ -109,7 +120,8 @@ export function MaterialForm({ material, subjects, topics }: MaterialFormProps) 
             <span className="text-sm font-medium text-foreground">Tipo</span>
             <select
               name="type"
-              defaultValue={material?.type ?? "study_text"}
+              value={tipo}
+              onChange={(evento) => setTipo(evento.target.value)}
               className={CLASSE_SELECT}
             >
               {TIPOS.map(([valor, rotulo]) => (
@@ -178,11 +190,32 @@ export function MaterialForm({ material, subjects, topics }: MaterialFormProps) 
           </label>
         </div>
 
+        {/*
+          ⚠️ O UPLOAD VEM PRIMEIRO, e o endereço virou a segunda opção.
+
+          Era o contrário até 08/09/2026, e o campo de endereço não dava conta do
+          caso mais importante: link de compartilhamento do Google Drive devolve
+          uma PÁGINA, não o arquivo. Vídeo e áudio cadastrados assim nunca tocam.
+          Quem cadastra não tem como descobrir isso pelo formulário — só abrindo
+          a tela do aluno e vendo o player parado.
+        */}
+        <FileUploadField
+          name="storagePath"
+          label="Arquivo do material"
+          hint="Vídeo (MP4, WebM), áudio (MP3, M4A), imagem (PNG, JPG) ou PDF. O arquivo vai para a nossa área e o aluno abre dentro do site."
+          defaultValue={material?.storagePath ?? null}
+          onTipoDetectado={setTipo}
+        />
+
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-foreground">Endereço do material</span>
-          <span className="-mt-1 text-xs text-muted-foreground">
-            O link que abre quando o aluno clica no card. Google Drive, YouTube,
-            PDF hospedado. Precisa começar com https://
+          <span className="text-sm font-medium text-foreground">
+            Ou um endereço na internet
+          </span>
+          <span className="-mt-1 text-xs text-pretty text-muted-foreground">
+            Serve para link de YouTube ou página externa. Não serve para vídeo do
+            Google Drive: o link de compartilhamento abre a página do Drive, e o
+            player do aluno não consegue tocar isso. Nesse caso, use o envio de
+            arquivo acima.
           </span>
           <input
             name="externalUrl"

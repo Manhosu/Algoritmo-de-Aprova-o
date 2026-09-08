@@ -23,6 +23,8 @@
     "db:seed": "tsx src/server/db/seed/index.ts",
     "db:status": "tsx scripts/db-status.ts",
     "db:config": "tsx scripts/activate-engine-config.ts",
+    "catalog:sync": "tsx --conditions=react-server scripts/sync-catalog.ts",
+    "mindx:import": "tsx --conditions=react-server scripts/import-mindx.ts",
     "email:check": "tsx scripts/email-check.ts",
     "legal:publish": "tsx scripts/publish-legal.ts",
     "smoke": "tsx scripts/smoke-flow.ts",

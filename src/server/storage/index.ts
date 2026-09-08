@@ -1,6 +1,6 @@
 import "server-only";
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, normalize, resolve, sep } from "node:path";
 
 import { env } from "@/config/env";
@@ -113,8 +113,36 @@ export async function getEditalFile(storagePath: string): Promise<Uint8Array> {
  * ACERVO
  * ========================================================================== */
 
-/** Os tipos que o acervo aceita hoje. */
-export type ContentMimeType = "image/png" | "image/jpeg" | "application/pdf";
+/**
+ * Os tipos que o acervo aceita.
+ *
+ * ⚠️ VÍDEO E ÁUDIO ENTRARAM EM 08/09/2026, com o upload pelo painel.
+ *
+ * Antes o acervo só guardava imagem e PDF porque só mapa mental usava
+ * armazenamento; vídeo e áudio viviam de link externo. A cliente tentou
+ * cadastrar os vídeos do Mind-X com o endereço do Google Drive e não funcionou:
+ * link de compartilhamento do Drive devolve uma PÁGINA, não o arquivo, e a tag
+ * de vídeo do navegador não sabe o que fazer com HTML.
+ */
+export type ContentMimeType =
+  | "image/png"
+  | "image/jpeg"
+  | "application/pdf"
+  | "video/mp4"
+  | "video/webm"
+  | "audio/mpeg"
+  | "audio/mp4";
+
+/** A extensão de cada tipo, para o caminho no armazenamento. */
+const EXTENSAO: Record<ContentMimeType, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "application/pdf": "pdf",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+};
 
 export async function putContentFile(input: {
   contentItemId: string;
@@ -123,9 +151,7 @@ export async function putContentFile(input: {
 }): Promise<StoredFile> {
   assertStorageReady();
 
-  const extension =
-    input.mimeType === "application/pdf" ? "pdf" : input.mimeType === "image/png" ? "png" : "jpg";
-  const storagePath = `${input.contentItemId}.${extension}`;
+  const storagePath = `${input.contentItemId}.${EXTENSAO[input.mimeType]}`;
 
   if (isRemoteStorageConfigured()) {
     await putRemote(storagePath, input.bytes, {
@@ -143,6 +169,140 @@ export async function getContentFile(storagePath: string): Promise<Uint8Array> {
   return isRemoteStorageConfigured()
     ? getRemote(storagePath, CONTENT_BUCKET)
     : getLocal(`${CONTENT_BUCKET}/${storagePath}`);
+}
+
+/** Monta o caminho no bucket a partir do id do item e do tipo real do arquivo. */
+export function buildContentPath(contentItemId: string, mimeType: ContentMimeType): string {
+  return `${contentItemId}.${EXTENSAO[mimeType]}`;
+}
+
+/* ========================================================================== *
+ * UPLOAD DIRETO
+ * ========================================================================== */
+
+/**
+ * URL temporária para o NAVEGADOR gravar o arquivo direto no bucket.
+ *
+ * ⚠️ É O ÚNICO CAMINHO POSSÍVEL PARA VÍDEO, e o motivo é um limite de
+ * infraestrutura, não uma preferência.
+ *
+ * Um upload que passa pelo servidor vira corpo de requisição, e a Vercel corta
+ * o corpo de qualquer função em 4,5 MB — abaixo disso não há configuração que
+ * ajude, porque o corte acontece antes do nosso código rodar. Os vídeos do
+ * Mind-X têm de 1,7 a 10,7 MB: metade deles falharia, e falharia só em
+ * produção, depois de funcionar na máquina de desenvolvimento.
+ *
+ * Com a URL assinada, os bytes vão do navegador da cliente para o Supabase sem
+ * tocar na nossa função. A chave de serviço continua no servidor: o que chega
+ * ao navegador é um token de uso único, para UM caminho, que expira.
+ *
+ * O caminho é derivado do id do item, nunca do nome do arquivo — o nome é
+ * entrada de usuário e montaria uma travessia de diretório.
+ */
+export async function createContentUploadUrl(input: {
+  contentItemId: string;
+  mimeType: ContentMimeType;
+}): Promise<{ uploadUrl: string; storagePath: string }> {
+  assertStorageReady();
+
+  const storagePath = buildContentPath(input.contentItemId, input.mimeType);
+
+  /*
+    Sem Supabase (desenvolvimento), a gravação passa pela nossa própria rota,
+    que escreve em `.storage/`. O limite de corpo não incomoda aqui porque o
+    servidor local é o próprio Next, sem a fronteira da Vercel no meio.
+  */
+  if (!isRemoteStorageConfigured()) {
+    return {
+      uploadUrl: `/api/acervo/upload?path=${encodeURIComponent(storagePath)}`,
+      storagePath,
+    };
+  }
+
+  const base = env.SUPABASE_URL!.replace(/\/+$/, "");
+  const response = await fetch(
+    `${base}/storage/v1/object/upload/sign/${CONTENT_BUCKET}/${storagePath}`,
+    {
+      method: "POST",
+      headers: { ...remoteHeaders(), "Content-Type": "application/json" },
+      /* Reenviar o mesmo material substitui o arquivo em vez de falhar. */
+      body: JSON.stringify({ upsert: true }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Falha ao preparar o upload (${response.status}): ${await safeText(response)}`,
+    );
+  }
+
+  const { url } = (await response.json()) as { url: string };
+  return { uploadUrl: `${base}/storage/v1${url}`, storagePath };
+}
+
+/**
+ * Lê os primeiros bytes de um arquivo já gravado.
+ *
+ * ⚠️ É O QUE MANTÉM A CONFERÊNCIA DE TIPO NO SERVIDOR depois do upload direto.
+ *
+ * Como os bytes não passam mais por nós, a checagem de assinatura precisaria
+ * confiar no navegador — e o que o navegador declara como `Content-Type` é
+ * literalmente um campo de texto que qualquer cliente escolhe. Um `Range` de
+ * quatro quilobytes traz o cabeçalho do arquivo de volta e `identifyMedia`
+ * decide o que ele é de verdade, pagando alguns kilobytes em vez do arquivo.
+ */
+export async function probeContentFile(storagePath: string): Promise<Uint8Array> {
+  if (!isRemoteStorageConfigured()) {
+    const inteiro = await getLocal(`${CONTENT_BUCKET}/${storagePath}`);
+    return inteiro.slice(0, 4096);
+  }
+
+  const response = await fetch(remoteUrl(storagePath, CONTENT_BUCKET), {
+    headers: { ...remoteHeaders(), Range: "bytes=0-4095" },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Falha ao conferir o arquivo (${response.status}): ${await safeText(response)}`,
+    );
+  }
+
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/**
+ * Apaga um arquivo do acervo.
+ *
+ * Existe para o caso em que a conferência recusa o que foi enviado: sem isto, o
+ * arquivo recusado ficaria ocupando espaço no bucket para sempre, sem nenhuma
+ * linha do banco apontando para ele.
+ *
+ * ⚠️ LER O ARQUIVO LOGO DEPOIS AINDA DEVOLVE O CONTEÚDO, e isso não é falha.
+ *
+ * O Supabase serve objeto por CDN, inclusive na rota autenticada. Um GET feito
+ * antes do apagamento deixa a cópia em cache por alguns minutos, e ela continua
+ * respondendo. Quem quiser CONFERIR se o arquivo sumiu precisa consultar a
+ * listagem do bucket (`/object/list/<bucket>`), que é a fonte da verdade — foi
+ * o que me fez perder um tempo achando que o apagamento não funcionava.
+ */
+export async function deleteContentFile(storagePath: string): Promise<void> {
+  if (!isRemoteStorageConfigured()) {
+    await rm(resolveLocal(`${CONTENT_BUCKET}/${storagePath}`), { force: true });
+    return;
+  }
+
+  await fetch(remoteUrl(storagePath, CONTENT_BUCKET), {
+    method: "DELETE",
+    headers: remoteHeaders(),
+  });
+}
+
+/** Grava um arquivo do acervo vindo da nossa própria rota (só desenvolvimento). */
+export async function putContentFileLocal(
+  storagePath: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  await putLocal(`${CONTENT_BUCKET}/${storagePath}`, bytes);
 }
 
 /**

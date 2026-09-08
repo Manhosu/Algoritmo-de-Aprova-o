@@ -338,7 +338,17 @@ async function seedLegalDocuments(db: Db) {
  * CATÁLOGO CANÔNICO
  * ========================================================================== */
 
-async function seedCatalog(db: Db): Promise<Catalog> {
+/**
+ * Exportado para `scripts/sync-catalog.ts`.
+ *
+ * ⚠️ CATÁLOGO PRECISA SER ATUALIZÁVEL SOZINHO, sem o resto da carga inicial.
+ *
+ * Acrescentar um sinônimo — "Habeas corpus", "Modalidades de licitação" — é a
+ * manutenção mais frequente deste projeto, e ela precisa chegar à produção sem
+ * arrastar junto planos, níveis, missões e questões de exemplo. Tudo aqui é
+ * upsert: rodar de novo não duplica nada.
+ */
+export async function seedCatalog(db: Db): Promise<Catalog> {
   log.section("Catálogo canônico");
 
   const boardsBySlug = new Map<string, string>();

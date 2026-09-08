@@ -4,6 +4,7 @@ import { and, count, desc, eq, isNull, ne } from "drizzle-orm";
 
 import { db } from "@/server/db";
 import { canonicalSubjects, canonicalTopics, contentItems } from "@/server/db/schema";
+import { deleteContentFile } from "@/server/storage";
 
 /**
  * CADASTRO DE MATERIAIS PELO PAINEL (pedido de 02/09/2026).
@@ -41,6 +42,20 @@ export type AdminMaterialRow = {
  */
 function precisaDeEndereco(tipo: string): boolean {
   return tipo !== "flashcard_deck";
+}
+
+/**
+ * Endereços que devolvem uma PÁGINA em vez do arquivo.
+ *
+ * Nenhum deles funciona dentro de `<video>` ou `<audio>`: o navegador recebe
+ * HTML e não toca nada. YouTube e Vimeo até serviriam, mas por `iframe`, que é
+ * outro elemento e outra política de segurança — enquanto isso não existir,
+ * recusar é melhor que aceitar e mostrar tela preta.
+ */
+function ehLinkDePagina(url: string): boolean {
+  return /(?:drive|docs)\.google\.com|youtube\.com|youtu\.be|vimeo\.com|dropbox\.com\/s(?:cl)?\//i.test(
+    url,
+  );
 }
 
 export async function listMaterialsForAdmin(input?: {
@@ -82,10 +97,22 @@ export async function listMaterialsForAdmin(input?: {
       Material publicado sem origem é a falha mais provável deste cadastro: o
       card aparece na biblioteca e não abre nada. A lista marca; o formulário
       recusa publicar.
+
+      Vídeo ou áudio apontando para uma página do Drive conta como SEM origem,
+      mesmo tendo endereço preenchido. Do ponto de vista do aluno é a mesma
+      coisa: o player não toca. Marcar como completo esconderia justamente o
+      cadastro que já falhou uma vez.
     */
     hasSource:
       !precisaDeEndereco(linha.type) ||
-      Boolean(linha.storagePath?.trim() || linha.externalUrl?.trim()),
+      Boolean(linha.storagePath?.trim()) ||
+      Boolean(
+        linha.externalUrl?.trim() &&
+          !(
+            (linha.type === "video" || linha.type === "audio") &&
+            ehLinkDePagina(linha.externalUrl)
+          ),
+      ),
   }));
 }
 
@@ -135,6 +162,8 @@ export type MaterialInput = {
   canonicalSubjectId: string | null;
   canonicalTopicId: string | null;
   externalUrl: string | null;
+  /** Caminho no acervo, quando a cliente enviou o arquivo em vez de um link. */
+  storagePath?: string | null;
 };
 
 export type SaveMaterialResult =
@@ -146,6 +175,7 @@ export async function saveMaterial(input: MaterialInput): Promise<SaveMaterialRe
   if (titulo.length < 3) return { ok: false, message: "O título está curto demais." };
 
   const url = input.externalUrl?.trim() || null;
+  const arquivo = input.storagePath?.trim() || null;
 
   if (url && !/^https?:\/\//i.test(url)) {
     /*
@@ -156,10 +186,39 @@ export async function saveMaterial(input: MaterialInput): Promise<SaveMaterialRe
     return { ok: false, message: "O endereço precisa começar com http:// ou https://" };
   }
 
-  if (input.status === "published" && precisaDeEndereco(input.type) && !url) {
+  /*
+    ⚠️ LINK DE PÁGINA NÃO TOCA NUM PLAYER, e este bloco existe por causa de um
+    cadastro real que falhou.
+
+    Em 08/09/2026 a cliente cadastrou o vídeo "Juros Simples" com o endereço
+    `drive.google.com/file/d/…/view` e escreveu: "Tentei cadastrar um vídeo do
+    Mind X, mas não deu certo". O motivo é que esse endereço devolve uma PÁGINA
+    HTML com o visualizador do Drive dentro. A tag `<video>` recebe HTML onde
+    esperava MP4 e fica parada, sem mensagem nenhuma — nem para ela, nem para o
+    aluno.
+
+    Sem esta recusa, o formulário aceitaria o cadastro de novo e ela passaria a
+    tarde procurando o erro do lado errado.
+  */
+  if ((input.type === "video" || input.type === "audio") && url && ehLinkDePagina(url)) {
     return {
       ok: false,
-      message: "Material publicado precisa de um endereço. Salve como rascunho enquanto ele não existe.",
+      message:
+        "Esse endereço abre uma página, não o arquivo — o player do aluno não " +
+        "consegue tocar. Use o botão de enviar arquivo acima.",
+    };
+  }
+
+  /*
+    ⚠️ ARQUIVO ENVIADO CONTA COMO ENDEREÇO. Sem isto, o upload gravaria o
+    caminho e o formulário continuaria recusando publicar por "falta de
+    endereço" — exatamente o campo que o botão de upload veio substituir.
+  */
+  if (input.status === "published" && precisaDeEndereco(input.type) && !url && !arquivo) {
+    return {
+      ok: false,
+      message:
+        "Material publicado precisa de um arquivo ou de um endereço. Salve como rascunho enquanto ele não existe.",
     };
   }
 
@@ -183,6 +242,7 @@ export async function saveMaterial(input: MaterialInput): Promise<SaveMaterialRe
     canonicalSubjectId: input.canonicalSubjectId,
     canonicalTopicId: input.canonicalTopicId,
     externalUrl: url,
+    storagePath: arquivo,
     /*
       `published_at` marca a PRIMEIRA publicação e não é reescrito depois: é a
       data que ordena "o que chegou de novo" na biblioteca. Reescrevê-la a cada
@@ -207,6 +267,22 @@ export async function saveMaterial(input: MaterialInput): Promise<SaveMaterialRe
             : valores.publishedAt,
       })
       .where(eq(contentItems.id, input.id));
+
+    /*
+      ⚠️ TROCAR O ARQUIVO APAGA O ANTIGO, e a ordem importa: só depois de o
+      banco já apontar para o novo.
+
+      Sem isto, cada correção de material deixaria o arquivo anterior no bucket
+      sem nenhuma linha apontando para ele. Ninguém encontraria esses arquivos
+      depois, e eles contariam no espaço que a cliente paga. A falha é engolida
+      de propósito — o material já está salvo, e derrubar o salvamento por causa
+      de uma faxina seria trocar um problema pequeno por um grande.
+    */
+    if (atual.storagePath && atual.storagePath !== arquivo) {
+      await deleteContentFile(atual.storagePath).catch((erro) => {
+        console.error("[materiais] não consegui apagar o arquivo antigo", erro);
+      });
+    }
 
     return { ok: true, id: input.id, created: false };
   }

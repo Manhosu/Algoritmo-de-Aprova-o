@@ -70,6 +70,8 @@ next-env.d.ts
 drive-download-*/
 Mapas Mentais-*/
 Português-*/
+# Os videos do Mind-X: 149 MB em 50 arquivos, ja no bucket depois da importacao.
+Stories do Algoritmo*/
 
 # Planilhas de conteudo enviadas pela cliente. Mesma razao: o dado ja esta
 # no banco depois da importacao, e a planilha e so o transporte.
