@@ -154,7 +154,32 @@ const MINUTES_PER_QUESTION = 2;
  * "Mais um ou dois assuntos escolhidos pelo motor", nas palavras da cliente.
  * Dois é o teto: o motor deixou de desenhar o dia e passou a temperá-lo.
  */
-const EXTRAS_DO_MOTOR = 2;
+export const EXTRAS_DO_MOTOR = 2;
+
+/** Quanto de prática acompanha cada bloco de estudo, como fração dele. */
+const PROPORCAO_DE_PRATICA = 0.6;
+
+/**
+ * Quanto um bloco da missão custa no pior caso: estudo mais a prática que vem
+ * junto.
+ *
+ * ⚠️ EXISTE PARA O SERVIDOR DIMENSIONAR O DIA, e a falta dele custou uma missão
+ * incompleta em produção.
+ *
+ * O cronograma reserva só o tempo de ESTUDO de cada assunto. Quem monta a
+ * missão precisa saber que o par de questões vem junto — senão o orçamento
+ * acaba antes do último assunto que o cronograma prometeu, e a cliente vê uma
+ * missão menor que o próprio plano dela. Conferido em produção em 08/09/2026:
+ * a missão trazia os assuntos da agenda e nenhum acréscimo do motor.
+ *
+ * A conta mora aqui, ao lado da que ela precisa espelhar. Repetir "0,6" no
+ * servidor criaria duas fórmulas que um dia discordariam em silêncio.
+ */
+export function custoDoBloco(scheduleParams: ScheduleParams): number {
+  return Math.round(
+    scheduleParams.defaultStudyBlockMinutes * (1 + PROPORCAO_DE_PRATICA),
+  );
+}
 
 export function generateDailyTask(input: GenerateDailyTaskInput): DailyTaskPlan {
   const today = input.today ?? toCivilDate(input.now, input.timeZone);
@@ -311,7 +336,7 @@ function buildBlock(args: {
   const canPractice =
     techniques.alwaysPairWithQuestions && topic.isMapped && topic.availableQuestionCount > 0;
 
-  const practiceMinutes = canPractice ? Math.round(studyMinutes * 0.6) : 0;
+  const practiceMinutes = canPractice ? Math.round(studyMinutes * PROPORCAO_DE_PRATICA) : 0;
   const blockMinutes = studyMinutes + practiceMinutes;
 
   // Não cabe. O primeiro bloco entra de qualquer forma: um dia com 10 minutos

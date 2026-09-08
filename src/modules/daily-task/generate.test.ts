@@ -10,6 +10,7 @@ import type { CivilDate } from "@/modules/shared/dates";
 
 import {
   chooseTechnique,
+  custoDoBloco,
   generateDailyTask,
   splitBudgetAcrossPreparations,
   type GenerateDailyTaskInput,
@@ -761,5 +762,45 @@ describe("a missão nasce do cronograma (pedido da cliente em 08/09/2026)", () =
     });
 
     expect(plano.blocks[0].planTopicId).toBe("t0");
+  });
+});
+
+describe("o orçamento do dia cabe o cronograma E o acréscimo do motor", () => {
+  /*
+    ⚠️ ESTE TESTE NASCEU DE UMA CONFERÊNCIA EM PRODUÇÃO, em 08/09/2026.
+
+    A missão vinha com os 3 assuntos do cronograma e nada além. A regra estava
+    certa e o orçamento é que não era: o servidor passava ao motor exatamente os
+    minutos que o cronograma reservou, então os extras nasciam e morriam no
+    mesmo passo — o corte por minutos comia os dois.
+
+    Quem calcula o orçamento é `ensureDailyTask`, no servidor. O que este teste
+    trava é a outra ponta: dado espaço, o motor de fato acrescenta.
+  */
+  it("com espaço para cinco blocos, entrega os do cronograma mais dois", () => {
+    const muitos = Array.from({ length: 10 }, (_, i) =>
+      topic({ planTopicId: `t${i}`, planSubjectId: `s${i % 3}`, topicName: `Assunto ${i}` }),
+    );
+
+    const plano = generateDailyTask({
+      now: AGORA,
+      timeZone: SP,
+      today: HOJE,
+      examDate: d("2026-12-15"),
+      examDateIsEstimated: false,
+      /* Três do cronograma mais dois do motor, ao custo real de cada bloco. */
+      availableMinutes: 5 * custoDoBloco(DEFAULT_SCHEDULE_PARAMS),
+      reservedReviewMinutes: 0,
+      topics: muitos,
+      scheduledTopicIds: ["t0", "t1", "t2"],
+      weights: DEFAULT_DAILY_TASK_WEIGHTS,
+      scheduleParams: DEFAULT_SCHEDULE_PARAMS,
+      techniques: DEFAULT_STUDY_TECHNIQUES,
+    });
+
+    const ids = plano.blocks.map((b) => b.planTopicId);
+
+    expect(ids.slice(0, 3).sort()).toEqual(["t0", "t1", "t2"]);
+    expect(ids).toHaveLength(5);
   });
 });

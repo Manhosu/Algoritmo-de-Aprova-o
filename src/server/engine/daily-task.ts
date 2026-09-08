@@ -28,6 +28,7 @@ import {
 import { markFunnelStage } from "@/server/preparations/service";
 
 import { getActiveConfig, requireConfigId } from "./config";
+import { custoDoBloco, EXTRAS_DO_MOTOR } from "@/modules/daily-task/generate";
 import { getSchedule } from "./schedule";
 
 /**
@@ -179,10 +180,35 @@ export async function ensureDailyTask(input: {
    * O piso de um bloco resolve os dois lados. O número que ela viu cai de 6
    * para 1 ou 2, na escala do Cronograma, e ninguém fica sem tarefa.
    */
+  /**
+   * ⚠️ O DIA RESERVA ESPAÇO PARA O ACRÉSCIMO DO MOTOR, e não só para o
+   * cronograma.
+   *
+   * A cliente pediu: "a missão do dia precisa conter o assunto do cronograma
+   * para aquele dia E MAIS um ou dois assuntos escolhidos pelo motor".
+   *
+   * Passando ao motor exatamente os minutos que o cronograma reservou, os
+   * extras nasciam e morriam no mesmo passo: o orçamento acabava no último
+   * assunto da agenda e o corte por minutos comia os dois acréscimos. Conferi
+   * em produção — a missão vinha com os 3 do cronograma e nada além.
+   *
+   * O espaço extra é limitado pela disponibilidade REAL do dia. Sem esse teto,
+   * quem informou uma hora por dia receberia uma missão de duas.
+   */
+  const assuntosDeHoje = hojeNoCronograma?.topics.length ?? 0;
+
   const minutosDeEstudo =
     reservadoHoje === null
       ? minutosDaPreparacao
-      : Math.max(reservadoHoje, scheduleParams.value.defaultStudyBlockMinutes);
+      : Math.min(
+          /* Nunca passa do que o aluno informou que tem. */
+          minutosDaPreparacao,
+          Math.max(
+            (assuntosDeHoje + EXTRAS_DO_MOTOR) * custoDoBloco(scheduleParams.value),
+            /* Dia sem nada no cronograma ainda rende uma tarefa. */
+            custoDoBloco(scheduleParams.value),
+          ),
+        );
 
   const plan = generateDailyTask({
     now,
