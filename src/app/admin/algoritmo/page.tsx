@@ -4,6 +4,7 @@ import { EngineForm } from "@/components/admin/engine-form";
 import { LevelsForm } from "@/components/admin/levels-form";
 import { camposDe } from "@/components/admin/engine-fields";
 import { ReviewIntervalsForm } from "@/components/admin/review-intervals-form";
+import { TechniquesForm } from "@/components/admin/techniques-form";
 import type {
   CoinValues,
   DailyTaskWeights,
@@ -83,21 +84,25 @@ export default async function AlgoritmoPage() {
     xp,
     moedas,
     revisoes,
+    tecnicas,
     niveis,
     versoesPesos,
     versoesXp,
     versoesMoedas,
     versoesRevisoes,
+    versoesTecnicas,
   ] = await Promise.all([
     getActiveConfig("daily_task_weights"),
     getActiveConfig("xp_values"),
     getActiveConfig("coin_values"),
     getActiveConfig("review_intervals"),
+    getActiveConfig("study_techniques"),
     listLevelsForAdmin(),
     listConfigVersions("daily_task_weights"),
     listConfigVersions("xp_values"),
     listConfigVersions("coin_values"),
     listConfigVersions("review_intervals"),
+    listConfigVersions("study_techniques"),
   ]);
 
   return (
@@ -206,6 +211,27 @@ export default async function AlgoritmoPage() {
         <ReviewIntervalsForm atuais={revisoes.value.intervalsInDays} />
 
         <Historico versoes={versoesRevisoes} />
+      </section>
+
+      <section className="flex flex-col gap-4 border-t border-border pt-8">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            Técnicas de estudo
+          </h2>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            Quais modos de estudo a Tarefa do Dia prescreve, e quanto de amostra
+            a Melhor Técnica precisa para dizer alguma coisa. Vale para as
+            tarefas que nascerem daqui em diante — as de hoje mantêm a técnica
+            com que foram criadas.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            No ar: versão {tecnicas.version}
+          </p>
+        </div>
+
+        <TechniquesForm atual={tecnicas.value} />
+
+        <Historico versoes={versoesTecnicas} />
       </section>
     </div>
   );

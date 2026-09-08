@@ -203,3 +203,70 @@ export async function saveLevelRangesAction(
     message: `Faixas salvas. ${resultado.ranges.map((f) => `${f.name} a partir de ${f.minXp}`).join(" · ")}.`,
   };
 }
+
+/**
+ * Publica as técnicas de estudo na rotação.
+ *
+ * ⚠️ ESTA AÇÃO EXISTIA COMO PROMESSA EM COMENTÁRIO desde 20/08/2026:
+ * "reativar videoaula é um clique no painel; não precisa de deploy". O clique
+ * não existia. Com os vídeos do Mind-X no acervo, a promessa passou a ter dono.
+ *
+ * As duas decisões de PRODUTO ficam como estão: parear todo estudo com questões
+ * e não anunciar a quantidade de questões. A segunda é recusada pelo schema, e
+ * não por aqui — anunciar um número maior que o teto do plano Free é prometer o
+ * que o plano não entrega.
+ */
+export async function publishStudyTechniquesAction(
+  _prev: EngineFormState,
+  formData: FormData,
+): Promise<EngineFormState> {
+  const session = await requireAdmin();
+
+  const habilitadas = formData
+    .getAll("enabled")
+    .filter((valor): valor is string => typeof valor === "string");
+
+  if (habilitadas.length === 0) {
+    return {
+      ok: false,
+      message: "Escolha pelo menos uma técnica. Sem nenhuma, a Tarefa do Dia fica sem modo de estudo.",
+    };
+  }
+
+  const inteiro = (chave: string) =>
+    Number(String(formData.get(chave) ?? "").trim().replace(/\D/g, "") || NaN);
+
+  const resultado = await publishEngineConfig({
+    kind: "study_techniques",
+    payload: {
+      enabled: habilitadas,
+      fallback: String(formData.get("fallback") ?? ""),
+      minAttemptsForTechniqueStats: inteiro("minAttemptsForTechniqueStats"),
+      minSessionsBeforeRepeat: inteiro("minSessionsBeforeRepeat"),
+      alwaysPairWithQuestions: true,
+      showQuestionCount: false,
+    },
+    userId: session.user.id,
+    note: (formData.get("note") as string | null) ?? null,
+  });
+
+  if (!resultado.ok) {
+    return {
+      ok: false,
+      message: "A configuração não passou na conferência.",
+      problems: resultado.problems,
+    };
+  }
+
+  revalidatePath("/admin/algoritmo");
+  /* A Tarefa do Dia de amanhã nasce com a rotação nova. */
+  revalidatePath("/inicio");
+
+  return {
+    ok: true,
+    message:
+      `Publicado. Versão ${resultado.version}: ${habilitadas.length} ` +
+      `${habilitadas.length === 1 ? "técnica" : "técnicas"} na rotação. ` +
+      "As tarefas já geradas mantêm a técnica com que nasceram.",
+  };
+}
