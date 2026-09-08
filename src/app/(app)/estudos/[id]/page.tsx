@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { FlashcardDeck } from "@/components/content/flashcard-deck";
 import { MarkComplete } from "@/components/content/mark-complete";
 import { MindMapViewer } from "@/components/content/mind-map-viewer";
+import { PdfViewer } from "@/components/content/pdf-viewer";
 import { requireUser } from "@/server/auth/guards";
 import { getMaterial, touchContentProgress } from "@/server/content/library";
 import { signContentUrl } from "@/server/storage";
@@ -149,38 +150,13 @@ export default async function MaterialPage({
           {/*
             ⚠️ O PDF ABRE DENTRO DA PÁGINA (pedido da cliente em 08/09/2026).
 
-            Palavras dela: "ao abrir o material poderia continuar dentro do site,
-            com as barras de cima, do lado e de baixo". Era um link com
-            `target="_blank"`: o aluno saía da plataforma para uma aba do
-            visualizador do navegador, sem menu, sem o botão de marcar como
-            estudado e sem caminho de volta a não ser fechar a aba.
-
-            O `<object>` é o que embute PDF com o visualizador nativo. O `<a>` de
-            dentro dele é o plano B do próprio elemento: navegador que não sabe
-            exibir PDF (é o caso de boa parte dos celulares) mostra o conteúdo
-            filho, e aí abrir fora é a única saída que existe.
+            Era um link com `target="_blank"`: o aluno saía da plataforma para
+            uma aba do visualizador do navegador, sem menu, sem o botão de marcar
+            como estudado e sem caminho de volta a não ser fechar a aba. Ver a
+            nota em `PdfViewer` sobre o que o celular consegue e o que não.
           */}
           {material.type === "pdf" && arquivo ? (
-            <object
-              data={arquivo}
-              type="application/pdf"
-              className="h-[70vh] w-full rounded-xl border border-border bg-card"
-              aria-label={`PDF: ${material.title}`}
-            >
-              <div className="flex flex-col items-center gap-3 p-6 text-center">
-                <p className="text-pretty text-sm text-muted-foreground">
-                  Seu navegador não abre PDF dentro da página.
-                </p>
-                <a
-                  href={arquivo}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-                >
-                  Abrir o PDF
-                </a>
-              </div>
-            </object>
+            <PdfViewer src={arquivo} title={material.title} />
           ) : null}
 
           {/*
@@ -190,26 +166,7 @@ export default async function MaterialPage({
           */}
           {material.type === "study_text" && arquivo ? (
             ehPdf(material.storagePath ?? material.externalUrl) ? (
-              <object
-                data={arquivo}
-                type="application/pdf"
-                className="h-[70vh] w-full rounded-xl border border-border bg-card"
-                aria-label={`Resumo: ${material.title}`}
-              >
-                <div className="flex flex-col items-center gap-3 p-6 text-center">
-                  <p className="text-pretty text-sm text-muted-foreground">
-                    Seu navegador não abre PDF dentro da página.
-                  </p>
-                  <a
-                    href={arquivo}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-                  >
-                    Abrir o resumo
-                  </a>
-                </div>
-              </object>
+              <PdfViewer src={arquivo} title={material.title} />
             ) : (
               <MindMapViewer
                 src={arquivo}
