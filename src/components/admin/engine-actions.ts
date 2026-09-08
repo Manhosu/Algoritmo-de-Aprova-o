@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { engineFormPayload } from "@/modules/engine-config/form-payload";
 import type { EngineConfigKind } from "@/modules/engine-config/schemas";
 import { requireAdmin } from "@/server/auth/guards";
+import { saveLevelRanges } from "@/server/admin/levels-admin";
 import { publishEngineConfig } from "@/server/engine/publish-config";
 
 /** ⚠️ Arquivo `"use server"`: só exporta `async function`. Tipo é apagado. */
@@ -144,5 +145,61 @@ export async function publishReviewIntervalsAction(
   return {
     ok: true,
     message: `Publicado. Versão ${resultado.version}: revisões em ${numeros.join(", ")} dias.`,
+  };
+}
+
+/**
+ * Grava as faixas de XP dos níveis (pedido da cliente em 08/09/2026).
+ *
+ * ⚠️ NÃO PASSA POR `publishEngineConfig`, e a diferença é de propósito.
+ *
+ * Nível é linha de tabela, apontada por `user_gamification_states`. Versionar
+ * como se versiona `xp_values` deixaria o aluno preso à versão antiga enquanto a
+ * tela mostrasse a nova — duas verdades sobre o mesmo aluno.
+ *
+ * Lê campo por campo, pelo id que veio no formulário: varrer o `FormData` inteiro
+ * traria junto os `$ACTION_REF_*` que o React injeta.
+ */
+export async function saveLevelRangesAction(
+  _prev: EngineFormState,
+  formData: FormData,
+): Promise<EngineFormState> {
+  await requireAdmin();
+
+  const ids = formData.getAll("levelId").filter((v): v is string => typeof v === "string");
+
+  if (ids.length === 0) {
+    return { ok: false, message: "O formulário não trouxe nenhum nível." };
+  }
+
+  const entradas = ids.map((id) => ({
+    id,
+    /*
+      `Number("")` é 0, e um campo apagado por engano viraria "começa em zero"
+      em silêncio — o que, no nível 2, engoliria o nível 1 inteiro. `NaN` é
+      recusado pela validação, com o nome do nível na mensagem.
+    */
+    minXp: Number(String(formData.get(`minXp:${id}`) ?? "").trim().replace(/\D/g, "") || NaN),
+  }));
+
+  const resultado = await saveLevelRanges(entradas);
+
+  if (!resultado.ok) {
+    return {
+      ok: false,
+      message: "As faixas não passaram na conferência.",
+      problems: resultado.problems,
+    };
+  }
+
+  revalidatePath("/admin/algoritmo");
+  /* O nível aparece na Home, no Perfil e no Ranking. */
+  revalidatePath("/inicio");
+  revalidatePath("/perfil");
+  revalidatePath("/ranking");
+
+  return {
+    ok: true,
+    message: `Faixas salvas. ${resultado.ranges.map((f) => `${f.name} a partir de ${f.minXp}`).join(" · ")}.`,
   };
 }

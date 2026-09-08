@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { EngineForm } from "@/components/admin/engine-form";
+import { LevelsForm } from "@/components/admin/levels-form";
 import { camposDe } from "@/components/admin/engine-fields";
 import { ReviewIntervalsForm } from "@/components/admin/review-intervals-form";
 import type {
@@ -8,6 +9,7 @@ import type {
   DailyTaskWeights,
   XpValues,
 } from "@/modules/engine-config/schemas";
+import { listLevelsForAdmin } from "@/server/admin/levels-admin";
 import { requireAdmin } from "@/server/auth/guards";
 import { getActiveConfig } from "@/server/engine/config";
 import { listConfigVersions } from "@/server/engine/publish-config";
@@ -76,17 +78,27 @@ export const dynamic = "force-dynamic";
 export default async function AlgoritmoPage() {
   await requireAdmin();
 
-  const [pesos, xp, moedas, revisoes, versoesPesos, versoesXp, versoesMoedas, versoesRevisoes] =
-    await Promise.all([
-      getActiveConfig("daily_task_weights"),
-      getActiveConfig("xp_values"),
-      getActiveConfig("coin_values"),
-      getActiveConfig("review_intervals"),
-      listConfigVersions("daily_task_weights"),
-      listConfigVersions("xp_values"),
-      listConfigVersions("coin_values"),
-      listConfigVersions("review_intervals"),
-    ]);
+  const [
+    pesos,
+    xp,
+    moedas,
+    revisoes,
+    niveis,
+    versoesPesos,
+    versoesXp,
+    versoesMoedas,
+    versoesRevisoes,
+  ] = await Promise.all([
+    getActiveConfig("daily_task_weights"),
+    getActiveConfig("xp_values"),
+    getActiveConfig("coin_values"),
+    getActiveConfig("review_intervals"),
+    listLevelsForAdmin(),
+    listConfigVersions("daily_task_weights"),
+    listConfigVersions("xp_values"),
+    listConfigVersions("coin_values"),
+    listConfigVersions("review_intervals"),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-8">
@@ -136,6 +148,21 @@ export default async function AlgoritmoPage() {
         <EngineForm kind="xp_values" campos={camposDe(xp.value, ROTULOS_XP, "XP")} />
 
         <Historico versoes={versoesXp} />
+      </section>
+
+      <section className="flex flex-col gap-4 border-t border-border pt-8">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            Faixa de XP de cada nível
+          </h2>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            Onde cada nível começa. Diferente do resto desta tela, a mudança vale
+            para o XP que os alunos JÁ têm: a faixa descreve o que o XP significa
+            hoje, e o XP deles não muda junto.
+          </p>
+        </div>
+
+        <LevelsForm niveis={niveis} />
       </section>
 
       <section className="flex flex-col gap-4 border-t border-border pt-8">
