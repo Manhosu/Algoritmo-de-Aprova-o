@@ -121,11 +121,42 @@ export function DailyMissions({ missions, completionBonusXp }: DailyMissionsProp
       </div>
 
       <ul className="mt-4 flex flex-col">
-        {missions.map((mission) => (
+        {missions.map((mission) => {
+          const estudoFeito = mission.study.status === "completed";
+          const praticaAberta =
+            Boolean(mission.practice) && mission.practice!.status !== "completed";
+
+          return (
           <li key={mission.blockIndex} className="border-t border-border">
-            <p className="px-4 pt-3 text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase sm:px-5">
-              {mission.subjectName}
-            </p>
+            <div className="flex items-baseline justify-between gap-3 px-4 pt-3 sm:px-5">
+              <p className="min-w-0 text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+                {mission.subjectName}
+              </p>
+
+              {/*
+                ⚠️ O ESTADO DA MISSÃO INTEIRA, e não só o de cada linha.
+
+                A cliente relatou "as Missões marcam 2 de 3 com as 3 tarefas
+                feitas". O contador estava certo e a tela é que mentia: as três
+                linhas de ESTUDO apareciam riscadas, e a única coisa que faltava
+                era a prática de uma delas — uma linha a mais, embaixo, sem nada
+                que a ligasse ao número lá em cima. O olho contava três riscos e
+                lia "2/3" como defeito.
+
+                Dizer aqui o que falta, na altura do nome da disciplina, dá ao
+                número um lugar para apontar.
+              */}
+              {estudoFeito && praticaAberta ? (
+                <span className="shrink-0 text-[0.65rem] font-semibold tracking-wider text-warning uppercase">
+                  Falta praticar
+                </span>
+              ) : estudoFeito && !praticaAberta ? (
+                <span className="flex shrink-0 items-center gap-1 text-[0.65rem] font-semibold tracking-wider text-success uppercase">
+                  <Check className="size-3" aria-hidden />
+                  Concluída
+                </span>
+              ) : null}
+            </div>
 
             <MissionRow
               icon={<BookOpen />}
@@ -170,7 +201,8 @@ export function DailyMissions({ missions, completionBonusXp }: DailyMissionsProp
               </p>
             )}
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       {completionBonusXp > 0 && total > 0 ? (

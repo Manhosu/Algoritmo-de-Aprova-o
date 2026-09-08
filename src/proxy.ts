@@ -27,6 +27,27 @@ import {
  * API, Server Action e página protegida. Um vale sem o outro dá falsa
  * sensação de proteção.
  */
+/**
+ * A origem do Supabase Storage, para entrar no CSP — ou vazio sem ele.
+ *
+ * ⚠️ SÓ A ORIGEM, sem caminho. Uma diretiva de CSP com caminho passa a casar
+ * por prefixo e vira uma regra frágil; a origem é o que o navegador compara.
+ *
+ * Devolve string vazia quando não há Supabase configurado (desenvolvimento com
+ * disco local), e aí `'self'` sozinho já cobre — os arquivos saem da rota
+ * `/api/acervo`, que é a nossa própria origem.
+ */
+function origemDoArmazenamento(): string {
+  const bruto = process.env.SUPABASE_URL;
+  if (!bruto) return "";
+
+  try {
+    return ` ${new URL(bruto).origin}`;
+  } catch {
+    return "";
+  }
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -71,6 +92,21 @@ export function proxy(request: NextRequest) {
    * `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`. Script
    * de terceiro continua barrado — o que caiu foi só a exigência de nonce.
    */
+  /*
+   * ⚠️ O ARMAZENAMENTO PRECISA APARECER NO CSP, e ele faltava.
+   *
+   * `default-src 'self'` cobre `media-src` e `object-src` por herança. Enquanto
+   * o acervo era só imagem, ninguém notou: `img-src` já liberava `https:`. Com
+   * vídeo e áudio do Mind-X vindo do bucket, e com o PDF abrindo dentro da
+   * página, os três passariam a ser BLOQUEADOS pelo navegador — sem erro na
+   * tela, só um player que não começa e um retângulo em branco.
+   *
+   * A origem é lida do ambiente e não fica escrita aqui: preview e produção
+   * apontam para projetos diferentes do Supabase, e um valor fixo funcionaria
+   * num e falharia no outro.
+   */
+  const armazenamento = origemDoArmazenamento();
+
   const csp = [
     `default-src 'self'`,
     `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
@@ -79,10 +115,20 @@ export function proxy(request: NextRequest) {
     `img-src 'self' blob: data: https:`,
     `font-src 'self' data:`,
     `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
+    /* Vídeo e áudio do acervo — nossa origem em desenvolvimento, o bucket em produção. */
+    `media-src 'self' blob:${armazenamento}`,
+    /*
+     * O `<object>` que embute PDF na tela do material.
+     *
+     * Sair de `'none'` afrouxa a diretiva que historicamente barrava plugin, e
+     * por isso ela é limitada às DUAS origens que servem o nosso acervo — não a
+     * `https:` inteiro, como `img-src`. Navegador atual só usa `<object>` para
+     * PDF e imagem; Flash e Java não existem mais para relaxar aqui.
+     */
+    `object-src 'self'${armazenamento}`,
     `frame-ancestors 'none'`,
     `form-action 'self'`,
     `base-uri 'self'`,
-    `object-src 'none'`,
     `upgrade-insecure-requests`,
   ].join("; ");
 

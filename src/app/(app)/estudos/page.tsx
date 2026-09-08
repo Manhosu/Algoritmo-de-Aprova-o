@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { FORMATOS, LibraryFilterMenus } from "@/components/content/library-filters";
 import { MaterialGrid } from "@/components/content/material-grid";
 import { getStudentContext } from "@/server/auth/current-user";
 import { requireUser } from "@/server/auth/guards";
@@ -12,14 +13,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-const TIPOS = [
-  { valor: null, rotulo: "Tudo" },
-  { valor: "mind_map", rotulo: "Mapas mentais" },
-  { valor: "flashcard_deck", rotulo: "Flashcards" },
-  { valor: "study_text", rotulo: "Resumos" },
-  { valor: "video", rotulo: "Videoaulas" },
-] as const;
 
 type Params = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -108,63 +101,53 @@ export default async function EstudosPage({ searchParams }: Params) {
       ) : null}
 
       <div className="flex flex-col gap-3">
-        <nav aria-label="Tipo de material" className="-mx-4 overflow-x-auto no-scrollbar px-4">
-          <ul className="flex w-max gap-2">
-            {TIPOS.map((opcao) => {
-              const ativo = (opcao.valor ?? null) === tipo;
+        {/*
+          ⚠️ OS DESTINOS SÃO MONTADOS AQUI, NO SERVIDOR, e o menu só escolhe
+          entre eles.
 
-              return (
-                <li key={opcao.rotulo}>
-                  <Link
-                    href={comFiltro({ tipo: opcao.valor })}
-                    aria-current={ativo ? "page" : undefined}
-                    className={
-                      ativo
-                        ? "block rounded-full bg-primary/15 px-4 py-2 text-sm font-semibold text-primary"
-                        : "block rounded-full border border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-                    }
-                  >
-                    {opcao.rotulo}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+          `comFiltro` conhece todos os filtros ativos e é o que impede escolher
+          "Flashcards" de apagar a disciplina já escolhida. Passando um mapa
+          pronto, essa regra continua num lugar só — o componente do cliente não
+          precisa saber que existe `plano`, `assunto` ou qualquer filtro futuro.
+        */}
+        <LibraryFilterMenus
+          type={tipo}
+          subjectId={disciplina}
+          subjects={biblioteca.subjects}
+          hrefFor={{
+            ...Object.fromEntries(
+              FORMATOS.map((formato) => [
+                `tipo:${formato.valor ?? ""}`,
+                comFiltro({ tipo: formato.valor }),
+              ]),
+            ),
+            "disciplina:": comFiltro({ disciplina: null }),
+            ...Object.fromEntries(
+              biblioteca.subjects.map((materia) => [
+                `disciplina:${materia.id}`,
+                comFiltro({ disciplina: materia.id }),
+              ]),
+            ),
+          }}
+        />
 
-        <div className="flex flex-wrap items-center gap-2">
-          {preparacao ? (
-            <Link
-              href={comFiltro({ plano: soMeuPlano ? null : "1" })}
-              className={
-                soMeuPlano
-                  ? "rounded-full bg-primary/15 px-3 py-1.5 text-xs font-semibold text-primary"
-                  : "rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-              }
-            >
-              Só do meu edital
-            </Link>
-          ) : null}
-
-          {biblioteca.subjects.map((materia) => {
-            const ativo = disciplina === materia.id;
-
-            return (
-              <Link
-                key={materia.id}
-                href={comFiltro({ disciplina: ativo ? null : materia.id })}
-                className={
-                  ativo
-                    ? "rounded-full bg-primary/15 px-3 py-1.5 text-xs font-semibold text-primary"
-                    : "rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                }
-              >
-                {materia.name}{" "}
-                <span className="text-metric opacity-70">{materia.count}</span>
-              </Link>
-            );
-          })}
-        </div>
+        {/*
+          "Só do meu edital" continua uma pílula: é um interruptor, não uma
+          escolha entre muitas, e num menu de duas opções ele ficaria mais
+          escondido e mais lento de acionar.
+        */}
+        {preparacao ? (
+          <Link
+            href={comFiltro({ plano: soMeuPlano ? null : "1" })}
+            className={
+              soMeuPlano
+                ? "w-fit rounded-full bg-primary/15 px-3 py-1.5 text-xs font-semibold text-primary"
+                : "w-fit rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            }
+          >
+            Só do meu edital
+          </Link>
+        ) : null}
       </div>
 
       <MaterialGrid items={biblioteca.items} />

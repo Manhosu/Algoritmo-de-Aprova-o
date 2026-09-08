@@ -12,6 +12,18 @@ import { signContentUrl } from "@/server/storage";
 
 export const metadata: Metadata = { title: "Material" };
 
+/**
+ * O material é PDF, pelo endereço?
+ *
+ * A coluna `type` diz "resumo", que descreve o PAPEL do material e não o
+ * formato do arquivo — e o acervo dela tem resumo em imagem e resumo em PDF. A
+ * extensão do caminho é o que separa os dois. `?` corta a query da URL assinada,
+ * que vem sempre com token no fim.
+ */
+function ehPdf(endereco: string | null): boolean {
+  return /\.pdf(\?|$)/i.test(endereco ?? "");
+}
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -134,15 +146,78 @@ export default async function MaterialPage({
             </div>
           ) : null}
 
-          {(material.type === "pdf" || material.type === "study_text") && arquivo ? (
-            <a
-              href={arquivo}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center rounded-xl border border-border bg-card p-6 text-primary underline-offset-4 hover:underline"
+          {/*
+            ⚠️ O PDF ABRE DENTRO DA PÁGINA (pedido da cliente em 08/09/2026).
+
+            Palavras dela: "ao abrir o material poderia continuar dentro do site,
+            com as barras de cima, do lado e de baixo". Era um link com
+            `target="_blank"`: o aluno saía da plataforma para uma aba do
+            visualizador do navegador, sem menu, sem o botão de marcar como
+            estudado e sem caminho de volta a não ser fechar a aba.
+
+            O `<object>` é o que embute PDF com o visualizador nativo. O `<a>` de
+            dentro dele é o plano B do próprio elemento: navegador que não sabe
+            exibir PDF (é o caso de boa parte dos celulares) mostra o conteúdo
+            filho, e aí abrir fora é a única saída que existe.
+          */}
+          {material.type === "pdf" && arquivo ? (
+            <object
+              data={arquivo}
+              type="application/pdf"
+              className="h-[70vh] w-full rounded-xl border border-border bg-card"
+              aria-label={`PDF: ${material.title}`}
             >
-              Abrir material
-            </a>
+              <div className="flex flex-col items-center gap-3 p-6 text-center">
+                <p className="text-pretty text-sm text-muted-foreground">
+                  Seu navegador não abre PDF dentro da página.
+                </p>
+                <a
+                  href={arquivo}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                >
+                  Abrir o PDF
+                </a>
+              </div>
+            </object>
+          ) : null}
+
+          {/*
+            "Resumo" pode ser imagem (a maioria do acervo dela) ou PDF. A
+            extensão do caminho decide: um `<img>` com PDF dentro fica quebrado,
+            e um `<object>` com PNG dentro abre uma caixa de download.
+          */}
+          {material.type === "study_text" && arquivo ? (
+            ehPdf(material.storagePath ?? material.externalUrl) ? (
+              <object
+                data={arquivo}
+                type="application/pdf"
+                className="h-[70vh] w-full rounded-xl border border-border bg-card"
+                aria-label={`Resumo: ${material.title}`}
+              >
+                <div className="flex flex-col items-center gap-3 p-6 text-center">
+                  <p className="text-pretty text-sm text-muted-foreground">
+                    Seu navegador não abre PDF dentro da página.
+                  </p>
+                  <a
+                    href={arquivo}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                  >
+                    Abrir o resumo
+                  </a>
+                </div>
+              </object>
+            ) : (
+              <MindMapViewer
+                src={arquivo}
+                alt={`Resumo: ${material.title}`}
+                width={material.imageWidth}
+                height={material.imageHeight}
+              />
+            )
           ) : null}
 
           {material.type === "audio" && arquivo ? (

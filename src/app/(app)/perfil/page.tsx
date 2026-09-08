@@ -3,10 +3,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { ProfileForm } from "@/components/account/account-forms";
 import { AchievementList } from "@/components/gamification/achievement-list";
 import { SectionTitle, Surface } from "@/components/shared/surface";
 import { LOGIN_ROUTE } from "@/config/routes";
 import { getStudentContext } from "@/server/auth/current-user";
+import { db } from "@/server/db";
 import { listAchievements } from "@/server/engine/achievements";
 import { getLevel } from "@/server/engine/progress";
 
@@ -31,9 +33,21 @@ export default async function PerfilPage() {
   const context = await getStudentContext();
   if (!context) redirect(LOGIN_ROUTE);
 
-  const [progresso, conquistas] = await Promise.all([
+  const [progresso, conquistas, contato] = await Promise.all([
     getLevel(context.gamification.totalXp),
     listAchievements(context.user.id),
+    /*
+      O WhatsApp é buscado AQUI, e não carregado na sessão.
+
+      A sessão é lida em toda requisição da aplicação; guardar um telefone nela
+      espalharia PII por todo lugar que só precisa saber quem está logado. Uma
+      consulta nesta tela, que é a única que edita o dado, é mais barata e mais
+      contida.
+    */
+    db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.id, context.user.id),
+      columns: { whatsapp: true },
+    }),
   ]);
 
   const desbloqueadas = conquistas.filter((c) => c.unlockedAt).length;
@@ -119,6 +133,19 @@ export default async function PerfilPage() {
       </div>
 
       {conquistas.length > 0 ? <AchievementList conquistas={conquistas} /> : null}
+
+      {/*
+        Editar nome e WhatsApp (pedido da cliente em 08/09/2026): "no Meu Perfil
+        poderia ter a opção de editar nome e telefone".
+
+        ⚠️ FICA AQUI, e não em Configurações, porque é o que ela pediu e porque
+        é onde faz sentido: Configurações é onde se mexe em ACESSO — senha,
+        e-mail, exclusão. Nome e telefone são o retrato, e o retrato é esta tela.
+      */}
+      <Surface className="flex flex-col gap-4 p-5">
+        <SectionTitle>Meus dados</SectionTitle>
+        <ProfileForm name={context.user.name} whatsapp={contato?.whatsapp ?? null} />
+      </Surface>
 
       <Surface className="flex flex-col gap-2 p-5">
         <SectionTitle>Sua conta</SectionTitle>

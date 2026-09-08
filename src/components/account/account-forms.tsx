@@ -14,6 +14,7 @@ import {
   requestResetAction,
   resetPasswordAction,
   toggleRankingNameAction,
+  updateProfileAction,
   type AccountFormState,
 } from "./actions";
 
@@ -63,6 +64,90 @@ function Submit({ pending, label }: { pending: boolean; label: string }) {
       )}
     </Button>
   );
+}
+
+/* ========================================================================== *
+ * MEUS DADOS
+ * ========================================================================== */
+
+/**
+ * Nome e WhatsApp (pedido da cliente em 08/09/2026).
+ *
+ * ⚠️ A AÇÃO É CHAMADA DE DENTRO DO `onSubmit`, e não por `action={}`.
+ *
+ * O React 19 limpa um formulário que ele governa pelo `action` assim que a ação
+ * termina — inclusive quando ela termina RECUSANDO. Num formulário de EDIÇÃO o
+ * efeito é pior que num de cadastro: os campos não ficam vazios, voltam ao valor
+ * ANTIGO. A pessoa corrige o telefone, o servidor recusa por um dígito a menos,
+ * e a tela mostra o telefone velho como se ela nunca tivesse digitado.
+ */
+export function ProfileForm({
+  name,
+  whatsapp,
+}: {
+  name: string | null;
+  whatsapp: string | null;
+}) {
+  const [state, dispatch] = useActionState(updateProfileAction, IDLE);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <form
+      onSubmit={(evento) => {
+        evento.preventDefault();
+        const dados = new FormData(evento.currentTarget);
+        startTransition(() => dispatch(dados));
+      }}
+      className="flex flex-col gap-4"
+    >
+      <Field
+        id="profile-name"
+        name="name"
+        label="Nome"
+        autoComplete="name"
+        defaultValue={name ?? ""}
+        required
+      />
+
+      <Field
+        id="profile-whatsapp"
+        name="whatsapp"
+        label="WhatsApp"
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        /*
+          O banco guarda "+5511999999999" e a tela mostra "(11) 99999-9999".
+          Devolver o formato do banco no campo faria parecer que ela precisa
+          digitar assim.
+        */
+        defaultValue={formatWhatsapp(whatsapp)}
+        hint="Com DDD. Usamos para contato e suporte."
+        required
+      />
+
+      <Feedback state={state} />
+
+      <Submit pending={pending} label="Salvar dados" />
+    </form>
+  );
+}
+
+/** "+5511999999999" vira "(11) 99999-9999". */
+function formatWhatsapp(valor: string | null): string {
+  if (!valor) return "";
+
+  const digitos = valor.replace(/\D/g, "").replace(/^55/, "");
+
+  if (digitos.length === 11) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
+  }
+
+  if (digitos.length === 10) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6)}`;
+  }
+
+  return valor;
 }
 
 /* ========================================================================== *

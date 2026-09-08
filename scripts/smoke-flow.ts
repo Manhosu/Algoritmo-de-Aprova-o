@@ -875,6 +875,32 @@ async function main() {
         : `${scripts.length} scripts, CSP sem exigência de nonce`,
     );
 
+    /* --- 7c. o CSP libera o armazenamento do acervo ------------------------ *
+     *
+     * ⚠️ ESTA É A MESMA ARMADILHA DA VERIFICAÇÃO ACIMA, num outro recurso.
+     *
+     * `default-src 'self'` cobre `media-src` e `object-src` por herança. Todo o
+     * acervo era imagem, `img-src` já liberava `https:`, e ninguém percebeu.
+     * Com vídeo do Mind-X e PDF abrindo dentro da página, o navegador passaria a
+     * bloquear os dois — sem mensagem na tela, só um player que não começa.
+     *
+     * Nenhuma verificação de HTML pega isso: o `<video>` está no HTML, com a
+     * URL certa, e mesmo assim não toca.
+     */
+    const midiaLiberada = ["media-src", "object-src"].filter((diretiva) => {
+      const linha = csp.split(";").find((d) => d.trim().startsWith(diretiva)) ?? "";
+      /* Precisa existir E apontar para algum https — nossa origem não basta. */
+      return linha.includes("https://");
+    });
+
+    record(
+      "O CSP libera vídeo, áudio e PDF do armazenamento",
+      midiaLiberada.length === 2,
+      midiaLiberada.length === 2
+        ? "media-src e object-src apontam para o bucket"
+        : `faltando: ${["media-src", "object-src"].filter((d) => !midiaLiberada.includes(d)).join(", ")}`,
+    );
+
     /* --- 8. logout revoga a sessão no banco -------------------------------- */
     res = await fetch(`${BASE}/sair`, { headers: { cookie }, redirect: "manual" });
     const [session] = await sql<Array<{ revoked_at: Date | null }>>`

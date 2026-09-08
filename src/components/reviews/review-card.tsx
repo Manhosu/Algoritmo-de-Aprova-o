@@ -3,7 +3,7 @@
 import { AlertTriangle, Check, Loader2, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -36,17 +36,6 @@ export function ReviewCard({ review }: { review: DueReviewView }) {
   const [rating, setRating] = useState<"easy" | "ok" | "hard" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  /*
-    Sair da tela antes dos seis segundos deixaria um `refresh` agendado para um
-    componente que já não existe. React avisa, e num roteador de app isso vira
-    uma navegação inesperada de volta.
-  */
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
-
   function complete() {
     if (pending || done) return;
     setError(null);
@@ -66,20 +55,21 @@ export function ReviewCard({ review }: { review: DueReviewView }) {
         return;
       }
 
-      setDone({ nextOn: result.nextReviewOn, xp: result.xpEarned });
-
       /*
-        ⚠️ O `refresh` ESPERA, e o atraso é o conserto.
+        ⚠️ NÃO HÁ TEMPORIZADOR AQUI, e a ausência dele é o conserto.
 
-        Recarregar na hora traz a lista sem esta revisão, o card é desmontado e a
-        confirmação some antes de ser lida — com ela vai embora a data da
-        próxima revisão, que é a informação que o aluno mais quer nesse momento.
-        A cliente relatou como "a mensagem da revisão desaparece rápido demais".
+        A primeira versão recarregava a lista na hora: o card sumia e levava
+        junto a data da próxima revisão, que é a informação que o aluno mais
+        quer nesse momento. A cliente relatou como "a mensagem da revisão
+        desaparece rápido demais". Coloquei seis segundos, e ela repetiu a
+        reclamação.
 
-        Seis segundos deixam ler as duas linhas sem prender a tela: quem quiser
-        seguir antes é só tocar em qualquer outra coisa.
+        Ela estava certa e o meu conserto era o errado. Qualquer número é um
+        palpite sobre a velocidade de leitura de outra pessoa — e um palpite que
+        erra para menos apaga a informação na cara de quem ainda estava lendo. A
+        confirmação agora fica até o aluno decidir sair dela, no botão abaixo.
       */
-      timer.current = setTimeout(() => router.refresh(), 6000);
+      setDone({ nextOn: result.nextReviewOn, xp: result.xpEarned });
     });
   }
 
@@ -105,23 +95,38 @@ export function ReviewCard({ review }: { review: DueReviewView }) {
           já vai FILTRADO pelo assunto que ele acabou de revisar, que é a
           diferença entre uma sugestão e um atalho.
         */}
-        <Link
-          /*
-            Sem slug o filtro não existe, e `?assunto=` vazio abriria o banco
-            com um recorte que não recorta nada — pior que mandar para o banco
-            inteiro, porque a tela anunciaria um filtro ativo.
-          */
-          href={
-            review.topicSlug
-              ? `/questoes?assunto=${encodeURIComponent(review.topicSlug)}`
-              : "/questoes"
-          }
-          className="mt-3 inline-flex text-sm font-semibold text-primary underline-offset-4 hover:underline"
-        >
-          {review.topicSlug
-            ? `Treinar mais questões de ${review.topicName}`
-            : "Treinar mais questões"}
-        </Link>
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Link
+            /*
+              Sem slug o filtro não existe, e `?assunto=` vazio abriria o banco
+              com um recorte que não recorta nada — pior que mandar para o banco
+              inteiro, porque a tela anunciaria um filtro ativo.
+            */
+            href={
+              review.topicSlug
+                ? `/questoes?assunto=${encodeURIComponent(review.topicSlug)}`
+                : "/questoes"
+            }
+            className="inline-flex text-sm font-semibold text-primary underline-offset-4 hover:underline"
+          >
+            {review.topicSlug
+              ? `Treinar mais questões de ${review.topicName}`
+              : "Treinar mais questões"}
+          </Link>
+
+          {/*
+            Quem fecha a confirmação é o aluno. É este toque que recarrega a
+            lista — sem ele, a revisão concluída continuaria aparecendo como
+            pendente na próxima visita à tela.
+          */}
+          <button
+            type="button"
+            onClick={() => router.refresh()}
+            className="inline-flex min-h-9 items-center text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Fechar
+          </button>
+        </div>
       </li>
     );
   }

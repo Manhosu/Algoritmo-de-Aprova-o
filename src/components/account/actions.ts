@@ -16,6 +16,7 @@ import {
   requestPasswordReset,
   resetPassword,
 } from "@/server/auth/account";
+import { normalizeWhatsapp } from "@/server/auth/service";
 import { clearSessionCookie } from "@/server/auth/session";
 
 export type AccountFormState = {
@@ -213,6 +214,59 @@ export async function confirmEmailAction(token: string): Promise<AccountFormStat
  * sair dela. Sem esta ação, quem não quer o nome exposto teria de apagar a
  * conta.
  */
+/**
+ * Nome e WhatsApp, editáveis pelo próprio aluno (pedido da cliente em
+ * 08/09/2026: "no Meu Perfil poderia ter a opção de editar nome e telefone").
+ *
+ * ⚠️ E-MAIL NÃO ENTRA AQUI, de propósito.
+ *
+ * Ele é a credencial de acesso e a chave de recuperação: trocá-lo exige senha
+ * atual e confirmação no endereço novo, e esse fluxo já existe em Configurações.
+ * Juntar os três campos num formulário só faria a troca de e-mail parecer tão
+ * corriqueira quanto corrigir um sobrenome.
+ */
+export async function updateProfileAction(
+  _prev: AccountFormState,
+  formData: FormData,
+): Promise<AccountFormState> {
+  const session = await requireApiUser();
+
+  const nome = String(formData.get("name") ?? "").trim();
+  const whatsappBruto = String(formData.get("whatsapp") ?? "").trim();
+
+  if (nome.length < 2) {
+    return { status: "error", message: "Informe seu nome." };
+  }
+
+  if (nome.length > 160) {
+    return { status: "error", message: "O nome é longo demais." };
+  }
+
+  /*
+    O banco guarda em E.164 e tem um CHECK que garante o formato. Normalizar
+    aqui é o que permite ela digitar "(11) 99999-9999" como digita em qualquer
+    outro lugar — exigir o formato do banco seria transferir a nossa restrição
+    para quem preenche.
+  */
+  const whatsapp = normalizeWhatsapp(whatsappBruto);
+
+  if (!whatsapp) {
+    return { status: "error", message: "WhatsApp inválido. Use DDD e número." };
+  }
+
+  await db
+    .update(users)
+    .set({ name: nome, whatsapp, updatedAt: new Date() })
+    .where(eq(users.id, session.user.id));
+
+  /* O nome aparece no cabeçalho, no perfil e no ranking. */
+  revalidatePath("/perfil");
+  revalidatePath("/inicio");
+  revalidatePath("/ranking");
+
+  return { status: "ok", message: "Dados atualizados." };
+}
+
 export async function toggleRankingNameAction(
   _prev: AccountFormState,
   formData: FormData,
