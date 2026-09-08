@@ -310,10 +310,32 @@ function buildBlock(args: {
  * Alternando dentro do mesmo assunto, a comparação passa a ser feita com o
  * conteúdo controlado, que é o que dá sentido ao número.
  *
- * Devolve `null` quando não existe material nenhum para o assunto — o bloco
- * vira "🧠 Estude: Crase", sem nomear técnica. Prometer um mapa mental que não
- * existe seria pior do que não prometer nada.
+ * ⚠️ SEM MATERIAL, CAI NO PADRÃO — mas só se o padrão não depender do acervo.
+ *
+ * A cliente relatou duas coisas em 08/09/2026 que são a MESMA: "a Melhor
+ * Técnica não está medindo" e "cada tarefa deveria dizer o modo de estudo".
+ * Ambas vinham daqui. De 169 itens gerados, 137 saíram sem técnica nenhuma:
+ * a linha aparecia como "Estude: Crase", sem modo, e a métrica ficava sem o
+ * dado que ela existe para comparar.
+ *
+ * A causa era este trecho. Ele só usava o padrão quando o PADRÃO tinha material
+ * — e um padrão que exige material não é padrão, é mais uma opção. Leitura não
+ * depende do nosso acervo: o aluno lê a apostila dele, a lei seca, o edital. É
+ * uma instrução de COMO estudar, não a promessa de um arquivo nosso.
+ *
+ * Prometer mapa mental que não existe continua proibido, e é por isso que a
+ * checagem é sobre a natureza do padrão, e não sobre haver um padrão.
  */
+
+/**
+ * Técnicas que o aluno consegue executar com o material DELE.
+ *
+ * As outras (mapa mental, flashcard, resumo, videoaula, áudio) são conteúdo que
+ * nós publicamos: prescrevê-las sem ter o arquivo manda o aluno para uma tela
+ * vazia com o nosso nome em cima.
+ */
+const TECNICAS_SEM_ACERVO: StudyTechnique[] = ["reading", "other"];
+
 export function chooseTechnique(
   topic: TopicSnapshot,
   config: StudyTechniquesConfig,
@@ -323,8 +345,8 @@ export function chooseTechnique(
   );
 
   if (usable.length === 0) {
-    // Sem material: só usa o fallback se ele não depender de acervo.
-    return topic.availableTechniques.includes(config.fallback) ? config.fallback : null;
+    if (topic.availableTechniques.includes(config.fallback)) return config.fallback;
+    return TECNICAS_SEM_ACERVO.includes(config.fallback) ? config.fallback : null;
   }
 
   const recent = topic.recentTechniques.slice(0, config.minSessionsBeforeRepeat);

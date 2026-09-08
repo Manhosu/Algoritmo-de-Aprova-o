@@ -329,12 +329,13 @@ describe("chooseTechnique — rotação", () => {
     expect(DEFAULT_STUDY_TECHNIQUES.enabled).toContain("summary");
 
     // Mesmo que exista material de vídeo cadastrado, a técnica não é
-    // prescrita enquanto estiver fora da configuração.
+    // prescrita enquanto estiver fora da configuração — cai no padrão.
     const escolhida = chooseTechnique(
       topic({ availableTechniques: ["video"] }),
       DEFAULT_STUDY_TECHNIQUES,
     );
-    expect(escolhida).toBeNull();
+    expect(escolhida).not.toBe("video");
+    expect(escolhida).toBe(DEFAULT_STUDY_TECHNIQUES.fallback);
   });
 
   it("religar videoaula é só mudar a configuração, sem tocar em código", () => {
@@ -357,12 +358,35 @@ describe("chooseTechnique — rotação", () => {
     expect(escolhida).toBe("mind_map");
   });
 
-  it("SEM MATERIAL NENHUM, devolve null — não promete o que não existe", () => {
-    // No começo da operação o acervo está vazio. O bloco vira
-    // "🧠 Estude: Crase", sem nomear técnica.
+  it("SEM MATERIAL NENHUM, cai em Leitura — que não depende do nosso acervo", () => {
+    /*
+      ⚠️ ESTE TESTE MUDOU DE LADO EM 08/09/2026, e o motivo está registrado.
+
+      Antes ele exigia `null`, e o bloco virava "Estude: Crase", sem modo. A
+      cliente reportou as duas pontas disso no mesmo dia: "a Melhor Técnica não
+      está medindo" e "cada tarefa deveria dizer o modo de estudo". De 169 itens
+      gerados em produção, 137 tinham técnica nula — a métrica não tinha o que
+      comparar e a tela não tinha o que mostrar.
+
+      Leitura não promete arquivo nosso: é instrução de COMO estudar, e o aluno
+      a executa com a apostila dele. Prescrevê-la é honesto.
+    */
     const escolhida = chooseTechnique(
       topic({ availableTechniques: [] }),
       DEFAULT_STUDY_TECHNIQUES,
+    );
+    expect(escolhida).toBe("reading");
+  });
+
+  it("mas NÃO prescreve técnica de acervo sem o arquivo", () => {
+    /*
+      A proteção original continua de pé: um padrão que é conteúdo NOSSO só vale
+      quando o arquivo existe. Prometer "Mapa Mental — Crase" e abrir uma tela
+      vazia é pior do que não nomear modo nenhum.
+    */
+    const escolhida = chooseTechnique(
+      topic({ availableTechniques: [] }),
+      { ...DEFAULT_STUDY_TECHNIQUES, fallback: "mind_map" },
     );
     expect(escolhida).toBeNull();
   });

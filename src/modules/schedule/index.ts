@@ -475,6 +475,24 @@ function buildWeeks(args: {
       // Sobra do teto que não virou estudo: volta para o acumulado.
       carry += dayBudget;
 
+      /*
+        ⚠️ O TEMPO DO DIA É DIVIDIDO IGUALMENTE (pedido da cliente, 08/09/2026).
+
+        Palavras dela: "o Cronograma poderia dividir o tempo do dia igualmente
+        entre os assuntos daquele dia".
+
+        A distribuição acima é gulosa: ela enche o primeiro assunto com a
+        estimativa dele e dá o resto ao seguinte. Num dia de 60 minutos com dois
+        assuntos, saía "45 e 15" — e a diferença não tem explicação visível na
+        tela. O aluno lê como se um assunto valesse três vezes o outro.
+
+        A divisão acontece DEPOIS da escolha, e só sobre o total já alocado do
+        dia: quais assuntos entram, quantos entram e quanto o dia recebe no total
+        continuam decididos pelo ritmo e pela capacidade. O que muda é como
+        aquele total aparece repartido.
+      */
+      dividirIgualmente(dayTopics);
+
       days.push({
         date,
         availableMinutes: dayCapacity,
@@ -511,6 +529,34 @@ function buildWeeks(args: {
 
 function round(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/**
+ * Reparte igualmente os minutos já alocados a um dia. Muda a lista no lugar.
+ *
+ * ⚠️ O TOTAL DO DIA NÃO MUDA — só a repartição entre os assuntos dele.
+ *
+ * É por isso que a divisão pode entrar depois de toda a distribuição sem
+ * desmanchar nada: `plannedMinutes` da semana, a capacidade do dia e o
+ * acumulado do ritmo são somas, e a soma continua a mesma. Se esta função
+ * usasse a capacidade do dia em vez do que foi alocado, ela desfaria justamente
+ * o teto que espalha o conteúdo quando falta muito para a prova.
+ *
+ * A sobra da divisão vai para os PRIMEIROS assuntos, um minuto cada. Distribuir
+ * assim mantém a soma exata; arredondar cada um por conta própria faria o dia
+ * somar um ou dois minutos a mais que a própria capacidade.
+ */
+function dividirIgualmente(topicos: Array<{ minutes: number }>): void {
+  if (topicos.length < 2) return;
+
+  const total = topicos.reduce((soma, t) => soma + t.minutes, 0);
+  const base = Math.floor(total / topicos.length);
+  let sobra = total - base * topicos.length;
+
+  for (const topico of topicos) {
+    topico.minutes = base + (sobra > 0 ? 1 : 0);
+    if (sobra > 0) sobra -= 1;
+  }
 }
 
 /* ========================================================================== *

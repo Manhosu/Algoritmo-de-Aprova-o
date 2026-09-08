@@ -422,6 +422,17 @@ export type BestTechnique = {
   isReliable: boolean;
   /** Todas as técnicas medidas, ordenadas — para o painel de calibração. */
   ranking: Array<{ technique: string; accuracyPercent: number; attempts: number }>;
+  /**
+   * Quantas questões ainda faltam para o número sair, e `0` quando já saiu.
+   *
+   * ⚠️ EXISTE PORQUE "AINDA MEDINDO" SEM PRAZO PARECE DEFEITO.
+   *
+   * O card ficava com a mesma frase para sempre, e a cliente reportou como "a
+   * Melhor Técnica não está medindo". Ela não tinha como saber se faltavam
+   * cinco questões ou quinhentas, nem se o cálculo tinha quebrado. Um número
+   * que anda transforma uma tela parada em uma barra de progresso.
+   */
+  attemptsToReliable: number;
 };
 
 /**
@@ -468,7 +479,14 @@ export function findBestTechnique(
   // Uma técnica só não é comparação: precisa de pelo menos duas para haver
   // uma "melhor".
   if (ranking.length < 2) {
-    return { technique: null, accuracyPercent: null, sampleSize, isReliable: false, ranking };
+    return {
+      technique: null,
+      accuracyPercent: null,
+      sampleSize,
+      isReliable: false,
+      ranking,
+      attemptsToReliable: faltamParaComparar(totals, minAttempts),
+    };
   }
 
   return {
@@ -477,7 +495,34 @@ export function findBestTechnique(
     sampleSize,
     isReliable: true,
     ranking,
+    attemptsToReliable: 0,
   };
+}
+
+/**
+ * Quantas questões faltam para EXISTIR uma comparação.
+ *
+ * ⚠️ CONTA AS DUAS TÉCNICAS MAIS ADIANTADAS, e não a soma de todas.
+ *
+ * O número sai quando duas técnicas passam do mínimo — a terceira e a quarta
+ * não adiantam a conta. Somar tudo daria uma promessa curta demais, e a barra
+ * chegaria ao fim sem o resultado aparecer: pior que não ter barra nenhuma.
+ *
+ * Uma técnica ainda não medida entra como zero, porque estudar por ela é
+ * justamente o que falta acontecer.
+ */
+function faltamParaComparar(
+  totals: Map<string, { attempts: number }>,
+  minAttempts: number,
+): number {
+  const melhores = [...totals.values()]
+    .map((t) => t.attempts)
+    .sort((a, b) => b - a)
+    .slice(0, 2);
+
+  while (melhores.length < 2) melhores.push(0);
+
+  return melhores.reduce((falta, feitas) => falta + Math.max(0, minAttempts - feitas), 0);
 }
 
 /* ========================================================================== *

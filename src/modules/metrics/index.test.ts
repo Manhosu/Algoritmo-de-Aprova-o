@@ -451,6 +451,59 @@ describe("findBestTechnique", () => {
   it("sem dados não quebra", () => {
     expect(findBestTechnique([], minimo).isReliable).toBe(false);
   });
+
+  /*
+    ⚠️ "AINDA MEDINDO" SEM PRAZO PARECE DEFEITO.
+
+    A cliente relatou "a Melhor Técnica não está medindo". O card mostrava a
+    mesma frase hoje, amanhã e daqui a um mês: nada distinguia "juntando
+    amostra" de "quebrou", nem dizia se faltavam cinco questões ou quinhentas.
+  */
+  it("diz quantas questões faltam para haver comparação", () => {
+    const semNada = findBestTechnique([], minimo);
+    // Duas técnicas do zero: o dobro do mínimo.
+    expect(semNada.attemptsToReliable).toBe(minimo * 2);
+
+    const meioCaminho = findBestTechnique(
+      [
+        { technique: "mind_map", attempts: minimo, correct: 10 },
+        { technique: "reading", attempts: minimo - 3, correct: 5 },
+      ],
+      minimo,
+    );
+    expect(meioCaminho.attemptsToReliable).toBe(3);
+  });
+
+  it("a conta olha as DUAS mais adiantadas, não a soma de todas", () => {
+    /*
+      Somar tudo daria uma promessa curta demais: quatro técnicas com metade do
+      mínimo cada somam o dobro do mínimo, e mesmo assim NENHUMA está pronta. A
+      barra chegaria ao fim sem o resultado aparecer.
+    */
+    const espalhado = findBestTechnique(
+      [
+        { technique: "mind_map", attempts: minimo / 2, correct: 5 },
+        { technique: "reading", attempts: minimo / 2, correct: 5 },
+        { technique: "flashcard", attempts: minimo / 2, correct: 5 },
+        { technique: "summary", attempts: minimo / 2, correct: 5 },
+      ],
+      minimo,
+    );
+    expect(espalhado.isReliable).toBe(false);
+    expect(espalhado.attemptsToReliable).toBe(minimo);
+  });
+
+  it("já confiável não pede mais nada", () => {
+    const melhor = findBestTechnique(
+      [
+        { technique: "mind_map", attempts: 40, correct: 34 },
+        { technique: "reading", attempts: 40, correct: 24 },
+      ],
+      minimo,
+    );
+    expect(melhor.isReliable).toBe(true);
+    expect(melhor.attemptsToReliable).toBe(0);
+  });
 });
 
 describe("examCountdown", () => {

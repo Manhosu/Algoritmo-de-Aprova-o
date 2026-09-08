@@ -672,9 +672,24 @@ export function BestTechniqueCard({ best }: { best: BestTechnique }) {
           </p>
           <p className="mt-2 max-w-xs text-sm text-pretty text-muted-foreground">
             O sistema alterna as técnicas nos seus estudos e compara o acerto na
-            prática seguinte. Com mais questões respondidas, ele diz qual
-            funciona melhor para você.
+            prática seguinte.
           </p>
+
+          {/*
+            ⚠️ O NÚMERO QUE FALTA (pedido da cliente em 08/09/2026).
+
+            Ela relatou "a Melhor Técnica não está medindo". O card dizia
+            "ainda medindo" e nada mais — a mesma frase hoje, amanhã e daqui a
+            um mês. Não havia como distinguir "está juntando amostra" de
+            "quebrou", nem saber se faltavam cinco questões ou quinhentas.
+          */}
+          {best.attemptsToReliable > 0 ? (
+            <p className="mt-2 text-sm font-medium text-foreground">
+              Faltam {best.attemptsToReliable}{" "}
+              {best.attemptsToReliable === 1 ? "questão" : "questões"} respondidas
+              logo depois de estudar.
+            </p>
+          ) : null}
         </>
       )}
     </Surface>

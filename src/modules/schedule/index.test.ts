@@ -484,3 +484,73 @@ describe("recálculo", () => {
     }
   });
 });
+
+describe("divisão do tempo do dia (pedido da cliente em 08/09/2026)", () => {
+  /*
+    Palavras dela: "o Cronograma poderia dividir o tempo do dia igualmente entre
+    os assuntos daquele dia". A distribuição é gulosa por natureza — enche o
+    primeiro assunto com a estimativa dele e dá o resto ao seguinte —, e "45 e
+    15" na tela parece dizer que um assunto vale três vezes o outro.
+  */
+  function diasComVariosAssuntos(projecao: ReturnType<typeof projectSchedule>) {
+    return projecao.weeks
+      .flatMap((semana) => semana.days)
+      .filter((dia) => dia.topics.length > 1);
+  }
+
+  it("todo dia com mais de um assunto reparte o tempo por igual", () => {
+    /* Prova perto força vários assuntos por dia; com prova longe cabe um só. */
+    const projecao = projectSchedule(
+      input({
+        examDate: d("2026-09-10"),
+        pendingTopics: [
+          topic("a", 300),
+          topic("b", 300),
+          topic("c", 300),
+          topic("d", 300),
+        ],
+      }),
+    );
+
+    const dias = diasComVariosAssuntos(projecao);
+    expect(dias.length).toBeGreaterThan(0);
+
+    for (const dia of dias) {
+      const minutos = dia.topics.map((t) => t.minutes);
+      /* Só a sobra da divisão pode diferir, e ela é de um minuto. */
+      expect(Math.max(...minutos) - Math.min(...minutos)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("repartir não cria nem some minuto, e não estoura o dia", () => {
+    /*
+      ⚠️ É O QUE PERMITE A DIVISÃO ENTRAR DEPOIS DA DISTRIBUIÇÃO.
+
+      Se ela mexesse no total, desmancharia o teto do ritmo — o mecanismo que
+      espalha o conteúdo quando falta muito para a prova — e o dia passaria a
+      somar mais que a própria capacidade.
+    */
+    const projecao = projectSchedule(
+      input({
+        examDate: d("2026-09-10"),
+        pendingTopics: [topic("a", 300), topic("b", 300), topic("c", 300)],
+      }),
+    );
+
+    for (const semana of projecao.weeks) {
+      const somaDosDias = semana.days.reduce(
+        (soma, dia) => soma + dia.topics.reduce((s, t) => s + t.minutes, 0),
+        0,
+      );
+
+      expect(somaDosDias).toBe(semana.plannedMinutes);
+
+      for (const dia of semana.days) {
+        const total = dia.topics.reduce((s, t) => s + t.minutes, 0);
+        expect(total).toBeLessThanOrEqual(dia.availableMinutes);
+        /* Ninguém recebe zero: um assunto com zero minuto não é um assunto. */
+        for (const t of dia.topics) expect(t.minutes).toBeGreaterThan(0);
+      }
+    }
+  });
+});
