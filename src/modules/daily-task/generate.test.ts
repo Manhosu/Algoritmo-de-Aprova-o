@@ -672,3 +672,94 @@ describe("desempate pelo acervo", () => {
     expect(plano.blocks[0].planTopicId).toBe("pesado-sem-acervo");
   });
 });
+
+describe("a missão nasce do cronograma (pedido da cliente em 08/09/2026)", () => {
+  /*
+    Palavras dela: "a missão do dia precisa conter o assunto do cronograma para
+    aquele dia e mais um ou dois assuntos escolhidos pelo motor"; "o motor com 5
+    sinais só gera 1 ou 2 assuntos na missão do dia, não influencia o cronograma
+    inteiro".
+
+    Antes as duas telas ordenavam o mesmo conjunto por conta própria e
+    concordavam por coincidência. Agora o cronograma é a espinha do dia.
+  */
+  const muitos = Array.from({ length: 10 }, (_, i) =>
+    topic({
+      planTopicId: `t${i}`,
+      planSubjectId: `s${i % 3}`,
+      topicName: `Assunto ${i}`,
+      /* O motor prefere os últimos: quanto maior o índice, maior a lacuna. */
+      questionsAnswered: 40,
+      questionsCorrect: 40 - i * 4,
+      recentAccuracy: 1 - i * 0.1,
+    }),
+  );
+
+  function missao(scheduledTopicIds: string[]) {
+    return generateDailyTask({
+      now: AGORA,
+      timeZone: SP,
+      today: HOJE,
+      examDate: d("2026-12-15"),
+      examDateIsEstimated: false,
+      availableMinutes: 600,
+      reservedReviewMinutes: 0,
+      topics: muitos,
+      scheduledTopicIds,
+      weights: DEFAULT_DAILY_TASK_WEIGHTS,
+      scheduleParams: DEFAULT_SCHEDULE_PARAMS,
+      techniques: DEFAULT_STUDY_TECHNIQUES,
+    }).blocks.map((b) => b.planTopicId);
+  }
+
+  it("o assunto do cronograma vem PRIMEIRO, mesmo sem ser o preferido do motor", () => {
+    /* "t0" é o que o motor menos escolheria: o aluno acerta tudo nele. */
+    expect(missao(["t0"])[0]).toBe("t0");
+  });
+
+  it("o motor acrescenta no máximo dois", () => {
+    const blocos = missao(["t0"]);
+    expect(blocos).toHaveLength(3);
+    expect(blocos.slice(1).every((id) => id !== "t0")).toBe(true);
+  });
+
+  it("vários assuntos do cronograma entram TODOS, e o motor completa", () => {
+    const blocos = missao(["t0", "t1", "t2"]);
+    expect(blocos.slice(0, 3).sort()).toEqual(["t0", "t1", "t2"]);
+    expect(blocos.length).toBeLessThanOrEqual(5);
+  });
+
+  it("SEM CRONOGRAMA, o motor monta o dia sozinho", () => {
+    /*
+      É o que acontece antes de existir projeção: preparação recém-criada, sem
+      data de prova. Um dia em branco seria pior que um dia escolhido só pelo
+      motor.
+    */
+    expect(missao([]).length).toBeGreaterThan(0);
+  });
+
+  it("quando o tempo acaba, quem fica de fora é o acréscimo do motor", () => {
+    /*
+      A ordem não é estética. O aluno lê de cima para baixo, e o corte por
+      minutos come a última linha — que precisa ser o extra, nunca o assunto que
+      o cronograma prometeu para hoje.
+    */
+    const plano = generateDailyTask({
+      now: AGORA,
+      timeZone: SP,
+      today: HOJE,
+      examDate: d("2026-12-15"),
+      examDateIsEstimated: false,
+      /* Espaço para um bloco só. */
+      availableMinutes: 40,
+      reservedReviewMinutes: 0,
+      topics: muitos,
+      scheduledTopicIds: ["t0"],
+      weights: DEFAULT_DAILY_TASK_WEIGHTS,
+      scheduleParams: DEFAULT_SCHEDULE_PARAMS,
+      techniques: DEFAULT_STUDY_TECHNIQUES,
+    });
+
+    expect(plano.blocks[0].planTopicId).toBe("t0");
+  });
+});

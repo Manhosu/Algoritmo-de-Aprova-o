@@ -198,6 +198,12 @@ export async function ensureDailyTask(input: {
     availableMinutes: minutosDeEstudo + reservedReviewMinutes,
     reservedReviewMinutes,
     topics,
+    /*
+      Os assuntos que o cronograma marcou para hoje. Eles abrem a missão, e o
+      Motor 1 acrescenta um ou dois por cima — ver a nota em
+      `GenerateDailyTaskInput.scheduledTopicIds`.
+    */
+    scheduledTopicIds: hojeNoCronograma?.topics.map((t) => t.planTopicId) ?? [],
     weights: weights.value,
     scheduleParams: scheduleParams.value,
     techniques: techniques.value,

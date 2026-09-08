@@ -117,6 +117,7 @@ async function main() {
   const { getDiagnosis, submitDiagnosis } = await import(
     "../src/server/preparations/diagnosis"
   );
+  const { getSchedule } = await import("../src/server/engine/schedule");
   const { ensureDailyTask, getDailyMissions } = await import(
     "../src/server/engine/daily-task"
   );
@@ -590,6 +591,70 @@ async function main() {
       moved.length === 1 && moved[0].masteryConfidence > 0.15,
       moved[0] ? moved[0].masteryConfidence.toFixed(3) : "—",
     );
+
+    /* --- 15b. o cronograma e a missão do dia contam a mesma história ------ *
+     *
+     * ⚠️ TRÊS REGRAS QUE A CLIENTE DEFINIU EM 08/09/2026 e que só existem no
+     * servidor, onde nenhum teste de unidade alcança.
+     *
+     *   1. dia com disponibilidade não fica vazio;
+     *   2. nenhum dia passa de cinco assuntos;
+     *   3. assunto dominado nas Trilhas sai do cronograma.
+     *
+     * A terceira é uma linha de `filter` dentro de `loadPendingTopics`. Apagá-la
+     * não quebra nada visível: o aluno volta a receber, semanas depois, um
+     * assunto que ele provou dominar.
+     */
+    const cronograma = await getSchedule({ userId, preparationId });
+
+    if (cronograma) {
+      const dias = cronograma.weeks.flatMap((semana) => semana.days);
+      const comTempo = dias.filter((dia) => dia.availableMinutes > 0);
+
+      check(
+        "Nenhum dia com disponibilidade fica vazio no cronograma",
+        comTempo.every((dia) => dia.topics.length > 0),
+        `${comTempo.filter((d) => d.topics.length === 0).length} dia(s) em branco`,
+      );
+
+      check(
+        "Nenhum dia do cronograma passa de 5 assuntos",
+        dias.every((dia) => dia.topics.length <= 5),
+        `máximo de ${Math.max(0, ...dias.map((d) => d.topics.length))} num dia`,
+      );
+
+      const idsNoCronograma = new Set(dias.flatMap((dia) => dia.topics.map((t) => t.planTopicId)));
+
+      /* Marca um assunto como dominado e confere que ele sai da projeção. */
+      const [algum] = await db
+        .select({ id: schema.studyPlanTopics.id })
+        .from(schema.studyPlanTopics)
+        .where(eq(schema.studyPlanTopics.preparationId, preparationId))
+        .limit(1);
+
+      if (algum && idsNoCronograma.has(algum.id)) {
+        await db
+          .update(schema.topicStates)
+          .set({ coverageStatus: "mastered" })
+          .where(eq(schema.topicStates.planTopicId, algum.id));
+
+        const depois = await getSchedule({ userId, preparationId });
+        const aindaEsta = (depois?.weeks ?? [])
+          .flatMap((semana) => semana.days)
+          .some((dia) => dia.topics.some((t) => t.planTopicId === algum.id));
+
+        check(
+          "Assunto dominado nas Trilhas sai do cronograma",
+          !aindaEsta,
+          aindaEsta ? "continuou no plano" : "saiu do plano",
+        );
+
+        await db
+          .update(schema.topicStates)
+          .set({ coverageStatus: "in_progress" })
+          .where(eq(schema.topicStates.planTopicId, algum.id));
+      }
+    }
 
     /* --- 16. XP e sequência ----------------------------------------------- */
     const xpRows = await db

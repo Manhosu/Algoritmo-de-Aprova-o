@@ -89,6 +89,24 @@ export type GenerateDailyTaskInput = {
 
   topics: TopicSnapshot[];
 
+  /**
+   * Os assuntos que o CRONOGRAMA marcou para hoje. Eles abrem a missão.
+   *
+   * ⚠️ PEDIDO DA CLIENTE EM 08/09/2026, e ele reposiciona o Motor 1.
+   *
+   * Palavras dela: "a missão do dia precisa conter o assunto do cronograma para
+   * aquele dia e mais um ou dois assuntos escolhidos pelo motor"; "o motor com
+   * 5 sinais só gera 1 ou 2 assuntos na missão do dia, não influencia o
+   * cronograma inteiro".
+   *
+   * Antes as duas telas ordenavam o mesmo conjunto por conta própria, e
+   * concordavam por coincidência de fórmulas parecidas. Agora o cronograma é a
+   * espinha do dia e o motor entra por cima, com o que o desempenho de ontem
+   * pede. Vazio, o motor monta o dia sozinho — é o que acontece antes da
+   * primeira projeção existir.
+   */
+  scheduledTopicIds?: string[];
+
   weights: DailyTaskWeights;
   scheduleParams: ScheduleParams;
   techniques: StudyTechniquesConfig;
@@ -129,6 +147,14 @@ export type DailyTaskPlan = {
 
 /** Minutos estimados por questão, usado para dimensionar a prática. */
 const MINUTES_PER_QUESTION = 2;
+
+/**
+ * Quantos assuntos o Motor 1 acrescenta ao que o cronograma já marcou.
+ *
+ * "Mais um ou dois assuntos escolhidos pelo motor", nas palavras da cliente.
+ * Dois é o teto: o motor deixou de desenhar o dia e passou a temperá-lo.
+ */
+const EXTRAS_DO_MOTOR = 2;
 
 export function generateDailyTask(input: GenerateDailyTaskInput): DailyTaskPlan {
   const today = input.today ?? toCivilDate(input.now, input.timeZone);
@@ -209,7 +235,25 @@ export function generateDailyTask(input: GenerateDailyTaskInput): DailyTaskPlan 
 
   const ordered = spreadAcrossSubjects(scored, (item) => item.topic.planSubjectId);
 
-  for (const { topic, priority } of ordered) {
+  /*
+    ⚠️ O CRONOGRAMA ABRE A MISSÃO; o motor completa com um ou dois.
+
+    A ordem importa duas vezes. Na tela, porque o aluno lê de cima para baixo e
+    o que o plano dele mandou estudar hoje precisa ser a primeira linha. E no
+    corte: quando os minutos acabam, quem fica de fora é o acréscimo do motor,
+    nunca o assunto que o cronograma prometeu.
+  */
+  const doCronograma = new Set(input.scheduledTopicIds ?? []);
+
+  const daAgenda = ordered.filter((item) => doCronograma.has(item.topic.planTopicId));
+  const doMotor = ordered.filter((item) => !doCronograma.has(item.topic.planTopicId));
+
+  const fila =
+    daAgenda.length === 0
+      ? ordered
+      : [...daAgenda, ...doMotor.slice(0, EXTRAS_DO_MOTOR)];
+
+  for (const { topic, priority } of fila) {
     if (blocks.length >= input.scheduleParams.maxDailyTaskItems) break;
 
     const block = buildBlock({
