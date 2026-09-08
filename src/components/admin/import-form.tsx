@@ -179,10 +179,26 @@ function Relatorio({ report }: { report: NonNullable<ImportState["report"]> }) {
         />
       ) : null}
 
+      {report.createdTopics.length > 0 ? (
+        <Bloco
+          titulo="Assuntos novos criados"
+          ajuda="Não existiam no catálogo e foram criados dentro da disciplina que a planilha indicou. Confira os nomes: eles vão aparecer nos filtros e nas trilhas."
+          itens={report.createdTopics}
+        />
+      ) : null}
+
+      {report.unknownBoards.length > 0 ? (
+        <Bloco
+          titulo="Bancas que não existem no cadastro"
+          ajuda="Estas questões entraram como Autoral. Me diga quais bancas cadastrar e eu acrescento."
+          itens={report.unknownBoards}
+        />
+      ) : null}
+
       {report.unmatched.length > 0 ? (
         <Bloco
           titulo="Fora do catálogo"
-          ajuda="Estas não entraram. Me mande a lista e eu cadastro os assuntos; depois é só reimportar."
+          ajuda="A disciplina não casou com nenhuma do catálogo, então nem o assunto pôde ser criado. Confira a grafia da disciplina na planilha."
           itens={report.unmatched}
         />
       ) : null}
