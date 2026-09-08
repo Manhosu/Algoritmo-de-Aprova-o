@@ -114,7 +114,17 @@ export function proxy(request: NextRequest) {
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' blob: data: https:`,
     `font-src 'self' data:`,
-    `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
+    /*
+      ⚠️ O UPLOAD DO PAINEL É UM XHR PARA O ARMAZENAMENTO, e sem esta linha ele
+      é bloqueado.
+
+      Eu corrigi `media-src` e `object-src` e deixei este passar. O upload direto
+      manda os bytes do navegador para o bucket, e requisição de rede é
+      `connect-src` — não `media-src`. O resultado era "O envio falhou no meio",
+      a mensagem de rede que o próprio controle mostra, apontando para a conexão
+      da cliente quando o problema era nosso.
+    */
+    `connect-src 'self'${armazenamento}${isDev ? " ws: wss:" : ""}`,
     /* Vídeo e áudio do acervo — nossa origem em desenvolvimento, o bucket em produção. */
     `media-src 'self' blob:${armazenamento}`,
     /*

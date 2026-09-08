@@ -887,18 +887,30 @@ async function main() {
      * Nenhuma verificação de HTML pega isso: o `<video>` está no HTML, com a
      * URL certa, e mesmo assim não toca.
      */
-    const midiaLiberada = ["media-src", "object-src"].filter((diretiva) => {
+    const midiaLiberada = ["media-src", "object-src", "connect-src"].filter((diretiva) => {
       const linha = csp.split(";").find((d) => d.trim().startsWith(diretiva)) ?? "";
       /* Precisa existir E apontar para algum https — nossa origem não basta. */
       return linha.includes("https://");
     });
 
+    /*
+      ⚠️ `connect-src` ENTROU DEPOIS, e a falta dele custou um upload quebrado
+      em produção.
+
+      Eu tinha corrigido `media-src` e `object-src` e passado batido neste. O
+      upload do painel manda os bytes do navegador direto para o bucket, e
+      requisição de rede é `connect-src`. O controle mostrava "O envio falhou no
+      meio" — a mensagem de rede —, apontando para a conexão da cliente quando o
+      problema era nosso cabeçalho.
+    */
+    const DIRETIVAS_DO_ACERVO = ["media-src", "object-src", "connect-src"];
+
     record(
-      "O CSP libera vídeo, áudio e PDF do armazenamento",
-      midiaLiberada.length === 2,
-      midiaLiberada.length === 2
-        ? "media-src e object-src apontam para o bucket"
-        : `faltando: ${["media-src", "object-src"].filter((d) => !midiaLiberada.includes(d)).join(", ")}`,
+      "O CSP libera vídeo, PDF e o upload do armazenamento",
+      midiaLiberada.length === DIRETIVAS_DO_ACERVO.length,
+      midiaLiberada.length === DIRETIVAS_DO_ACERVO.length
+        ? "media-src, object-src e connect-src apontam para o bucket"
+        : `faltando: ${DIRETIVAS_DO_ACERVO.filter((d) => !midiaLiberada.includes(d)).join(", ")}`,
     );
 
     /* --- 8. logout revoga a sessão no banco -------------------------------- */
