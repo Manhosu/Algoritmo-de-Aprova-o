@@ -231,8 +231,19 @@ export const dailyTaskItems = pgTable(
     priorityBreakdown: jsonb()
       .$type<{
         signals: {
-          /** Desempenho do aluno no assunto (peso padrão 30%). */
-          performance: number;
+          /**
+           * Revisões que o aluno marcou como Difícil (peso padrão 30%).
+           *
+           * ⚠️ ANTES ERA `performance`, e as linhas antigas continuam com o nome
+           * antigo no JSONB. A cliente trocou o sinal em 08/09/2026: desempenho
+           * e lacunas liam a mesma fonte, e "Difícil" era coletado sem uso. Ver
+           * a nota em `hardReviewsSignal`.
+           *
+           * Este tipo descreve o que o motor GRAVA de hoje em diante. Quem lê o
+           * histórico trata a chave como opcional — `SIGNAL_COPY` tem o rótulo
+           * dos dois nomes.
+           */
+          hardReviews: number;
           /** Peso do assunto no edital (20%). */
           editalWeight: number;
           /** Proximidade da prova (20%). */
@@ -243,7 +254,7 @@ export const dailyTaskItems = pgTable(
           knowledgeGap: number;
         };
         contributions: {
-          performance: number;
+          hardReviews: number;
           editalWeight: number;
           urgency: number;
           recency: number;

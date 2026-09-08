@@ -363,10 +363,11 @@ async function loadTopicSnapshots(
     ...new Set(rows.map((r) => r.canonicalTopicId).filter((id): id is string => id !== null)),
   ];
 
-  const [questionCounts, materials, recentTechniques] = await Promise.all([
+  const [questionCounts, materials, recentTechniques, notasDeRevisao] = await Promise.all([
     countQuestionsByTopic(canonicalIds),
     materialsByTopic(canonicalIds),
     recentTechniquesByTopic(rows.map((r) => r.planTopicId)),
+    reviewRatingsByTopic(rows.map((r) => r.planTopicId)),
   ]);
 
   return rows.map((row) => {
@@ -397,6 +398,9 @@ async function loadTopicSnapshots(
       questionsAnswered: row.questionsAnswered ?? 0,
       questionsCorrect: row.questionsCorrect ?? 0,
       recentAccuracy: row.recentAccuracy,
+      /* O sinal que substituiu "desempenho" — ver `hardReviewsSignal`. */
+      reviewsRated: notasDeRevisao.get(row.planTopicId)?.total ?? 0,
+      reviewsRatedHard: notasDeRevisao.get(row.planTopicId)?.dificeis ?? 0,
       coverageProgress: coverageToProgress(row.coverageStatus),
       lastTouchedOn: lastTouched(row.lastStudiedAt, row.lastAnsweredAt),
 
@@ -518,6 +522,46 @@ async function materialsByTopic(
  * técnica todo dia e a métrica "melhor técnica de estudo" compararia assuntos
  * em vez de técnicas.
  */
+/**
+ * Quantas revisões de cada assunto o aluno avaliou, e quantas marcou Difícil.
+ *
+ * ⚠️ UMA CONSULTA PARA O EDITAL INTEIRO. Um edital tem 150 a 300 assuntos, e
+ * uma consulta por assunto seriam trezentas viagens para montar a tarefa de um
+ * dia, no celular.
+ *
+ * Só conta ocorrência CONCLUÍDA e com nota: revisão pulada ou sem avaliação não
+ * diz nada sobre a dificuldade do assunto, e contá-la como "não foi difícil"
+ * inventaria uma opinião que o aluno não deu.
+ */
+async function reviewRatingsByTopic(
+  planTopicIds: string[],
+): Promise<Map<string, { total: number; dificeis: number }>> {
+  if (planTopicIds.length === 0) return new Map();
+
+  const linhas = await db
+    .select({
+      planTopicId: reviewOccurrences.planTopicId,
+      total: sql<number>`count(*)::int`,
+      dificeis: sql<number>`count(*) filter (where ${reviewOccurrences.performanceRating} = 'hard')::int`,
+    })
+    .from(reviewOccurrences)
+    .where(
+      and(
+        inArray(reviewOccurrences.planTopicId, planTopicIds),
+        eq(reviewOccurrences.status, "completed"),
+        sql`${reviewOccurrences.performanceRating} is not null`,
+      ),
+    )
+    .groupBy(reviewOccurrences.planTopicId);
+
+  return new Map(
+    linhas.map((linha) => [
+      linha.planTopicId,
+      { total: linha.total, dificeis: linha.dificeis },
+    ]),
+  );
+}
+
 async function recentTechniquesByTopic(
   planTopicIds: string[],
 ): Promise<Map<string, StudyTechnique[]>> {

@@ -662,14 +662,14 @@ export const topicStates = pgTable(
      */
     priorityBreakdown: jsonb().$type<{
       signals: {
-        performance: number;
+        hardReviews: number;
         editalWeight: number;
         urgency: number;
         recency: number;
         knowledgeGap: number;
       };
       contributions: {
-        performance: number;
+        hardReviews: number;
         editalWeight: number;
         urgency: number;
         recency: number;

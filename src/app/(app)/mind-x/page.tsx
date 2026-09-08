@@ -49,10 +49,18 @@ export default async function MindXPage() {
           O Mind-X ainda não tem vídeo para você
         </h1>
 
+        {/*
+          ⚠️ SOBROU UM CASO SÓ: não há vídeo nenhum do edital dele.
+
+          Até 08/09/2026 esta tela também aparecia para quem tinha visto tudo no
+          mesmo dia, e a cliente reclamou com razão: "queria que ao invés da
+          mensagem avisando que não tem mais vídeos, pudesse voltar nos vídeos
+          que já foram visualizados". Os já vistos voltam no fim da fila agora,
+          então esta tela só sobra para o acervo vazio de verdade.
+        */}
         <p className="text-pretty text-muted-foreground">
-          {feed.totalInPlan === 0
-            ? "Assim que houver vídeos dos assuntos do seu edital, eles aparecem aqui, começando pelos que você mais erra."
-            : "Você já viu todos os vídeos disponíveis hoje. Eles voltam amanhã, e os novos entram assim que forem publicados."}
+          Assim que houver vídeos dos assuntos do seu edital, eles aparecem aqui,
+          começando pelos que você mais erra.
         </p>
 
         <Button asChild size="lg">

@@ -37,6 +37,8 @@ function topic(overrides: Partial<TopicSnapshot> = {}): TopicSnapshot {
     questionsAnswered: 0,
     questionsCorrect: 0,
     recentAccuracy: null,
+    reviewsRated: 0,
+    reviewsRatedHard: 0,
     coverageProgress: 0,
     lastTouchedOn: null,
     recentTechniques: [],
@@ -439,7 +441,7 @@ describe("generateDailyTask — explicabilidade", () => {
     const plano = generateDailyTask(input());
     const { signals, contributions } = plano.blocks[0].priority;
 
-    const nomes = ["performance", "editalWeight", "urgency", "recency", "knowledgeGap"];
+    const nomes = ["hardReviews", "editalWeight", "urgency", "recency", "knowledgeGap"];
     expect(Object.keys(signals).sort()).toEqual([...nomes].sort());
     expect(Object.keys(contributions).sort()).toEqual([...nomes].sort());
   });

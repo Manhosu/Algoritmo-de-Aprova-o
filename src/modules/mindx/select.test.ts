@@ -100,7 +100,7 @@ describe("seleção do Mind-X", () => {
     expect(feed[0].reason).toBe("peso");
   });
 
-  it("vídeo visto há menos de 24 horas fica de fora", () => {
+  it("vídeo visto há menos de 24 horas vai para o FIM, não para fora", () => {
     const feed = selectMindXFeed({
       now: AGORA,
       videos: [
@@ -114,7 +114,44 @@ describe("seleção do Mind-X", () => {
       signals: [sinal({ canonicalTopicId: "t-crase", errorPercent: 60 })],
     });
 
-    expect(feed.map((v) => v.contentItemId)).toEqual(["inedito"]);
+    /*
+      ⚠️ ESTE TESTE TROCOU DE LADO EM 08/09/2026, e o motivo está registrado.
+
+      Antes o visto há pouco era removido da lista. Palavras da cliente: "queria
+      que ao invés da mensagem avisando que não tem mais vídeos, pudesse voltar
+      nos vídeos que já foram visualizados".
+
+      O que a janela de 24 horas garante continua garantido, e é o que importa:
+      o aluno percorre TODO o inédito antes de reencontrar qualquer repetido.
+    */
+    expect(feed.map((v) => v.contentItemId)).toEqual(["inedito", "visto-agora"]);
+  });
+
+  it("com o acervo todo visto, o feed continua cheio em vez de vazio", () => {
+    /*
+      É o caso que ela encontrou: acervo pequeno, tudo visto no mesmo dia, e a
+      tela dizendo que não havia vídeo. O Mind-X abre no botão mais visível do
+      aplicativo — um estado vazio ali é o oposto do que o botão promete.
+    */
+    const feed = selectMindXFeed({
+      now: AGORA,
+      videos: [
+        video({
+          contentItemId: "visto-cedo",
+          canonicalTopicId: "t-crase",
+          lastSeenAt: new Date("2026-09-07T06:00:00Z"),
+        }),
+        video({
+          contentItemId: "visto-tarde",
+          canonicalTopicId: "t-crase",
+          lastSeenAt: new Date("2026-09-07T11:00:00Z"),
+        }),
+      ],
+      signals: [sinal({ canonicalTopicId: "t-crase", errorPercent: 60 })],
+    });
+
+    /* Nada some, e o visto há mais tempo volta primeiro. */
+    expect(feed.map((v) => v.contentItemId)).toEqual(["visto-cedo", "visto-tarde"]);
   });
 
   it("passadas as 24 horas o vídeo volta", () => {

@@ -20,22 +20,47 @@ import { z } from "zod";
 const weight = z.number().min(0).max(100);
 
 export const dailyTaskWeightsSchema = z
-  .object({
-    /** Desempenho do aluno no assunto. */
-    performance: weight,
-    /** Peso do assunto no edital. */
-    editalWeight: weight,
-    /** Proximidade da prova. */
-    urgency: weight,
-    /** Há quanto tempo não estuda. */
-    recency: weight,
-    /** Lacunas de conhecimento. */
-    knowledgeGap: weight,
-  })
+  .preprocess(
+    (valor) => {
+      /*
+        ⚠️ AS VERSÕES JÁ PUBLICADAS TÊM A CHAVE `performance`, e elas precisam
+        continuar abrindo.
+
+        Em 08/09/2026 a cliente trocou o sinal: "medir o desempenho e maiores
+        lacunas é a mesma coisa. Pode retirar a medida de desempenho e colocar
+        Revisões assinaladas como Difícil". O nome mudou no código, e as linhas
+        de `engine_configs` gravadas antes disso continuam no banco com o nome
+        antigo — cada Tarefa do Dia já criada aponta para uma delas.
+
+        Sem esta tradução, o schema recusaria as versões antigas e o histórico
+        inteiro deixaria de abrir. Renomear a chave dentro do JSON gravado seria
+        reescrever o passado, que é justamente o que o versionamento evita.
+      */
+      if (typeof valor !== "object" || valor === null) return valor;
+
+      const bruto = valor as Record<string, unknown>;
+      if (!("performance" in bruto) || "hardReviews" in bruto) return valor;
+
+      const { performance, ...resto } = bruto;
+      return { ...resto, hardReviews: performance };
+    },
+    z.object({
+      /** Revisões que o aluno marcou como Difícil. */
+      hardReviews: weight,
+      /** Peso do assunto no edital. */
+      editalWeight: weight,
+      /** Proximidade da prova. */
+      urgency: weight,
+      /** Há quanto tempo não estuda. */
+      recency: weight,
+      /** Lacunas de conhecimento. */
+      knowledgeGap: weight,
+    }),
+  )
   .refine(
     (w) =>
       Math.abs(
-        w.performance + w.editalWeight + w.urgency + w.recency + w.knowledgeGap - 100,
+        w.hardReviews + w.editalWeight + w.urgency + w.recency + w.knowledgeGap - 100,
       ) < 0.01,
     {
       message:
@@ -49,7 +74,7 @@ export type DailyTaskWeights = z.infer<typeof dailyTaskWeightsSchema>;
 
 /** Os padrões do README. Viram a versão 1, criada pelo seed. */
 export const DEFAULT_DAILY_TASK_WEIGHTS: DailyTaskWeights = {
-  performance: 30,
+  hardReviews: 30,
   editalWeight: 20,
   urgency: 20,
   recency: 15,

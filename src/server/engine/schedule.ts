@@ -117,6 +117,7 @@ async function loadPendingTopics(preparationId: string): Promise<PendingTopic[]>
       coverageStatus: topicStates.coverageStatus,
       priorityScore: topicStates.priorityScore,
       currentMasteryScore: topicStates.currentMasteryScore,
+      initialMastery: topicStates.initialMastery,
     })
     .from(studyPlanTopics)
     .innerJoin(studyPlanSubjects, eq(studyPlanTopics.planSubjectId, studyPlanSubjects.id))
@@ -144,6 +145,11 @@ async function loadPendingTopics(preparationId: string): Promise<PendingTopic[]>
        * Tarefa do Dia rodar.
        */
       priorityScore: row.priorityScore ?? 1 - (row.currentMasteryScore ?? 0.5),
+      /*
+        A percepção do diagnóstico inicial, que é o que ordena o cronograma
+        desde 08/09/2026. Ver a nota em `PendingTopic.masteryLevel`.
+      */
+      masteryLevel: row.initialMastery,
     }));
 }
 

@@ -12,7 +12,7 @@ import {
   editalWeightSignal,
   explainPriority,
   knowledgeGapSignal,
-  performanceSignal,
+  hardReviewsSignal,
   recencySignal,
   urgencySignal,
   type PriorityResult,
@@ -59,6 +59,10 @@ export type TopicSnapshot = {
   questionsAnswered: number;
   questionsCorrect: number;
   recentAccuracy: number | null;
+  /** Revisões concluídas deste assunto em que o aluno deu uma nota. */
+  reviewsRated: number;
+  /** Quantas dessas ele marcou como "Difícil". Ver `hardReviewsSignal`. */
+  reviewsRatedHard: number;
   coverageProgress: number;
   lastTouchedOn: CivilDate | null;
 
@@ -140,7 +144,7 @@ export function generateDailyTask(input: GenerateDailyTaskInput): DailyTaskPlan 
   const scored = pool
     .map((topic) => {
       const signals: Signals = {
-        performance: performanceSignal(topic),
+        hardReviews: hardReviewsSignal(topic),
         editalWeight: editalWeightSignal({
           weight: topic.weight,
           weightSource: topic.weightSource,

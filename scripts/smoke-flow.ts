@@ -520,15 +520,21 @@ async function main() {
     );
 
     /*
-      Os quatro destinos do menu do avatar.
+      Os destinos do menu do avatar.
 
       ⚠️ Três deles ficaram DESABILITADOS no menu por semanas, esperando a tela.
       Ligar o link e esquecer a página é a forma mais fácil de reintroduzir um
-      404 no menu principal — e o aluno conclui que a plataforma quebrou, não que
-      a tela ainda não chegou.
+      404 no menu principal, e o aluno conclui que a plataforma quebrou.
+
+      ⚠️ `/planos` ENTROU EM 08/09/2026, e por um motivo que este teste não
+      pega sozinho: eu troquei o "+" da barra inferior pelo Mind-X e levei junto
+      o único caminho até a tela de planos. A cliente reportou como "o botão
+      para mudar de plano ficou meio sumido". A rota respondia 200 o tempo todo;
+      o que sumiu foi o link para ela.
     */
     for (const [rota, marcador] of [
       ["/perfil", "Meu Perfil"],
+      ["/planos", "Planos"],
       ["/configuracoes", "Configurações"],
       ["/suporte", "Feedback"],
       ["/ajuda", "Central de Ajuda"],

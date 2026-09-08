@@ -2,6 +2,7 @@
 
 import {
   CircleHelp,
+  CreditCard,
   Flame,
   LayoutDashboard,
   LogOut,
@@ -228,6 +229,23 @@ function AvatarMenu({
           <Link href="/perfil">
             <User aria-hidden />
             Meu Perfil
+          </Link>
+        </DropdownMenuItem>
+        {/*
+          ⚠️ PLANOS ENTROU AQUI EM 08/09/2026, e a causa fui eu.
+
+          Palavras da cliente: "passando o botão para o Mind X, o botão para
+          mudar de plano ficou meio sumido". O "+" da barra inferior levava a
+          nova preparação, e a tela de planos era alcançada por ali. Troquei o
+          botão pelo Mind-X e não reparei que levei junto o único caminho de
+          quem quer assinar.
+
+          O menu do avatar é onde a pessoa procura conta, e plano é conta.
+        */}
+        <DropdownMenuItem asChild>
+          <Link href="/planos">
+            <CreditCard aria-hidden />
+            Planos
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

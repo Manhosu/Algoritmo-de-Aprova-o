@@ -23,7 +23,7 @@ import { daysBetween, type CivilDate } from "@/modules/shared/dates";
  */
 
 export type SignalName =
-  | "performance"
+  | "hardReviews"
   | "editalWeight"
   | "urgency"
   | "recency"
@@ -41,51 +41,58 @@ export function clamp01(value: number): number {
 export const NEUTRAL = 0.5;
 
 /* ========================================================================== *
- * 1. DESEMPENHO (peso padrão 30%)
+ * 1. REVISÕES MARCADAS COMO DIFÍCIL (peso padrão 30%)
  * ========================================================================== */
 
-export type PerformanceInput = {
-  /** Percepção do aluno no diagnóstico. Nunca muda. */
-  initialMastery: "high" | "medium" | "low" | null;
-  /** 0..1 — o que o desempenho real diz. Evolui. */
-  currentMasteryScore: number;
-  /** 0..1 — quanto o sistema confia no score, cresce com o volume de dados. */
-  masteryConfidence: number;
-};
-
-const MASTERY_FROM_DIAGNOSIS: Record<"high" | "medium" | "low", number> = {
-  high: 0.8,
-  medium: 0.5,
-  low: 0.2,
+/**
+ * ⚠️ ESTE SINAL SUBSTITUIU "DESEMPENHO" EM 08/09/2026, a pedido da cliente.
+ *
+ * Palavras dela: "medir o desempenho (mais baixo) e maiores lacunas (onde mais
+ * erra) é a mesma coisa. Pode retirar a medida de desempenho e colocar:
+ * Revisões assinaladas como Difícil. Assim a gente dá uma utilidade para essa
+ * verificação".
+ *
+ * Ela está certa nas duas metades. "Desempenho" saía de `currentMasteryScore`,
+ * que o próprio motor calcula a partir de acertos; "Lacunas" sai da taxa de
+ * erro. Dois sinais lendo a mesma fonte davam peso duplo à mesma evidência, e o
+ * aluno que errava um assunto o via subir por dois caminhos ao mesmo tempo.
+ *
+ * E o "Difícil" da revisão era coletado desde o Marco 1 sem alterar nada. Ele
+ * traz uma informação que nenhum outro sinal tem: o aluno pode ACERTAR as
+ * questões e ainda assim sentir que o assunto custa. Acerto mede resultado;
+ * "Difícil" mede esforço, e é o esforço que diz o que ainda não sedimentou.
+ */
+export type HardReviewsInput = {
+  /** Revisões concluídas deste assunto, com nota do aluno. */
+  reviewsRated: number;
+  /** Quantas delas ele marcou como "Difícil". */
+  reviewsRatedHard: number;
 };
 
 /**
- * Quanto o aluno precisa de atenção neste assunto.
+ * O peso de uma revisão só, para atenuar amostra pequena.
  *
- * A PERCEPÇÃO INICIAL PERDE PESO CONFORME O DADO REAL CHEGA
- * ----------------------------------------------------------------------------
- * É exatamente o que o aviso obrigatório da tela de diagnóstico promete: "o
- * nível informado é uma percepção inicial... será continuamente validado e
- * atualizado pelo Algoritmo conforme você resolver questões".
- *
- * Com confiança 0 (nenhuma questão respondida), vale só o diagnóstico. Com
- * confiança 1, o diagnóstico não pesa mais nada. É o que impede um erro de
- * clique no diagnóstico de acompanhar o aluno para sempre — e é o que torna
- * seguro o diagnóstico ser irreversível.
+ * Uma revisão marcada como difícil não é um padrão: pode ter sido um dia ruim.
+ * Sem atenuar, a primeira revisão difícil de um assunto o mandaria para o topo
+ * da fila como se ele fosse a maior lacuna do edital.
  */
-export function performanceSignal(input: PerformanceInput): number {
-  const confidence = clamp01(input.masteryConfidence);
-  const observed = clamp01(input.currentMasteryScore);
+const REVISOES_PARA_CONFIAR = 3;
 
-  const declared =
-    input.initialMastery === null
-      ? NEUTRAL
-      : MASTERY_FROM_DIAGNOSIS[input.initialMastery];
+export function hardReviewsSignal(input: HardReviewsInput): number {
+  const avaliadas = Math.max(0, input.reviewsRated);
+  if (avaliadas === 0) return NEUTRAL;
 
-  const mastery = declared * (1 - confidence) + observed * confidence;
+  const dificeis = Math.min(Math.max(0, input.reviewsRatedHard), avaliadas);
+  const proporcao = dificeis / avaliadas;
 
-  // Invertido: quem domina menos precisa de mais atenção.
-  return clamp01(1 - mastery);
+  /*
+    Caminha do neutro para a proporção real conforme as revisões se acumulam.
+    É a mesma atenuação que `knowledgeGapSignal` usa para a taxa de erro, e pelo
+    mesmo motivo: com duas revisões, 100% de "difícil" é ruído, não padrão.
+  */
+  const confianca = clamp01(avaliadas / REVISOES_PARA_CONFIAR);
+
+  return clamp01(NEUTRAL * (1 - confianca) + proporcao * confianca);
 }
 
 /* ========================================================================== *
@@ -273,7 +280,7 @@ export type PriorityResult = PriorityBreakdown & { score: number };
  */
 export function computePriority(signals: Signals, weights: DailyTaskWeights): PriorityResult {
   const contributions: Signals = {
-    performance: signals.performance * (weights.performance / 100),
+    hardReviews: signals.hardReviews * (weights.hardReviews / 100),
     editalWeight: signals.editalWeight * (weights.editalWeight / 100),
     urgency: signals.urgency * (weights.urgency / 100),
     recency: signals.recency * (weights.recency / 100),
@@ -281,7 +288,7 @@ export function computePriority(signals: Signals, weights: DailyTaskWeights): Pr
   };
 
   const score =
-    contributions.performance +
+    contributions.hardReviews +
     contributions.editalWeight +
     contributions.urgency +
     contributions.recency +
@@ -303,7 +310,7 @@ export function explainPriority(result: PriorityResult): string {
   );
 
   const reasons: Record<SignalName, string> = {
-    performance: "você ainda não domina este assunto",
+    hardReviews: "você marcou as revisões deste assunto como difíceis",
     editalWeight: "este assunto pesa muito no seu edital",
     urgency: "a prova está chegando e falta cobrir isto",
     recency: "faz tempo que você não estuda isto",

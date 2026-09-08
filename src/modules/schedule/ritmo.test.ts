@@ -41,6 +41,7 @@ function assuntos(quantos: number): PendingTopic[] {
     topicName: `Assunto ${i}`,
     remainingMinutes: 45,
     priorityScore: 100 - i,
+    masteryLevel: null,
   }));
 }
 

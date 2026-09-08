@@ -26,7 +26,10 @@ export const metadata: Metadata = { title: "Algoritmo" };
  */
 const ROTULOS_PESOS: Record<keyof DailyTaskWeights, { rotulo: string; ajuda?: string }> =
   {
-    performance: { rotulo: "Desempenho", ajuda: "Quanto o aluno acerta no assunto." },
+    hardReviews: {
+      rotulo: "Revisões difíceis",
+      ajuda: "Quantas revisões do assunto o aluno marcou como Difícil.",
+    },
     editalWeight: {
       rotulo: "Peso no edital",
       ajuda: "Quantas questões o tema costuma valer na prova.",

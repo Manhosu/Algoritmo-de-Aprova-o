@@ -36,7 +36,32 @@ export type PendingTopic = {
   /** Minutos estimados para cobrir o que falta deste assunto. */
   remainingMinutes: number;
   priorityScore: number;
+  /**
+   * A percepção do aluno no diagnóstico inicial, e a ORDEM DO CRONOGRAMA.
+   *
+   * ⚠️ ELA MANDA AQUI, e não o `priorityScore` do Motor 1. Decisão da cliente
+   * em 08/09/2026: "o cronograma é formado em primeiro os assuntos de baixo
+   * domínio, depois domínio intermediário, depois assuntos com mais afinidade
+   * (conforme indicado pelo usuário no diagnóstico inicial)".
+   *
+   * O raciocínio dela vem junto: "o motor com 5 sinais só gera 1 ou 2 assuntos
+   * na missão do dia, não influencia o cronograma inteiro". O Motor 1 reage ao
+   * desempenho de hoje, e o cronograma é o mapa dos próximos meses. Deixar o
+   * mapa inteiro balançar a cada questão respondida faz o aluno abrir a tela e
+   * ver outra coisa toda semana.
+   *
+   * `null` cai no meio: sem diagnóstico, tratar como baixo domínio jogaria o
+   * assunto para a frente da fila sem nada que justifique.
+   */
+  masteryLevel: "low" | "medium" | "high" | null;
 };
+
+/** Baixo domínio primeiro, afinidade por último. Ver a nota em `masteryLevel`. */
+const ORDEM_DE_DOMINIO: Record<string, number> = { low: 0, medium: 1, high: 2 };
+
+function rankDeDominio(nivel: PendingTopic["masteryLevel"]): number {
+  return ORDEM_DE_DOMINIO[nivel ?? "medium"] ?? 1;
+}
 
 export type WeeklyAvailability = {
   /** 0 = domingo … 6 = sábado. */
@@ -160,46 +185,62 @@ export function projectSchedule(input: ProjectScheduleInput): ScheduleProjection
   /* --- distribuição por semana --------------------------------------------- */
 
   /**
-   * O RITMO: que fração do tempo livre de cada dia o estudo novo ocupa.
+   * ⚠️ O RITMO VIROU "QUANTOS ASSUNTOS POR DIA", e não mais uma fração de
+   * minutos. Ver a nota dentro de `buildWeeks`.
    *
-   * ⚠️ ANTES O PLANO ERA GULOSO, e era esse o defeito. Ele enchia cada dia até
-   * o teto, na ordem de prioridade, e parava quando o conteúdo acabava. Com
-   * prova em outubro, o aluno via quatro ou cinco assuntos empilhados nos
-   * primeiros dias, o plano terminando em meados de setembro e três semanas
-   * vazias depois — e adiar a prova não mudava nada, porque a data nunca
-   * entrava na conta da distribuição.
-   *
-   * Agora entra: `necessário ÷ disponível até a prova` espalha o mesmo conteúdo
-   * por todo o período. Vinte dias dão carga alta; cem dias dão carga baixa,
-   * com o mesmo conteúdo. Foi o pedido da cliente, e é também o que o produto
-   * promete — "a projeção do que falta com o tempo que você tem".
-   *
-   * Preso em 1 quando NÃO CABE: aí a resposta certa é usar cada minuto
-   * disponível, e é `topicsAtRisk` que diz o que ficará de fora.
-   *
-   * A ORDEM DE PRIORIDADE NÃO MUDA. O ritmo altera quanto entra por dia, nunca
-   * quem entra primeiro — a fila continua ordenada pelo Motor 1.
+   * A ideia continua a mesma que a cliente pediu em 31/08: vinte dias dão carga
+   * alta, cem dias dão carga baixa, com o mesmo conteúdo. O que mudou é a
+   * unidade. Fatiar minutos partia assunto ao meio e deixava dias em branco, os
+   * dois defeitos que ela reportou em 08/09.
    */
-  const pace =
-    totalAvailable > 0 ? Math.min(1, requiredMinutes / totalAvailable) : 1;
-
-  const weeks = buildWeeks({
+  const { weeks, leftovers } = buildWeeks({
     today: input.today,
     horizonEnd,
     daysRemaining,
     minutesByWeekday,
     reviewMinutesPerDay: input.averageReviewMinutesPerDay,
     pendingTopics: input.pendingTopics,
-    pace,
     minBlockMinutes: input.scheduleParams.defaultStudyBlockMinutes,
   });
+
+  /*
+    ⚠️ O QUE NÃO COUBE VEM DA DISTRIBUIÇÃO, e não de uma segunda conta.
+
+    `assessFeasibility` compara minutos necessários com minutos disponíveis e
+    estima o que ficaria de fora. Agora quem sabe de verdade é a distribuição:
+    com o teto de cinco assuntos por dia, o horizonte comporta um número exato
+    de assuntos, e o resto da fila é a resposta. Duas contas para a mesma
+    pergunta divergiriam, e o aluno leria dois números diferentes na mesma tela.
+  */
+  const naoCoube = leftovers.map((topic) => topic.topicName);
 
   return {
     horizonStart: input.today,
     horizonEnd,
     hasExamDate: input.examDate !== null,
     weeks,
-    feasibility,
+    feasibility:
+      naoCoube.length > 0
+        ? {
+            ...feasibility,
+            fits: false,
+            topicsAtRisk: naoCoube,
+            /*
+              ⚠️ A MENSAGEM ORIGINAL GANHA quando ela já dizia que não cabe.
+
+              `assessFeasibility` conhece a causa específica: disponibilidade
+              zerada, revisões comendo o dia inteiro, conteúdo maior que o
+              tempo. A minha só sabe contar assuntos. Sobrescrever trocaria
+              "informe sua disponibilidade" por "aumente o tempo disponível" e
+              o aluno perderia a instrução que resolveria o caso dele.
+            */
+            message: feasibility.fits
+              ? `${naoCoube.length} ${naoCoube.length === 1 ? "assunto não cabe" : "assuntos não cabem"} ` +
+                `até a prova, mesmo com ${MAX_TOPICS_PER_DAY} assuntos por dia. ` +
+                "Aumente o tempo disponível, adie a prova ou tire assuntos do edital."
+              : feasibility.message,
+          }
+        : feasibility,
     summary: {
       topicsRemaining: input.pendingTopics.length,
       minutesRemaining: requiredMinutes,
@@ -302,6 +343,9 @@ function assessFeasibility(args: {
  * DISTRIBUIÇÃO POR SEMANA
  * ========================================================================== */
 
+/** Teto de assuntos por dia. "Pode ser 5 assuntos no máximo" (cliente, 08/09/2026). */
+export const MAX_TOPICS_PER_DAY = 5;
+
 function buildWeeks(args: {
   today: CivilDate;
   horizonEnd: CivilDate;
@@ -309,20 +353,13 @@ function buildWeeks(args: {
   minutesByWeekday: Map<number, number>;
   reviewMinutesPerDay: number;
   pendingTopics: PendingTopic[];
-  /**
-   * Que fração da capacidade diária o estudo novo ocupa, de 0 a 1.
-   *
-   * É o que faz o plano TERMINAR NA PROVA em vez de terminar cedo. Ver a nota
-   * em `projectSchedule`.
-   */
-  pace: number;
-  /** Abaixo disto não é sessão de estudo; o dia vira folga e o tempo acumula. */
+  /** Tamanho de uma sessão de estudo. Cada assunto do dia vale uma. */
   minBlockMinutes: number;
-}): ScheduleWeek[] {
+}): { weeks: ScheduleWeek[]; leftovers: PendingTopic[] } {
   const weeks: ScheduleWeek[] = [];
 
   /*
-    Fila de assuntos por prioridade, com o tempo restante de cada um.
+    Fila de assuntos por prioridade.
 
     ⚠️ E COM A MESMA ALTERNÂNCIA DE DISCIPLINAS DA TAREFA DO DIA.
 
@@ -331,23 +368,46 @@ function buildWeeks(args: {
     mesmo dia. Ver a nota em `modules/shared/spread-subjects`.
   */
   const queue = spreadAcrossSubjects(
-    [...args.pendingTopics].sort((a, b) => b.priorityScore - a.priorityScore),
+    [...args.pendingTopics].sort((a, b) => {
+      /* Baixo domínio, depois intermediário, depois afinidade. */
+      const dominio = rankDeDominio(a.masteryLevel) - rankDeDominio(b.masteryLevel);
+      if (dominio !== 0) return dominio;
+
+      /* Dentro da mesma faixa, o Motor 1 desempata. */
+      return b.priorityScore - a.priorityScore;
+    }),
     (topic) => topic.planSubjectId,
-  ).map((topic) => ({ ...topic, left: Math.max(0, topic.remainingMinutes) }));
+  );
+
+  /*
+    ⚠️ O CRONOGRAMA CONTA ASSUNTOS, E NÃO MINUTOS. Reescrito em 08/09/2026.
+
+    A versão anterior distribuía minutos: cada dia recebia uma fatia de tempo
+    calculada pelo ritmo, e os assuntos entravam até a fatia acabar. Isso
+    produziu os dois defeitos que a cliente relatou na mesma tela: dias em
+    branco, porque a fatia do dia às vezes ficava abaixo de um bloco de estudo,
+    e "Rotina de Compras" na quarta e de novo na quinta, porque a estimativa do
+    assunto era maior que a fatia e ele era partido.
+
+    Contando assuntos, os dois somem por construção. O dia recebe de um a cinco
+    assuntos INTEIROS, e o único número que o ritmo decide é quantos.
+
+    Palavras dela: "o cronograma não pode ter dias vazios, e não repetir
+    assuntos de um dia para o outro"; "existe uma quantidade limitada de
+    assuntos por dia, não podendo ultrapassar o limite (pode ser 5 no máximo)".
+  */
+  const diasDeEstudo = contarDiasDeEstudo(args);
+
+  const porDia =
+    diasDeEstudo === 0
+      ? 0
+      : Math.min(
+          MAX_TOPICS_PER_DAY,
+          Math.max(1, Math.ceil(queue.length / diasDeEstudo)),
+        );
 
   let cursor = 0;
   let queueIndex = 0;
-
-  /**
-   * Sobra fracionária do ritmo, carregada de um dia para o outro.
-   *
-   * Com muito tempo até a prova, `dia × pace` dá poucos minutos — dois, três.
-   * Estudar três minutos não é estudar. Em vez de picar o conteúdo assim, o
-   * tempo se acumula e o estudo acontece em blocos de verdade, mais espaçados:
-   * é o que a cliente pediu com "quanto maior o tempo disponível, menor a
-   * quantidade de conteúdos por dia".
-   */
-  let carry = 0;
 
   while (cursor < args.daysRemaining) {
     const startDate = addDays(args.today, cursor);
@@ -361,137 +421,37 @@ function buildWeeks(args: {
       availableMinutes += Math.max(0, dayMinutes - args.reviewMinutesPerDay);
     }
 
-    /*
-     * Distribui DIA A DIA, e não a semana inteira de uma vez.
-     *
-     * Percorrendo cada dia com o seu próprio orçamento, o mesmo laço produz a
-     * lista da semana e a de cada dia — sem uma segunda passada que poderia
-     * divergir da primeira e mostrar totais diferentes na mesma tela.
-     */
     const days: ScheduleDay[] = [];
     const topics: ScheduleWeek["topics"] = [];
-    let budget = availableMinutes;
+    let plannedMinutes = 0;
 
     for (let i = 0; i < daysInWeek; i++) {
       const date = addDays(startDate, i);
       const dayMinutes = args.minutesByWeekday.get(weekdayOf(date)) ?? 0;
       const dayCapacity = Math.max(0, dayMinutes - args.reviewMinutesPerDay);
 
-      carry += dayCapacity * args.pace;
+      const doDia = queue.slice(queueIndex, queueIndex + (dayCapacity > 0 ? porDia : 0));
+      queueIndex += doDia.length;
 
       /*
-        O dia só recebe conteúdo quando o acumulado dá um bloco de verdade —
-        ou quando o que falta já cabe no acumulado, que é o fim da fila.
+        ⚠️ O TEMPO DO DIA É REPARTIDO IGUALMENTE (pedido dela em 08/09/2026).
+
+        Cada assunto vale uma sessão, e a sessão encolhe quando o dia não
+        comporta uma inteira para cada um. A divisão sai igual por construção:
+        não há mais um "45 e 15" para explicar.
       */
-      const restante = queue
-        .slice(queueIndex)
-        .reduce((soma, topico) => soma + Math.max(0, topico.left), 0);
+      const porAssunto =
+        doDia.length === 0
+          ? 0
+          : Math.max(1, Math.min(args.minBlockMinutes, Math.floor(dayCapacity / doDia.length)));
 
-      /*
-        ⚠️ TETO DO DIA — sem ele, espalhar não reduz a carga diária.
+      const dayTopics = doDia.map((topic) => ({
+        planTopicId: topic.planTopicId,
+        topicName: topic.topicName,
+        minutes: porAssunto,
+      }));
 
-        O acumulado cresce nos dias de folga e, ao abrir um dia, despejaria
-        tudo de uma vez: com prova em cem dias o aluno recebia os mesmos três
-        assuntos num dia só, apenas mais espaçados. Não era o que a cliente
-        pediu.
-
-        Com o teto, horizonte longo dá UM bloco por dia de estudo, bem
-        distribuído; horizonte curto sobe o teto junto com o ritmo, até o dia
-        inteiro quando o conteúdo não cabe.
-      */
-      const tetoDoDia = Math.max(args.minBlockMinutes, Math.round(dayCapacity * args.pace));
-
-      const abreDia = carry >= args.minBlockMinutes || (restante > 0 && restante <= carry);
-      let dayBudget = abreDia
-        ? Math.min(Math.floor(carry), dayCapacity, tetoDoDia)
-        : 0;
-      carry -= dayBudget;
-
-      const dayTopics: ScheduleDay["topics"] = [];
-
-      /*
-        ⚠️ NADA DE FATIA CURTA DEMAIS.
-
-        Um bloco de 30 minutos cabe um assunto de 27 e sobram 3 — que viravam
-        o começo do assunto seguinte. Três minutos de um tema não ensinam nada
-        e ainda fazem o dia parecer ter dois assuntos.
-
-        O que não for usado volta para o acumulado e reaparece no próximo dia
-        de estudo, então nenhum minuto se perde.
-      */
-      const fatiaMinima = Math.ceil(args.minBlockMinutes / 2);
-
-      /**
-       * ⚠️ O ASSUNTO ENTRA INTEIRO OU NÃO ENTRA — pedido da cliente, 31/08/2026.
-       *
-       * Antes o assunto era partido quando não cabia: 21 minutos hoje, 6
-       * amanhã. No papel isso aproveita cada minuto; na prática deixa uma
-       * pendência arrastando de um dia para o outro, e o aluno abre a Tarefa do
-       * Dia com um pedaço de tema que ele nem lembra de ter começado.
-       *
-       * Agora o dia só aceita o assunto se couber por completo. Se não couber,
-       * o dia fecha e o assunto abre o próximo — o tempo que sobrou volta para
-       * o acumulado e reaparece adiante, então nada se perde.
-       *
-       * ⚠️ COM UMA EXCEÇÃO OBRIGATÓRIA: assunto maior que a capacidade de um
-       * dia inteiro. Sem ela, um tema de 4 horas numa rotina de 1 hora por dia
-       * nunca entraria em dia nenhum e o plano travaria para sempre. Nesse caso
-       * ele parte, porque a alternativa é não estudar.
-       */
-      while (dayBudget >= fatiaMinima && queueIndex < queue.length) {
-        const topic = queue[queueIndex];
-        if (topic.left <= 0) {
-          queueIndex++;
-          continue;
-        }
-
-        /*
-          ⚠️ A CONDIÇÃO É "CABE INTEIRO EM ALGUM DIA", e não "cabe hoje".
-
-          Comparar só com a capacidade do dia trava o plano: um assunto de 300
-          minutos numa rotina de 60 recebia blocos até sobrarem 60, e aí ficava
-          preso para sempre — 60 não cabia no orçamento do dia (limitado pelo
-          teto) e também não era "maior que um dia". O conteúdo parava de ser
-          distribuído em silêncio.
-
-          O que decide é o maior bloco que um dia chega a oferecer. Se o assunto
-          não cabe nem nisso, ele parte, porque a alternativa é nunca entrar.
-        */
-        const maiorBlocoPossivel = Math.min(dayCapacity, tetoDoDia);
-        if (topic.left > dayBudget && topic.left <= maiorBlocoPossivel) break;
-
-        const minutes = Math.min(dayBudget, topic.left);
-        dayTopics.push({
-          planTopicId: topic.planTopicId,
-          topicName: topic.topicName,
-          minutes,
-        });
-        topic.left -= minutes;
-        dayBudget -= minutes;
-        budget -= minutes;
-        if (topic.left <= 0) queueIndex++;
-      }
-
-      // Sobra do teto que não virou estudo: volta para o acumulado.
-      carry += dayBudget;
-
-      /*
-        ⚠️ O TEMPO DO DIA É DIVIDIDO IGUALMENTE (pedido da cliente, 08/09/2026).
-
-        Palavras dela: "o Cronograma poderia dividir o tempo do dia igualmente
-        entre os assuntos daquele dia".
-
-        A distribuição acima é gulosa: ela enche o primeiro assunto com a
-        estimativa dele e dá o resto ao seguinte. Num dia de 60 minutos com dois
-        assuntos, saía "45 e 15" — e a diferença não tem explicação visível na
-        tela. O aluno lê como se um assunto valesse três vezes o outro.
-
-        A divisão acontece DEPOIS da escolha, e só sobre o total já alocado do
-        dia: quais assuntos entram, quantos entram e quanto o dia recebe no total
-        continuam decididos pelo ritmo e pela capacidade. O que muda é como
-        aquele total aparece repartido.
-      */
-      dividirIgualmente(dayTopics);
+      plannedMinutes += porAssunto * dayTopics.length;
 
       days.push({
         date,
@@ -499,20 +459,14 @@ function buildWeeks(args: {
         topics: dayTopics,
       });
 
-      // O mesmo assunto pode aparecer em dias seguidos; na visão da semana ele
-      // é uma linha só, com os minutos somados.
-      for (const item of dayTopics) {
-        const existente = topics.find((t) => t.planTopicId === item.planTopicId);
-        if (existente) existente.minutes += item.minutes;
-        else topics.push({ ...item });
-      }
+      topics.push(...dayTopics);
     }
 
     weeks.push({
       startDate,
       endDate,
       availableMinutes,
-      plannedMinutes: availableMinutes - budget,
+      plannedMinutes,
       topics,
       days,
     });
@@ -524,40 +478,38 @@ function buildWeeks(args: {
     if (queueIndex >= queue.length) break;
   }
 
-  return weeks;
+  /*
+    ⚠️ O QUE SOBROU É O QUE NÃO CABE, e a cliente pediu para ver isso.
+
+    Palavras dela: "se for necessário ultrapassar, informar assuntos que não
+    cabem no cronograma". Com o teto de cinco por dia, o número de assuntos que
+    o horizonte comporta é finito, e o resto da fila é a resposta exata.
+  */
+  return { weeks, leftovers: queue.slice(queueIndex) };
+}
+
+/** Quantos dias do horizonte têm tempo livre depois da reserva de revisão. */
+function contarDiasDeEstudo(args: {
+  today: CivilDate;
+  daysRemaining: number;
+  minutesByWeekday: Map<number, number>;
+  reviewMinutesPerDay: number;
+}): number {
+  let total = 0;
+
+  for (let i = 0; i < args.daysRemaining; i++) {
+    const date = addDays(args.today, i);
+    const dayMinutes = args.minutesByWeekday.get(weekdayOf(date)) ?? 0;
+    if (dayMinutes - args.reviewMinutesPerDay > 0) total += 1;
+  }
+
+  return total;
 }
 
 function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-/**
- * Reparte igualmente os minutos já alocados a um dia. Muda a lista no lugar.
- *
- * ⚠️ O TOTAL DO DIA NÃO MUDA — só a repartição entre os assuntos dele.
- *
- * É por isso que a divisão pode entrar depois de toda a distribuição sem
- * desmanchar nada: `plannedMinutes` da semana, a capacidade do dia e o
- * acumulado do ritmo são somas, e a soma continua a mesma. Se esta função
- * usasse a capacidade do dia em vez do que foi alocado, ela desfaria justamente
- * o teto que espalha o conteúdo quando falta muito para a prova.
- *
- * A sobra da divisão vai para os PRIMEIROS assuntos, um minuto cada. Distribuir
- * assim mantém a soma exata; arredondar cada um por conta própria faria o dia
- * somar um ou dois minutos a mais que a própria capacidade.
- */
-function dividirIgualmente(topicos: Array<{ minutes: number }>): void {
-  if (topicos.length < 2) return;
-
-  const total = topicos.reduce((soma, t) => soma + t.minutes, 0);
-  const base = Math.floor(total / topicos.length);
-  let sobra = total - base * topicos.length;
-
-  for (const topico of topicos) {
-    topico.minutes = base + (sobra > 0 ? 1 : 0);
-    if (sobra > 0) sobra -= 1;
-  }
-}
 
 /* ========================================================================== *
  * MOVIMENTAÇÃO PELO ALUNO

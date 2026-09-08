@@ -10,7 +10,7 @@ import {
   explainPriority,
   knowledgeGapSignal,
   NEUTRAL,
-  performanceSignal,
+  hardReviewsSignal,
   recencySignal,
   urgencySignal,
   type Signals,
@@ -42,67 +42,73 @@ describe("clamp01", () => {
   });
 });
 
-describe("performanceSignal — desempenho", () => {
-  it("quem tem baixo domínio precisa de mais atenção", () => {
-    const baixo = performanceSignal({
-      initialMastery: "low",
-      currentMasteryScore: 0.5,
-      masteryConfidence: 0,
-    });
-    const alto = performanceSignal({
-      initialMastery: "high",
-      currentMasteryScore: 0.5,
-      masteryConfidence: 0,
-    });
-    expect(baixo).toBeGreaterThan(alto);
+describe("hardReviewsSignal — revisões marcadas como Difícil", () => {
+  /*
+    ⚠️ ESTE SINAL SUBSTITUIU "DESEMPENHO" EM 08/09/2026, a pedido da cliente.
+
+    Palavras dela: "medir o desempenho (mais baixo) e maiores lacunas (onde mais
+    erra) é a mesma coisa. Pode retirar a medida de desempenho e colocar:
+    Revisões assinaladas como Difícil. Assim a gente dá uma utilidade para essa
+    verificação".
+
+    Ela estava certa: "desempenho" saía de `currentMasteryScore`, que o motor
+    calcula a partir de acertos, e "lacunas" sai da taxa de erro. Dois sinais
+    lendo a mesma fonte davam peso duplo à mesma evidência.
+  */
+
+  it("quem marca as revisões como difíceis precisa de mais atenção", () => {
+    const dificil = hardReviewsSignal({ reviewsRated: 6, reviewsRatedHard: 6 });
+    const tranquilo = hardReviewsSignal({ reviewsRated: 6, reviewsRatedHard: 0 });
+
+    expect(dificil).toBeGreaterThan(tranquilo);
+    expect(dificil).toBeGreaterThan(0.9);
+    expect(tranquilo).toBeLessThan(0.1);
   });
 
-  it("sem confiança, vale só o diagnóstico", () => {
-    expect(
-      performanceSignal({
-        initialMastery: "low",
-        currentMasteryScore: 0.9,
-        masteryConfidence: 0,
-      }),
-    ).toBeCloseTo(0.8, 5); // 1 - 0.2
+  it("SEM REVISÃO AVALIADA, fica neutro", () => {
+    /*
+      Zero não serviria: afundaria na fila todo assunto que o aluno ainda não
+      revisou, que é justamente o conjunto de assuntos novos. A ausência de
+      opinião não é uma opinião.
+    */
+    expect(hardReviewsSignal({ reviewsRated: 0, reviewsRatedHard: 0 })).toBe(NEUTRAL);
   });
 
-  it("com confiança total, o diagnóstico não pesa mais nada", () => {
-    // O aluno disse "baixo domínio" mas acerta tudo. Com dado suficiente,
-    // o algoritmo passa por cima da percepção inicial.
-    expect(
-      performanceSignal({
-        initialMastery: "low",
-        currentMasteryScore: 0.9,
-        masteryConfidence: 1,
-      }),
-    ).toBeCloseTo(0.1, 5);
+  it("amostra pequena é atenuada: uma revisão difícil não é um padrão", () => {
+    /*
+      Sem atenuar, a primeira revisão marcada como difícil mandaria o assunto
+      para o topo da fila como se fosse a maior lacuna do edital. Pode ter sido
+      um dia ruim.
+    */
+    const uma = hardReviewsSignal({ reviewsRated: 1, reviewsRatedHard: 1 });
+    const muitas = hardReviewsSignal({ reviewsRated: 9, reviewsRatedHard: 9 });
+
+    expect(uma).toBeLessThan(muitas);
+    expect(uma).toBeGreaterThan(NEUTRAL);
+    expect(uma).toBeLessThan(0.85);
   });
 
-  it("A PROMESSA DO AVISO: um erro de clique no diagnóstico se corrige sozinho", () => {
-    // Aluno marcou "alto domínio" por engano num assunto que não domina.
-    const semDados = performanceSignal({
-      initialMastery: "high",
-      currentMasteryScore: 0.5,
-      masteryConfidence: 0,
+  it("é o único sinal que enxerga esforço, e não resultado", () => {
+    /*
+      O aluno pode ACERTAR as questões e ainda sentir que o assunto custa.
+      `knowledgeGapSignal` leria acerto alto e diria "sem lacuna"; este sinal
+      lê a nota que o próprio aluno deu.
+    */
+    const acertaMasSofre = hardReviewsSignal({ reviewsRated: 5, reviewsRatedHard: 5 });
+    const semLacuna = knowledgeGapSignal({
+      questionsAnswered: 40,
+      questionsCorrect: 38,
+      recentAccuracy: 0.95,
     });
-    const comDados = performanceSignal({
-      initialMastery: "high",
-      currentMasteryScore: 0.2, // errando muito na prática
-      masteryConfidence: 0.9,
-    });
-    expect(comDados).toBeGreaterThan(semDados);
-    expect(comDados).toBeGreaterThan(0.7);
+
+    expect(acertaMasSofre).toBeGreaterThan(0.8);
+    expect(semLacuna).toBeLessThan(0.2);
   });
 
-  it("sem diagnóstico algum, parte do neutro", () => {
-    expect(
-      performanceSignal({
-        initialMastery: null,
-        currentMasteryScore: 0.5,
-        masteryConfidence: 0,
-      }),
-    ).toBeCloseTo(0.5, 5);
+  it("mais 'difícil' que revisões avaliadas não estoura o sinal", () => {
+    // Dado inconsistente vindo do banco não pode virar um score acima de 1.
+    expect(hardReviewsSignal({ reviewsRated: 2, reviewsRatedHard: 99 })).toBeLessThanOrEqual(1);
+    expect(hardReviewsSignal({ reviewsRated: -3, reviewsRatedHard: -1 })).toBe(NEUTRAL);
   });
 });
 
@@ -285,7 +291,7 @@ describe("knowledgeGapSignal — lacunas", () => {
 
 describe("computePriority", () => {
   const signals: Signals = {
-    performance: 0.8,
+    hardReviews: 0.8,
     editalWeight: 0.6,
     urgency: 0.4,
     recency: 1,
@@ -309,11 +315,11 @@ describe("computePriority", () => {
 
   it("o score fica entre 0 e 1 quando todos os sinais estão no intervalo", () => {
     const zero = computePriority(
-      { performance: 0, editalWeight: 0, urgency: 0, recency: 0, knowledgeGap: 0 },
+      { hardReviews: 0, editalWeight: 0, urgency: 0, recency: 0, knowledgeGap: 0 },
       DEFAULT_DAILY_TASK_WEIGHTS,
     );
     const um = computePriority(
-      { performance: 1, editalWeight: 1, urgency: 1, recency: 1, knowledgeGap: 1 },
+      { hardReviews: 1, editalWeight: 1, urgency: 1, recency: 1, knowledgeGap: 1 },
       DEFAULT_DAILY_TASK_WEIGHTS,
     );
     expect(zero.score).toBe(0);
@@ -322,7 +328,7 @@ describe("computePriority", () => {
 
   it("mudar os pesos muda o score, e o breakdown continua somando", () => {
     const outrosPesos = {
-      performance: 10,
+      hardReviews: 10,
       editalWeight: 10,
       urgency: 60,
       recency: 10,
@@ -339,7 +345,7 @@ describe("computePriority", () => {
     const gravado = computePriority(signals, DEFAULT_DAILY_TASK_WEIGHTS);
 
     const novosPesos = {
-      performance: 20,
+      hardReviews: 20,
       editalWeight: 20,
       urgency: 40,
       recency: 10,
@@ -358,7 +364,7 @@ describe("explainPriority", () => {
     // Desempenho é 0,9 e vale 30% — contribui mais.
     const resultado = computePriority(
       {
-        performance: 0.9,
+        hardReviews: 0.9,
         editalWeight: 0,
         urgency: 0,
         recency: 1,
@@ -366,12 +372,12 @@ describe("explainPriority", () => {
       },
       DEFAULT_DAILY_TASK_WEIGHTS,
     );
-    expect(explainPriority(resultado)).toBe("você ainda não domina este assunto");
+    expect(explainPriority(resultado)).toBe("você marcou as revisões deste assunto como difíceis");
   });
 
   it("devolve frase legível para cada sinal dominante", () => {
     const casos: Array<[keyof Signals, string]> = [
-      ["performance", "você ainda não domina este assunto"],
+      ["hardReviews", "você marcou as revisões deste assunto como difíceis"],
       ["editalWeight", "este assunto pesa muito no seu edital"],
       ["urgency", "a prova está chegando e falta cobrir isto"],
       ["recency", "faz tempo que você não estuda isto"],
@@ -380,7 +386,7 @@ describe("explainPriority", () => {
 
     for (const [sinal, frase] of casos) {
       const zerado: Signals = {
-        performance: 0,
+        hardReviews: 0,
         editalWeight: 0,
         urgency: 0,
         recency: 0,

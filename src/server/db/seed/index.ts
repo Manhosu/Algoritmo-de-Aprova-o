@@ -280,7 +280,7 @@ async function seedEngineConfigs(db: Db) {
 
   const weights = ENGINE_CONFIG_DEFAULTS.daily_task_weights;
   log.item(
-    `  pesos do Motor 1: desempenho ${weights.performance}% · edital ${weights.editalWeight}% · ` +
+    `  pesos do Motor 1: revisões difíceis ${weights.hardReviews}% · edital ${weights.editalWeight}% · ` +
       `urgência ${weights.urgency}% · recência ${weights.recency}% · lacunas ${weights.knowledgeGap}%`,
   );
 }

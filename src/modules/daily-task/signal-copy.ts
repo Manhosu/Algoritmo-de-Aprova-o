@@ -18,10 +18,11 @@ import type { SignalName } from "./signals";
  */
 
 export const SIGNAL_COPY: Record<SignalName, { label: string; explanation: string }> = {
-  performance: {
-    label: "Seu desempenho",
+  hardReviews: {
+    label: "Revisões difíceis",
     explanation:
-      "Quanto você acerta neste assunto. Quanto menor o acerto, mais alto ele sobe na fila.",
+      "Quantas revisões deste assunto você marcou como Difícil. Você pode acertar as " +
+      "questões e ainda sentir que o assunto custa, e é isso que este sinal enxerga.",
   },
   editalWeight: {
     label: "Peso no edital",
@@ -57,7 +58,7 @@ export const SIGNAL_COPY: Record<SignalName, { label: string; explanation: strin
  * não fecha. O teste ao lado cobre exatamente isso.
  */
 export const SIGNAL_ORDER: SignalName[] = [
-  "performance",
+  "hardReviews",
   "editalWeight",
   "urgency",
   "recency",

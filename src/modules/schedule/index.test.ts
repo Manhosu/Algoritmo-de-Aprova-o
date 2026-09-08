@@ -5,6 +5,7 @@ import type { CivilDate } from "@/modules/shared/dates";
 
 import {
   canEngineReschedule,
+  MAX_TOPICS_PER_DAY,
   explainRecalculation,
   moveScheduleEntry,
   projectSchedule,
@@ -37,6 +38,7 @@ function topic(id: string, minutes: number, priority = 0.5): PendingTopic {
     topicName: `Assunto ${id}`,
     remainingMinutes: minutes,
     priorityScore: priority,
+    masteryLevel: null,
   };
 }
 
@@ -88,11 +90,45 @@ describe("projectSchedule — horizonte", () => {
      * precisa ter conteúdo — plano que termina cedo continua sendo erro; o que
      * mudou é que ele termina PERTO DA PROVA, não perto de hoje.
      */
-    const projecao = projectSchedule(input());
+    /*
+      ⚠️ COM UM EDITAL DE VERDADE. Reescrito em 08/09/2026.
+
+      A versão anterior usava dois assuntos e 87 dias, o que hoje é um caso
+      degenerado: com um assunto por dia no mínimo, dois assuntos acabam no
+      segundo dia. Edital de concurso tem centenas de assuntos, e é aí que a
+      distribuição precisa alcançar a prova.
+    */
+    const edital = Array.from({ length: 150 }, (_, i) => topic(`t${i}`, 30));
+    const projecao = projectSchedule(input({ pendingTopics: edital }));
 
     const semanasNoHorizonte = Math.ceil(projecao.summary.daysRemaining / 7);
     expect(projecao.weeks.length).toBeGreaterThan(semanasNoHorizonte - 2);
     expect(projecao.weeks.at(-1)!.topics.length).toBeGreaterThan(0);
+  });
+
+  it("CONTEÚDO CURTO acaba cedo em vez de deixar buracos pelo caminho", () => {
+    /*
+      ⚠️ A ESCOLHA QUE A CLIENTE FEZ EM 08/09/2026, escrita aqui para não ser
+      desfeita por engano.
+
+      Dois assuntos e 87 dias não dão para preencher todos os dias: ou o plano
+      espalha e deixa dias em branco no meio, ou concentra e termina cedo. Ela
+      pediu "o cronograma não pode ter dias vazios", então ele termina cedo. O
+      tempo que sobra não fica ocioso — as revisões do Motor 2 caem nesses dias,
+      e a Tarefa do Dia continua com piso de um bloco.
+    */
+    const projecao = projectSchedule(input({
+      pendingTopics: [topic("a", 30), topic("b", 30)],
+    }));
+
+    const diasComEstudo = projecao.weeks
+      .flatMap((semana) => semana.days)
+      .filter((dia) => dia.topics.length > 0);
+
+    /* Dias seguidos, sem pular nenhum dia com disponibilidade no meio. */
+    expect(diasComEstudo).toHaveLength(2);
+    expect(diasComEstudo[0].date).toBe("2026-08-20");
+    expect(diasComEstudo[1].date).toBe("2026-08-21");
   });
 
   it("com MAIS tempo, distribui MENOS conteúdo por dia", () => {
@@ -103,38 +139,107 @@ describe("projectSchedule — horizonte", () => {
      * O mesmo conteúdo, dois horizontes. O teste compara os minutos planejados
      * na PRIMEIRA semana, que é onde o plano guloso concentrava tudo.
      */
-    const curto = projectSchedule(input({ examDate: d("2026-09-15") }));
-    const longo = projectSchedule(input({ examDate: d("2026-12-15") }));
+    const edital = Array.from({ length: 150 }, (_, i) => topic(`t${i}`, 30));
 
-    expect(curto.weeks[0].plannedMinutes).toBeGreaterThan(longo.weeks[0].plannedMinutes);
+    const curto = projectSchedule(input({ examDate: d("2026-09-15"), pendingTopics: edital }));
+    const longo = projectSchedule(input({ examDate: d("2026-12-15"), pendingTopics: edital }));
+
+    /*
+      ⚠️ A COMPARAÇÃO É EM ASSUNTOS POR DIA, e não em minutos. O cronograma
+      passou a contar assuntos em 08/09/2026, para nunca partir um deles entre
+      dois dias. Ver a nota em `buildWeeks`.
+    */
+    const porDia = (p: ReturnType<typeof projectSchedule>) =>
+      Math.max(...p.weeks[0].days.map((dia) => dia.topics.length));
+
+    expect(porDia(curto)).toBeGreaterThan(porDia(longo));
   });
 
-  it("distribui o conteúdo INTEIRO, por mais longo que seja o prazo", () => {
-    // Espalhar não pode virar esquecer: a soma do que foi planejado tem que
-    // continuar sendo tudo o que havia para estudar.
-    const pendentes = [topic("a", 200), topic("b", 200), topic("c", 200)];
+  it("NENHUM ASSUNTO SOME: ou está no cronograma, ou está avisado", () => {
+    /*
+      Espalhar não pode virar esquecer. A conferência mudou de minutos para
+      assuntos junto com o cronograma: cada assunto pendente aparece uma vez na
+      distribuição ou entra na lista do que não cabe, e nunca nas duas nem em
+      nenhuma.
+    */
+    const pendentes = Array.from({ length: 40 }, (_, i) => topic(`t${i}`, 30));
     const projecao = projectSchedule(input({
       examDate: d("2026-12-15"),
       pendingTopics: pendentes,
     }));
 
-    const planejado = projecao.weeks.reduce((soma, semana) => soma + semana.plannedMinutes, 0);
-    expect(planejado).toBe(600);
+    const distribuidos = projecao.weeks
+      .flatMap((semana) => semana.days)
+      .flatMap((dia) => dia.topics)
+      .map((t) => t.planTopicId);
+
+    expect(new Set(distribuidos).size, "assunto repetido na distribuição").toBe(
+      distribuidos.length,
+    );
+
+    const cobertos = distribuidos.length + projecao.feasibility.topicsAtRisk.length;
+    expect(cobertos).toBe(pendentes.length);
   });
 
-  it("quando NÃO cabe, volta a usar cada minuto disponível", () => {
+  it("quando NÃO cabe, enche o dia até o teto de cinco assuntos", () => {
     /**
      * O ritmo é um espalhador, não um freio. Se o conteúdo não cabe até a
-     * prova, segurar o passo seria garantir que ele não caiba — a resposta
-     * certa é encher os dias e dizer o que ficará de fora, que é o papel de
-     * `topicsAtRisk`.
+     * prova, segurar o passo garantiria que ele não caiba. A resposta certa é
+     * encher os dias até o limite que a cliente definiu e dizer o que ficará de
+     * fora, que é o papel de `topicsAtRisk`.
      */
     const projecao = projectSchedule(
-      input({ pendingTopics: Array.from({ length: 100 }, (_, i) => topic(`t${i}`, 120)) }),
+      input({ pendingTopics: Array.from({ length: 800 }, (_, i) => topic(`t${i}`, 120)) }),
     );
 
     expect(projecao.feasibility.fits).toBe(false);
-    expect(projecao.weeks[0].plannedMinutes).toBe(projecao.weeks[0].availableMinutes);
+
+    const diasComEstudo = projecao.weeks[0].days.filter((dia) => dia.availableMinutes > 0);
+    for (const dia of diasComEstudo) {
+      expect(dia.topics.length, `${dia.date} não encheu`).toBe(MAX_TOPICS_PER_DAY);
+    }
+  });
+
+  it("NUNCA passa do teto de assuntos por dia", () => {
+    /*
+      Palavras da cliente em 08/09/2026: "existe uma quantidade limitada de
+      assuntos por dia, não podendo ultrapassar o limite (pode ser 5 assuntos no
+      máximo), se for necessário ultrapassar informar assuntos que não cabem".
+    */
+    const projecao = projectSchedule(
+      input({ pendingTopics: Array.from({ length: 800 }, (_, i) => topic(`t${i}`, 30)) }),
+    );
+
+    for (const semana of projecao.weeks) {
+      for (const dia of semana.days) {
+        expect(dia.topics.length).toBeLessThanOrEqual(MAX_TOPICS_PER_DAY);
+      }
+    }
+
+    expect(projecao.feasibility.topicsAtRisk.length).toBeGreaterThan(0);
+  });
+
+  it("DIA COM DISPONIBILIDADE NÃO FICA VAZIO enquanto há assunto na fila", () => {
+    /*
+      Palavras da cliente em 08/09/2026: "o cronograma não pode ter dias
+      vazios". Ela viu terça e sexta em branco numa semana com tempo nos dois.
+
+      Dia com ZERO de disponibilidade continua vazio, e isso é a agenda dela
+      sendo respeitada.
+    */
+    const projecao = projectSchedule(
+      input({ pendingTopics: Array.from({ length: 400 }, (_, i) => topic(`t${i}`, 30)) }),
+    );
+
+    for (const semana of projecao.weeks) {
+      for (const dia of semana.days) {
+        if (dia.availableMinutes > 0) {
+          expect(dia.topics.length, `${dia.date} ficou vazio`).toBeGreaterThan(0);
+        } else {
+          expect(dia.topics, `${dia.date} recebeu estudo sem ter tempo`).toHaveLength(0);
+        }
+      }
+    }
   });
 
   it("não parte um assunto entre dois dias quando ele cabe inteiro", () => {
@@ -177,19 +282,25 @@ describe("projectSchedule — horizonte", () => {
 
     for (const [id, blocos] of porAssunto) {
       expect(blocos.length, `${id} foi partido em ${blocos.length} dias`).toBe(1);
-      expect(blocos[0], `${id} entrou incompleto`).toBe(27);
+      expect(blocos[0], `${id} entrou com zero minuto`).toBeGreaterThan(0);
     }
 
     expect(porAssunto.size, "nenhum assunto foi distribuído").toBeGreaterThan(0);
   });
 
-  it("PARTE o assunto que não cabe em nenhum dia — senão ele nunca entra", () => {
-    /**
-     * ⚠️ A exceção obrigatória. Um tema de 4 horas numa rotina de 1 hora por
-     * dia não cabe inteiro em dia nenhum. Sem partir, ele travaria o plano para
-     * sempre — e a primeira versão desta regra fez exatamente isso: parou de
-     * distribuir 450 dos 600 minutos, em silêncio.
-     */
+  it("ASSUNTO MAIOR QUE O DIA continua num dia só, com a sessão que cabe", () => {
+    /*
+      ⚠️ ESTE TESTE TROCOU DE LADO EM 08/09/2026, e o motivo está registrado.
+
+      Antes ele exigia que um assunto de 4 horas fosse PARTIDO entre os dias de
+      uma rotina de 1 hora, porque o cronograma distribuía minutos e um assunto
+      sem espaço travaria a fila para sempre.
+
+      Contando assuntos, esse impasse não existe: o assunto ocupa um dia, com a
+      sessão que o dia comporta, e a estimativa maior continua contando na
+      viabilidade. A cliente foi explícita: "não repetir assuntos de um dia para
+      o outro".
+    */
     const projecao = projectSchedule(
       input({
         examDate: d("2026-10-20"),
@@ -206,12 +317,15 @@ describe("projectSchedule — horizonte", () => {
       }),
     );
 
-    const total = projecao.weeks
+    const aparicoes = projecao.weeks
       .flatMap((s) => s.days)
       .flatMap((dia) => dia.topics)
-      .reduce((soma, t) => soma + t.minutes, 0);
+      .filter((t) => t.planTopicId === "gigante");
 
-    expect(total, "o assunto gigante sumiu do plano").toBe(240);
+    expect(aparicoes, "o assunto gigante sumiu do plano").toHaveLength(1);
+    expect(aparicoes[0].minutes).toBeGreaterThan(0);
+    /* A estimativa cheia continua na conta da viabilidade. */
+    expect(projecao.summary.minutesRemaining).toBe(240);
   });
 
   it("não pica o conteúdo em blocos curtos demais para estudar", () => {
@@ -235,6 +349,80 @@ describe("projectSchedule — horizonte", () => {
       const minutos = dia.topics.reduce((soma, t) => soma + t.minutes, 0);
       expect(minutos, `${dia.date} recebeu um bloco curto demais`).toBeGreaterThanOrEqual(15);
     }
+  });
+});
+
+describe("ordem do cronograma (pedido da cliente em 08/09/2026)", () => {
+  /*
+    Palavras dela: "o cronograma é formado em primeiro os assuntos de baixo
+    domínio, depois domínio intermediário, depois assuntos com mais afinidade
+    (conforme indicado pelo usuário no diagnóstico inicial)".
+
+    E o porquê, dela também: "o motor com 5 sinais só gera 1 ou 2 assuntos na
+    missão do dia, não influencia o cronograma inteiro". O Motor 1 reage ao
+    desempenho de hoje; o cronograma é o mapa dos próximos meses.
+  */
+  function comDominio(
+    id: string,
+    nivel: "low" | "medium" | "high" | null,
+    priority: number,
+  ): PendingTopic {
+    return { ...topic(id, 30, priority), masteryLevel: nivel };
+  }
+
+  function ordemNoPlano(projecao: ReturnType<typeof projectSchedule>): string[] {
+    return projecao.weeks
+      .flatMap((semana) => semana.days)
+      .flatMap((dia) => dia.topics)
+      .map((t) => t.planTopicId);
+  }
+
+  it("baixo domínio vem primeiro, afinidade por último", () => {
+    const projecao = projectSchedule(
+      input({
+        pendingTopics: [
+          comDominio("alto", "high", 0.9),
+          comDominio("baixo", "low", 0.1),
+          comDominio("medio", "medium", 0.5),
+        ],
+      }),
+    );
+
+    expect(ordemNoPlano(projecao)).toEqual(["baixo", "medio", "alto"]);
+  });
+
+  it("O MOTOR 1 NÃO REORDENA O CRONOGRAMA, só desempata dentro da faixa", () => {
+    /*
+      "alto" tem a maior prioridade do Motor 1 e mesmo assim fica por último:
+      o diagnóstico manda. Sem esta regra, uma sequência de erros numa
+      disciplina reescreveria o mapa inteiro dos próximos meses.
+    */
+    const projecao = projectSchedule(
+      input({
+        pendingTopics: [
+          comDominio("alto", "high", 99),
+          comDominio("baixo-b", "low", 1),
+          comDominio("baixo-a", "low", 2),
+        ],
+      }),
+    );
+
+    expect(ordemNoPlano(projecao)).toEqual(["baixo-a", "baixo-b", "alto"]);
+  });
+
+  it("sem diagnóstico, o assunto cai no meio", () => {
+    /* Tratar como baixo domínio o jogaria para a frente sem nada que justifique. */
+    const projecao = projectSchedule(
+      input({
+        pendingTopics: [
+          comDominio("alto", "high", 0.5),
+          comDominio("sem", null, 0.5),
+          comDominio("baixo", "low", 0.5),
+        ],
+      }),
+    );
+
+    expect(ordemNoPlano(projecao)).toEqual(["baixo", "sem", "alto"]);
   });
 });
 
@@ -362,14 +550,13 @@ describe("projectSchedule — distribuição semanal", () => {
     expect(projecao.weeks[0].topics[0].planTopicId).toBe("alto");
   });
 
-  it("um assunto grande é fatiado entre semanas", () => {
+  it("um assunto grande NÃO é fatiado entre semanas", () => {
+    /* Trocou de lado em 08/09/2026, junto com a regra de não partir assunto. */
     const projecao = projectSchedule(input({ pendingTopics: [topic("grande", 2000, 0.9)] }));
     const aparicoes = projecao.weeks.flatMap((w) =>
       w.topics.filter((t) => t.planTopicId === "grande"),
     );
-    expect(aparicoes.length).toBeGreaterThan(1);
-    const soma = aparicoes.reduce((s, t) => s + t.minutes, 0);
-    expect(soma).toBeLessThanOrEqual(2000);
+    expect(aparicoes).toHaveLength(1);
   });
 
   it("é determinístico", () => {
@@ -499,16 +686,16 @@ describe("divisão do tempo do dia (pedido da cliente em 08/09/2026)", () => {
   }
 
   it("todo dia com mais de um assunto reparte o tempo por igual", () => {
-    /* Prova perto força vários assuntos por dia; com prova longe cabe um só. */
+    /*
+      Desde 08/09/2026 a divisão é igual POR CONSTRUÇÃO: cada assunto do dia
+      vale uma sessão, e a sessão encolhe quando o dia não comporta uma inteira
+      para cada um. Este teste continua porque a construção pode ser desfeita
+      sem ninguém notar, e o "45 e 15" que ela reclamou voltaria.
+    */
     const projecao = projectSchedule(
       input({
         examDate: d("2026-09-10"),
-        pendingTopics: [
-          topic("a", 300),
-          topic("b", 300),
-          topic("c", 300),
-          topic("d", 300),
-        ],
+        pendingTopics: Array.from({ length: 200 }, (_, i) => topic(`t${i}`, 30)),
       }),
     );
 
@@ -533,7 +720,7 @@ describe("divisão do tempo do dia (pedido da cliente em 08/09/2026)", () => {
     const projecao = projectSchedule(
       input({
         examDate: d("2026-09-10"),
-        pendingTopics: [topic("a", 300), topic("b", 300), topic("c", 300)],
+        pendingTopics: Array.from({ length: 200 }, (_, i) => topic(`t${i}`, 30)),
       }),
     );
 

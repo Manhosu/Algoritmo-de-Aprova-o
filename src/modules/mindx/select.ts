@@ -129,13 +129,8 @@ export function selectMindXFeed(input: SelectInput): ScoredVideo[] {
 
   const agora = input.now.getTime();
 
-  return pontuados
-    .filter((video) => {
-      /* Visto há menos de 24 horas fica de fora desta rodada. */
-      if (!video.lastSeenAt) return true;
-      return agora - video.lastSeenAt.getTime() >= cooldown;
-    })
-    .sort((a, b) => {
+  const ordenar = (lista: ScoredVideo[]) =>
+    [...lista].sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
 
       /*
@@ -150,4 +145,30 @@ export function selectMindXFeed(input: SelectInput): ScoredVideo[] {
       /* Desempate estável: sem ele a ordem muda sozinha entre aberturas. */
       return a.contentItemId < b.contentItemId ? -1 : 1;
     });
+
+  const frescos = pontuados.filter((video) => {
+    /* Visto há menos de 24 horas fica de fora da primeira leva. */
+    if (!video.lastSeenAt) return true;
+    return agora - video.lastSeenAt.getTime() >= cooldown;
+  });
+
+  /*
+    ⚠️ OS JÁ VISTOS VOLTAM NO FIM, em vez de a tela dizer que acabou.
+
+    Pedido da cliente em 08/09/2026: "queria que ao invés da mensagem avisando
+    que não tem mais vídeos, pudesse voltar nos vídeos que já foram
+    visualizados".
+
+    Ela tem razão sobre o custo do estado vazio. O Mind-X abre no botão mais
+    visível do aplicativo, e uma tela dizendo "não há vídeo para você" é o
+    oposto do que aquele botão promete. Rever também não é desperdício aqui: são
+    dicas de trinta segundos, e repetição é o mecanismo do produto inteiro.
+
+    Eles entram DEPOIS, e na ordem do visto há mais tempo. O aluno percorre todo
+    o inédito antes de reencontrar qualquer repetido, e o cooldown de 24 horas
+    continua valendo para quem tem acervo de sobra.
+  */
+  const revistos = pontuados.filter((video) => !frescos.includes(video));
+
+  return [...ordenar(frescos), ...ordenar(revistos)];
 }

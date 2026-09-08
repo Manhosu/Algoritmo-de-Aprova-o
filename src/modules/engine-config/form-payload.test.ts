@@ -10,7 +10,7 @@ function form(campos: Record<string, string>): FormData {
 }
 
 const PESOS_VALIDOS = {
-  performance: "30",
+  hardReviews: "30",
   editalWeight: "20",
   urgency: "20",
   recency: "15",
