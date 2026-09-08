@@ -343,6 +343,62 @@ export async function signContentUrl(
   return `${base}/storage/v1${signedURL}`;
 }
 
+/**
+ * Assina VÁRIOS caminhos numa chamada só.
+ *
+ * ⚠️ A LOJA MOSTRA DEZ CARDS DE UMA VEZ, e uma assinatura por card seriam dez
+ * idas ao Supabase antes de a página começar a renderizar. Com a latência de
+ * cada uma somando, a loja abriria visivelmente mais devagar que o resto do
+ * aplicativo, e por um motivo que ninguém suspeitaria olhando a tela.
+ *
+ * Devolve um mapa; caminho que falhou simplesmente não entra. Quem chama trata
+ * a ausência como "sem imagem", que é um card mais pobre e não uma tela de erro.
+ */
+export async function signContentUrls(
+  storagePaths: string[],
+  expiresInSeconds = 3600,
+): Promise<Map<string, string>> {
+  const resultado = new Map<string, string>();
+  const caminhos = [...new Set(storagePaths.filter(Boolean))];
+
+  if (caminhos.length === 0) return resultado;
+
+  if (!isRemoteStorageConfigured()) {
+    for (const caminho of caminhos) {
+      resultado.set(caminho, `/api/acervo/${encodeURIComponent(caminho)}`);
+    }
+    return resultado;
+  }
+
+  const base = env.SUPABASE_URL!.replace(/\/+$/, "");
+
+  try {
+    const response = await fetch(`${base}/storage/v1/object/sign/${CONTENT_BUCKET}`, {
+      method: "POST",
+      headers: { ...remoteHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: expiresInSeconds, paths: caminhos }),
+    });
+
+    if (!response.ok) return resultado;
+
+    const linhas = (await response.json()) as Array<{
+      path: string | null;
+      signedURL: string | null;
+      error: string | null;
+    }>;
+
+    for (const linha of linhas) {
+      if (linha.path && linha.signedURL && !linha.error) {
+        resultado.set(linha.path, `${base}/storage/v1${linha.signedURL}`);
+      }
+    }
+  } catch (erro) {
+    console.error("[storage] falha ao assinar em lote", erro);
+  }
+
+  return resultado;
+}
+
 /* ========================================================================== *
  * CAMINHO
  * ========================================================================== */

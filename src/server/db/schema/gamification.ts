@@ -312,6 +312,18 @@ export const storeItems = pgTable(
     name: varchar({ length: 160 }).notNull(),
     description: text(),
     imageUrl: text(),
+    /**
+     * Caminho no bucket, quando a imagem foi ENVIADA em vez de apontada.
+     *
+     * ⚠️ COLUNA SEPARADA DE `imageUrl`, e não um valor com prefixo.
+     *
+     * Os dois são endereços de imagem, mas se comportam de modo oposto:
+     * `imageUrl` vai direto para o `src` e vale para sempre; o caminho precisa
+     * ser assinado a cada leitura e expira. Guardá-los na mesma coluna obrigaria
+     * cada leitor a adivinhar qual dos dois recebeu — e o leitor que errasse
+     * mostraria um card com imagem quebrada.
+     */
+    imageStoragePath: text(),
     category: varchar({ length: 60 }),
 
     costCoins: integer().notNull(),

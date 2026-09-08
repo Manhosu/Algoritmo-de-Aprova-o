@@ -71,6 +71,13 @@
       "when": 1788471637077,
       "tag": "0009_quiet_mercury",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788883953277,
+      "tag": "0010_wooden_frog_thor",
+      "breakpoints": true
     }
   ]
 }

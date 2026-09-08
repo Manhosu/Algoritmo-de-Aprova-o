@@ -5,6 +5,7 @@ import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { APP_TIMEZONE } from "@/config/app";
 import { toCivilDate } from "@/modules/shared/dates";
 import { db } from "@/server/db";
+import { signContentUrls } from "@/server/storage";
 import {
   coinLedger,
   storeItems,
@@ -81,13 +82,26 @@ export async function getStore(userId: string): Promise<StoreView> {
 
   const saldo = estado?.coinBalance ?? 0;
 
+  /*
+    As imagens ENVIADAS ficam num bucket privado e precisam de URL assinada. Uma
+    chamada só para a loja inteira — ver `signContentUrls`.
+  */
+  const assinadas = await signContentUrls(
+    itens.map((item) => item.imageStoragePath).filter((p): p is string => Boolean(p)),
+  );
+
   return {
     balance: saldo,
     items: itens.map((item) => ({
       id: item.id,
       name: item.name,
       description: item.description,
-      imageUrl: item.imageUrl,
+      /*
+        O arquivo enviado ganha do endereço colado: quando existem os dois, o
+        que a cliente subiu por último é o que ela quis ver.
+      */
+      imageUrl:
+        (item.imageStoragePath ? assinadas.get(item.imageStoragePath) : null) ?? item.imageUrl,
       category: item.category,
       costCoins: item.costCoins,
       stock: item.stock,
@@ -284,6 +298,8 @@ export async function upsertStoreItem(input: {
   description?: string | null;
   /** Endereço da imagem do item (pedido da cliente em 02/09/2026). */
   imageUrl?: string | null;
+  /** Caminho no acervo, quando ela enviou o arquivo (08/09/2026). */
+  imageStoragePath?: string | null;
   costCoins: number;
   stock?: number | null;
   isActive?: boolean;
@@ -295,6 +311,7 @@ export async function upsertStoreItem(input: {
       name: input.name,
       description: input.description ?? null,
       imageUrl: input.imageUrl ?? null,
+      imageStoragePath: input.imageStoragePath ?? null,
       costCoins: input.costCoins,
       stock: input.stock ?? null,
       isActive: input.isActive ?? true,
@@ -305,6 +322,7 @@ export async function upsertStoreItem(input: {
         name: input.name,
         description: input.description ?? null,
         imageUrl: input.imageUrl ?? null,
+        imageStoragePath: input.imageStoragePath ?? null,
         costCoins: input.costCoins,
         stock: input.stock ?? null,
         isActive: input.isActive ?? true,

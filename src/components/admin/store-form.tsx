@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toSlug } from "@/modules/shared/slug";
 
+import { FileUploadField } from "./file-upload-field";
 import { saveStoreItemAction, type StoreFormState } from "./store-actions";
 
 const ENTRADA =
@@ -65,6 +66,11 @@ export function StoreForm() {
   */
   useEffect(() => {
     if (state.ok) {
+      /*
+        O `reset` nativo borbulha, e o controle de upload escuta por ele: é
+        assim que a imagem enviada some junto com o resto. Sem isso, o segundo
+        item da loja nasceria com a imagem do primeiro, em silêncio.
+      */
       formRef.current?.reset();
       codigoEditado.current = false;
     }
@@ -103,12 +109,23 @@ export function StoreForm() {
         Imagem do item (pedido da cliente em 02/09/2026): "adicionar uma imagem
         para cada item da Loja, deixa a apresentação mais visual".
 
-        É um ENDEREÇO, não um upload. O acervo de imagens dela já vive no Google
-        Drive e no Canva; montar upload aqui exigiria bucket, política de
-        tamanho e uma tela de galeria para um punhado de itens.
+        ⚠️ VIROU UPLOAD EM 08/09/2026, e o endereço ficou como alternativa.
+
+        Era só endereço, com o argumento de que o acervo dela já vive no Drive e
+        no Canva. O argumento estava errado: link de compartilhamento do Drive
+        não serve nem para imagem — ele devolve a página do visualizador, e o
+        card fica com a imagem quebrada. O bucket que faltava já existe agora,
+        para os vídeos do Mind-X.
       */}
+      <FileUploadField
+        name="imageStoragePath"
+        label="Imagem do item"
+        hint="PNG ou JPG. Sem imagem, o card mostra o ícone de moeda."
+        folder="loja"
+      />
+
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="imageUrl">Imagem do item</Label>
+        <Label htmlFor="imageUrl">Ou um endereço de imagem</Label>
         <input
           id="imageUrl"
           name="imageUrl"
@@ -117,8 +134,9 @@ export function StoreForm() {
           placeholder="https://"
           className={ENTRADA}
         />
-        <p className="text-xs text-muted-foreground">
-          Opcional. Sem imagem, o card mostra o ícone de moeda.
+        <p className="text-xs text-pretty text-muted-foreground">
+          Opcional, e só para imagem que já está publicada na internet. Link do
+          Google Drive não funciona aqui: ele abre uma página, não a imagem.
         </p>
       </div>
 

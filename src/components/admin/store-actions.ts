@@ -65,6 +65,7 @@ export async function saveStoreItemAction(
     name: nome,
     description: texto(formData, "description") || null,
     imageUrl: imagem,
+    imageStoragePath: texto(formData, "imageStoragePath") || null,
     costCoins: custo,
     stock: estoque,
     isActive: formData.get("isActive") === "on",

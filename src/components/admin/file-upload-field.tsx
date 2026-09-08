@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, FileUp, Loader2, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { megabytes, motivoDaRecusa, tipoDeclarado, tipoDeMaterialPara } from "@/modules/uploads/rules";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,27 @@ export function FileUploadField({
       : { fase: "vazio" },
   );
   const inputRef = useRef<HTMLInputElement>(null);
+
+  /*
+    ⚠️ O CONTROLE SE LIMPA QUANDO O FORMULÁRIO É LIMPO.
+
+    `form.reset()` limpa o DOM e não toca em estado do React. O formulário da
+    loja chama `reset()` depois de gravar, para o próximo item começar do zero —
+    e o arquivo enviado ficava para trás. O segundo item da loja nasceria com a
+    imagem do primeiro, sem aviso nenhum, e a cliente só descobriria olhando a
+    tela do aluno.
+
+    O evento `reset` borbulha, então basta ouvi-lo. Fica aqui, e não no
+    formulário, para valer em qualquer formulário que use este controle.
+  */
+  useEffect(() => {
+    const formulario = inputRef.current?.form;
+    if (!formulario) return;
+
+    const aoLimpar = () => setEstado({ fase: "vazio" });
+    formulario.addEventListener("reset", aoLimpar);
+    return () => formulario.removeEventListener("reset", aoLimpar);
+  }, []);
 
   async function enviar(arquivo: File) {
     /*
