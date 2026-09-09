@@ -192,3 +192,45 @@ export function listXlsxSheets(data: Uint8Array): string[] {
     decodeXml(m[1]),
   );
 }
+
+/**
+ * O arquivo é uma planilha .xlsx de verdade?
+ *
+ * ⚠️ CONFERE OS BYTES, e não o nome. A cliente esbarrou nisso em 09/09/2026:
+ * "eu coloco pra selecionar no drive, e o sistema não permite selecionar o
+ * excel".
+ *
+ * Arquivo escolhido pelo Google Drive chega ao navegador sem extensão e com
+ * tipo genérico, então `nome.endsWith(".xlsx")` recusava a planilha certa. É a
+ * mesma lição dos mapas mentais dela, que vieram do Drive sem extensão: o nome
+ * de arquivo descreve, os bytes provam.
+ *
+ * Um .xlsx é um ZIP, e todo ZIP começa com "PK" seguido de 03 04. Não prova que
+ * a planilha é válida — `readXlsx` continua sendo quem diz isso —, mas separa
+ * "mandou o arquivo errado" de "mandou um .xlsx que eu não consegui ler", e as
+ * duas mensagens precisam ser diferentes para a pessoa saber o que corrigir.
+ */
+export function ehArquivoXlsx(bytes: Uint8Array): boolean {
+  return (
+    bytes.length > 4 &&
+    bytes[0] === 0x50 &&
+    bytes[1] === 0x4b &&
+    bytes[2] === 0x03 &&
+    bytes[3] === 0x04
+  );
+}
+
+/**
+ * A instrução que a cliente precisa quando o arquivo não é .xlsx.
+ *
+ * ⚠️ O CASO MAIS PROVÁVEL É PLANILHA GOOGLE, e não arquivo errado.
+ *
+ * Ela guarda os flashcards no Drive. Uma Planilha Google não é um arquivo:
+ * é um documento que vive no servidor deles, e o Drive só entrega um .xlsx
+ * depois de exportar. Dizer "precisa ser .xlsx" sem dizer isso deixa a pessoa
+ * tentando de novo com o mesmo arquivo.
+ */
+export const COMO_EXPORTAR_XLSX =
+  "Este arquivo não é uma planilha .xlsx. Se ela está no Google Drive como " +
+  "Planilhas Google, abra e use Arquivo → Fazer download → Microsoft Excel " +
+  "(.xlsx), e envie o arquivo que baixar.";

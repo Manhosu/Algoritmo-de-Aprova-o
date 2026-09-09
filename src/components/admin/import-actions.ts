@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/server/auth/guards";
+import { COMO_EXPORTAR_XLSX, ehArquivoXlsx } from "@/server/import/xlsx";
 import {
   runFlashcardImport,
   type FlashcardImportReport,
@@ -60,13 +61,18 @@ export async function importQuestionsAction(
     };
   }
 
-  if (!arquivo.name.toLowerCase().endsWith(".xlsx")) {
-    return { message: "O arquivo precisa ser .xlsx (Excel)." };
-  }
+  /*
+    ⚠️ CONFERE OS BYTES, e não a extensão do nome.
+
+    Arquivo escolhido pelo Google Drive chega sem extensão, e a checagem antiga
+    recusava a planilha certa. Ver a nota em `ehArquivoXlsx`.
+  */
+  const bytes = new Uint8Array(await arquivo.arrayBuffer());
+  if (!ehArquivoXlsx(bytes)) return { message: COMO_EXPORTAR_XLSX };
 
   try {
     const report = await runQuestionImport({
-      bytes: new Uint8Array(await arquivo.arrayBuffer()),
+      bytes,
       fileName: arquivo.name,
       uploadedByUserId: session.user.id,
       dryRun: conferir,
@@ -125,13 +131,18 @@ export async function importMaterialsAction(
     };
   }
 
-  if (!arquivo.name.toLowerCase().endsWith(".xlsx")) {
-    return { message: "O arquivo precisa ser .xlsx (Excel)." };
-  }
+  /*
+    ⚠️ CONFERE OS BYTES, e não a extensão do nome.
+
+    Arquivo escolhido pelo Google Drive chega sem extensão, e a checagem antiga
+    recusava a planilha certa. Ver a nota em `ehArquivoXlsx`.
+  */
+  const bytes = new Uint8Array(await arquivo.arrayBuffer());
+  if (!ehArquivoXlsx(bytes)) return { message: COMO_EXPORTAR_XLSX };
 
   try {
     const report = await runMaterialImport({
-      bytes: new Uint8Array(await arquivo.arrayBuffer()),
+      bytes,
       fileName: arquivo.name,
       dryRun: conferir,
     });
@@ -186,13 +197,18 @@ export async function importFlashcardsAction(
     };
   }
 
-  if (!arquivo.name.toLowerCase().endsWith(".xlsx")) {
-    return { message: "O arquivo precisa ser .xlsx (Excel)." };
-  }
+  /*
+    ⚠️ CONFERE OS BYTES, e não a extensão do nome.
+
+    Arquivo escolhido pelo Google Drive chega sem extensão, e a checagem antiga
+    recusava a planilha certa. Ver a nota em `ehArquivoXlsx`.
+  */
+  const bytes = new Uint8Array(await arquivo.arrayBuffer());
+  if (!ehArquivoXlsx(bytes)) return { message: COMO_EXPORTAR_XLSX };
 
   try {
     const report = await runFlashcardImport({
-      bytes: new Uint8Array(await arquivo.arrayBuffer()),
+      bytes,
       fileName: arquivo.name,
       dryRun: conferir,
     });
