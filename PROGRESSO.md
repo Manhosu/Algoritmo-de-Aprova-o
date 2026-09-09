@@ -1,19 +1,34 @@
 # PROGRESSO — O Algoritmo da Aprovação
 
 > Documento vivo. Atualizado a cada incremento entregue.
-> **Última atualização:** 24/08/2026 — Marco 1 concluído.
+> **Última atualização:** 08/09/2026 — Marco 2 concluído, Mind-X no ar.
 
 ## Onde estamos agora
 
-**O Marco 1 está completo. Os 13 itens do checklist de aceite passam, verificados
-contra o Supabase de produção e conferidos no navegador em 390px e desktop.**
+**Marco 1 e Marco 2 estão no ar, e o Mind-X junto. Os 17 itens do checklist de
+aceite do Marco 2 passam, conferidos no HTML de produção.**
 
 | Marco | Entrega | Situação |
 |---|---|---|
 | Fundação | — | ✅ Concluída |
-| Banco de dados | — | ✅ 73 tabelas, migrations e seed aplicados |
+| Banco de dados | — | ✅ 74 tabelas, migrations e seed aplicados |
 | Marco 1 — Núcleo do produto | 28/08/2026 | ✅ **Concluído em 24/08** |
-| Marco 2 — Experiência e administração | 04/09/2026 | ⛔ Aguardando autorização |
+| Marco 2 — Experiência e administração | 04/09/2026 | ✅ **Concluído em 06/09** |
+| Mind-X — extensão contratada à parte | 08/09/2026 | ✅ **No ar em 08/09** |
+
+### O que existe além do Marco 1
+
+Dashboard com as métricas, gamificação completa (XP, moedas, níveis, sequência,
+conquistas, Loja, Ranking e Trilhas), biblioteca de materiais, painel
+administrativo, planos com Mercado Pago por assinatura recorrente, e o **Mind-X**:
+o feed de vídeos curtos escolhido pelas lacunas do aluno, com 29 vídeos da
+cliente publicados.
+
+⚠️ **O pagamento está em modo de TESTE.** `MERCADOPAGO_ACCESS_TOKEN` na Vercel
+guarda a credencial de teste, então o Mercado Pago recusa qualquer pagador real.
+O painel avisa disso em `/admin/planos`, com o nome da conta em uso. Trocar pela
+credencial de produção e fazer um deploy novo é o que falta para cobrar de
+verdade — a credencial antiga circulou em texto e precisa ser girada junto.
 
 ### O caminho que o aluno percorre hoje
 
@@ -63,7 +78,7 @@ banco fica com **0 usuários e 0 itens na fila**.
 
 ### Bugs que só apareceram ao executar
 
-Nenhum destes aparecia no `typecheck`, no `lint` ou nos 311 testes.
+Nenhum destes aparecia no `typecheck`, no `lint` ou nos testes de unidade.
 
 | O que era | Como se manifestava |
 |---|---|
@@ -75,16 +90,23 @@ Nenhum destes aparecia no `typecheck`, no `lint` ou nos 311 testes.
 | **Client component importando módulo de servidor** | Arrastava o driver `postgres` para o bundle do navegador. Área do aluno inteira em HTTP 500. |
 | **Manifest redirecionado para o login** | O proxy interceptava `.webmanifest`; o navegador o busca sem cookie e recebia HTML. "Adicionar à tela inicial" quebrava em silêncio. |
 | **Menu levando a 404** | `/estudos`, `/trilhas`, `/ranking`, `/loja`, `/perfil` e mais três são telas do Marco 2. Ficaram visíveis e desabilitadas. |
+| **React 19 limpa o formulário que ele governa** | O `action={}` reseta os campos quando a ação TERMINA, inclusive recusando. Em formulário de edição os campos voltavam ao valor ANTIGO. Cinco formulários passaram a chamar a ação do `onSubmit`. |
+| **Constante exportada de arquivo `use client`** | O servidor recebe uma referência, não o valor. A Biblioteca respondia 500 em produção; build, typecheck e lint passavam. Virou guarda. |
+| **CSP herdando `default-src` para mídia** | `media-src`, `object-src` e `connect-src` não eram declarados. Vídeo do Mind-X, PDF na tela e o próprio upload eram bloqueados pelo navegador, sem mensagem. |
+| **Cronograma distribuindo minutos** | Dia sem conteúdo quando o acumulado não fechava um bloco, e assunto partido entre dois dias quando a estimativa passava do teto. Passou a contar assuntos. |
+| **Assunto estudado continuava no cronograma** | Discreto enquanto a distribuição era por minutos; contando assuntos, ele voltava a ocupar uma vaga inteira no dia seguinte. |
 
 ### O que está pronto mas depende da cliente
 
 | Pendência | De quem | Situação |
 |---|---|---|
-| Catálogo canônico incompleto | Natália | 57 assuntos cobrem ~54% de um edital comum. Cada assunto cadastrado rende questão a mais. A fila do painel é a lista do que falta. |
-| Acervo de questões | Natália | 106 questões, quase todas de Crase. O resto do edital mostra "questões em produção". |
-| Material de estudo (mapas mentais, flashcards) | Natália | Zero itens. Os blocos aparecem como "Estude: <assunto>", sem nomear técnica — prometer material que não existe seria pior. |
+| **Credencial de produção do Mercado Pago** | Eduardo | A Vercel guarda a credencial de TESTE, então nenhum pagador real consegue assinar. A antiga circulou em texto e precisa ser girada. Depois de trocar, é preciso um deploy novo: variável de ambiente só vale para deploy novo. `/admin/planos` mostra qual conta está no ar. |
+| Pagamento real com cartão | Natália | Falta uma assinatura de verdade no checkout, depois da credencial de produção entrar. |
+| 16 vídeos do Mind-X sem disciplina no nome | Natália | Chegaram como "Sem título 2026-08-27 22.25.19" e "WhatsApp Video…". Renomeados no padrão "Disciplina - Assunto", entram num comando. |
+| PDF desenhado dentro da tela no celular | Natália decide | Chrome e Safari de celular não embutem PDF. Hoje ele abre no visualizador do aparelho. Desenhar em `<canvas>` resolveria, e é trabalho a mais. |
+| Catálogo canônico incompleto | Natália | Cada assunto cadastrado rende questão a mais. A fila do painel é a lista do que falta, e a importação de questões e de flashcards passou a criar assunto novo sozinha. |
+| Acervo de questões e materiais | Natália | O card "Acervo de Estudos" mostra a cobertura ao aluno. Materiais, flashcards e vídeos entram pelo painel, por upload ou planilha. |
 | Edital real para conferência final | Natália | A leitura foi verificada com um PDF gerado que imita os defeitos de um edital real. Falta rodar com um documento de banca de verdade. |
-| Deploy na Vercel | Eduardo | Não conectado ainda, a seu pedido. As variáveis estão documentadas no `.env.example`. |
 
 ---
 
@@ -159,14 +181,27 @@ Nenhum destes aparecia no `typecheck`, no `lint` ou nos 311 testes.
 
 ---
 
-## ⛔ Marco 2 — não autorizado
+## ✅ Marco 2 — concluído em 06/09/2026
 
-Modelado no banco, não implementado. Dashboard Home com as métricas, gamificação
-(XP já é creditado, mas sem loja/ranking/trilhas), módulos de conteúdo, planos
-com Mercado Pago e painel administrativo — incluindo a tela da **fila de
-mapeamento**, que hoje só existe como tabela.
+Dashboard com as métricas, gamificação inteira, módulos de conteúdo, planos com
+Mercado Pago e painel administrativo, incluindo a fila de mapeamento.
 
-**Não começar sem autorização explícita.**
+Os 17 itens do checklist de aceite são conferidos por `npm run smoke` contra o
+HTML de produção, e não por memória.
+
+## ✅ Mind-X — no ar em 08/09/2026
+
+Contratado à parte. Feed de vídeos curtos no estilo Stories, recortado pelo
+edital do aluno e ordenado pelas lacunas dele. O botão central da barra inferior
+abre o feed; o "+" de nova preparação foi para "Minhas preparações".
+
+A regra de escolha é pura e testada (`modules/mindx/select`). O acervo tem 29
+vídeos da cliente, importados por `npm run mindx:import`.
+
+⚠️ **Vídeo do Google Drive não funciona, e não é defeito nosso.** Link de
+compartilhamento devolve uma página HTML, não o arquivo, e a tag `<video>` não
+toca HTML. Por isso o cadastro de material ganhou upload direto ao bucket, e o
+formulário recusa link de página para vídeo e áudio.
 
 ---
 
@@ -362,13 +397,17 @@ npm run dev                    # http://localhost:3000
 ```bash
 npm run typecheck              # TypeScript
 npm run lint                   # ESLint (inclui as regras de pureza dos módulos)
-npm run test                   # Vitest — 311 testes das regras dos motores
+npm run test                   # Vitest — 571 testes das regras dos motores
 npm run db:verify              # migrations e invariantes em Postgres efêmero
 
-npm run verify:engine          # 50 verificações contra o Postgres real
-npm run verify:account         # 25 verificações de senha, e-mail e exclusão
-npm run smoke                  # 21 telas por HTTP (precisa do `npm run dev`)
+npm run verify:engine          # 64 verificações contra o Postgres real
+npm run verify:account         # verificações de senha, e-mail e exclusão
+npm run verify:billing         # 10 verificações do ciclo de assinatura na API real
+npm run smoke                  # 79 verificações de tela por HTTP
 npm run build                  # build de produção
+
+# Contra produção, com uma sessão real criada e removida no fim:
+SMOKE_BASE_URL=https://oalgoritmodaaprovacao.com.br npx tsx scripts/smoke-flow.ts
 ```
 
 ### Banco
@@ -379,6 +418,18 @@ npm run db:migrate             # aplica
 npm run db:seed                # popula dados iniciais (idempotente)
 npm run db:status              # retrato do banco
 npm run db:ping                # testa as duas conexões
+npm run catalog:sync           # leva disciplinas, assuntos e sinônimos ao banco
+```
+
+### Acervo
+
+```bash
+npm run mindx:import -- "<pasta>"              # confere sem gravar
+npm run mindx:import -- "<pasta>" --confirmar  # grava e publica
+
+# Materiais e flashcards têm importação por planilha DENTRO do painel,
+# em /admin/materiais. O script existe para carga inicial:
+npx tsx --conditions=react-server scripts/import-content.ts <pasta> <tipo> "<Disciplina>"
 ```
 
 ### Operação
