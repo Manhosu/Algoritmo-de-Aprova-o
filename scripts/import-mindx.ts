@@ -322,7 +322,7 @@ for (const item of planejados) {
 
   const existente = await db.query.contentItems.findFirst({
     where: (t, { and: e, eq: is, isNull: n }) =>
-      e(is(t.type, "video"), is(t.title, item.titulo), is(t.sortOrder, item.ordem), n(t.deletedAt)),
+      e(is(t.type, "mindx"), is(t.title, item.titulo), is(t.sortOrder, item.ordem), n(t.deletedAt)),
     columns: { id: true },
   });
 
@@ -332,7 +332,7 @@ for (const item of planejados) {
       await db
         .insert(contentItems)
         .values({
-          type: "video",
+          type: "mindx",
           title: item.titulo,
           canonicalSubjectId: item.subjectId,
           canonicalTopicId: item.topicId,

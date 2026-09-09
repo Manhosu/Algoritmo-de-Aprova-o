@@ -125,6 +125,14 @@ export function megabytes(bytes: number): string {
  * como resumo abre como link em vez de tocar.
  */
 export function tipoDeMaterialPara(mime: TipoAceito): string | null {
+  /*
+    ⚠️ VÍDEO VIRA "VIDEOAULA", E NÃO MIND-X.
+
+    Os dois são MP4 e os bytes não distinguem um story de trinta segundos de
+    uma aula de vinte minutos. Escolher Mind-X automaticamente colocaria toda
+    aula no feed em tela cheia; escolher videoaula erra para o lado que a
+    cliente enxerga na hora, no seletor logo acima do arquivo.
+  */
   if (mime.startsWith("video/")) return "video";
   if (mime.startsWith("audio/")) return "audio";
   if (mime === "application/pdf") return "pdf";

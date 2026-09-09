@@ -141,7 +141,15 @@ export async function getMindXFeed(input: {
     )
     .where(
       and(
-        eq(contentItems.type, "video"),
+        /*
+          ⚠️ SÓ O TIPO `mindx`, e não todo vídeo do acervo.
+
+          Enquanto o feed lia `type = "video"`, qualquer videoaula que a cliente
+          cadastrasse entrava aqui para tocar em tela cheia, vertical, com barra
+          de progresso de story. Uma aula de vinte minutos nesse formato é o
+          oposto do que o Mind-X promete.
+        */
+        eq(contentItems.type, "mindx"),
         eq(contentItems.status, "published"),
         isNull(contentItems.deletedAt),
         /*
@@ -302,4 +310,82 @@ export async function markMindXSeen(input: {
         updatedAt: agora,
       },
     });
+}
+
+/* ========================================================================== *
+ * O QUE O PAINEL PRECISA SABER
+ * ========================================================================== */
+
+export type MindXStats = {
+  /** Vídeos publicados no acervo. */
+  published: number;
+  /** Quantos deles nenhum aluno viu ainda. */
+  neverSeen: number;
+  /** Aberturas de vídeo, somando todos os alunos. */
+  views: number;
+  /** Alunos distintos que abriram pelo menos um. */
+  viewers: number;
+  /** Os cinco mais vistos, com a contagem. */
+  top: Array<{ title: string; views: number }>;
+};
+
+/**
+ * O uso do Mind-X, para o painel.
+ *
+ * ⚠️ EXISTE PORQUE A CLIENTE PAGOU POR ELE E NÃO TINHA COMO SABER SE FUNCIONA.
+ *
+ * O Mind-X é a única parte do produto contratada à parte, e até agora o retorno
+ * dela era abrir o feed com a própria conta e ver se aparecia vídeo. Isso não
+ * responde a pergunta que importa: os alunos assistem?
+ *
+ * "Nunca visto" é o número mais acionável dos cinco. Vídeo publicado que ninguém
+ * abriu costuma estar num assunto fora dos editais em uso — e aí a resposta é
+ * gravar sobre outro assunto, não gravar mais.
+ */
+export async function getMindXStats(): Promise<MindXStats> {
+  const [publicados, aberturas, maisVistos] = await Promise.all([
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(contentItems)
+      .where(
+        and(
+          eq(contentItems.type, "mindx"),
+          eq(contentItems.status, "published"),
+          isNull(contentItems.deletedAt),
+        ),
+      ),
+
+    db
+      .select({
+        views: sql<number>`count(*)::int`,
+        viewers: sql<number>`count(distinct ${contentProgress.userId})::int`,
+        vistos: sql<number>`count(distinct ${contentProgress.contentItemId})::int`,
+      })
+      .from(contentProgress)
+      .innerJoin(contentItems, eq(contentItems.id, contentProgress.contentItemId))
+      .where(and(eq(contentItems.type, "mindx"), isNull(contentItems.deletedAt))),
+
+    db
+      .select({
+        title: contentItems.title,
+        views: sql<number>`count(*)::int`,
+      })
+      .from(contentProgress)
+      .innerJoin(contentItems, eq(contentItems.id, contentProgress.contentItemId))
+      .where(and(eq(contentItems.type, "mindx"), isNull(contentItems.deletedAt)))
+      .groupBy(contentItems.title)
+      .orderBy(sql`count(*) desc`)
+      .limit(5),
+  ]);
+
+  const published = publicados[0]?.total ?? 0;
+
+  return {
+    published,
+    /* Publicado menos os que alguém já abriu. Nunca negativo. */
+    neverSeen: Math.max(0, published - (aberturas[0]?.vistos ?? 0)),
+    views: aberturas[0]?.views ?? 0,
+    viewers: aberturas[0]?.viewers ?? 0,
+    top: maisVistos,
+  };
 }

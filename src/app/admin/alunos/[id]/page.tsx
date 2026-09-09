@@ -20,6 +20,7 @@ export const dynamic = "force-dynamic";
 const TECNICA: Record<string, string> = {
   reading: "Leitura",
   video: "Videoaula",
+  mindx: "Mind-X",
   flashcard: "Flashcards",
   mind_map: "Mapa mental",
   summary: "Resumo",

@@ -13,7 +13,16 @@ export type MaterialFormState = {
   message?: string;
 };
 
-const TIPOS = ["flashcard_deck", "mind_map", "video", "study_text", "pdf", "audio"];
+const TIPOS = [
+  "flashcard_deck",
+  "mind_map",
+  "video",
+  "study_text",
+  "pdf",
+  "audio",
+  /* Ver a nota em `material-form`: o Mind-X não é uma videoaula curta. */
+  "mindx",
+];
 
 /**
  * Cria ou atualiza um material da biblioteca.
@@ -55,6 +64,8 @@ export async function saveMaterialAction(
   revalidatePath(`/admin/materiais/${resultado.id}`);
   /* A biblioteca do aluno lê a mesma tabela. */
   revalidatePath("/estudos");
+  /* O feed do Mind-X lê a mesma tabela. */
+  revalidatePath("/mind-x");
 
   if (resultado.created) redirect(`/admin/materiais/${resultado.id}?aviso=criado`);
 
@@ -75,6 +86,8 @@ export async function archiveMaterialAction(
 
   revalidatePath("/admin/materiais");
   revalidatePath("/estudos");
+  /* O feed do Mind-X lê a mesma tabela. */
+  revalidatePath("/mind-x");
 
   redirect("/admin/materiais?aviso=arquivado");
 }

@@ -8,6 +8,7 @@ import { FLASHCARD_SHEET_COLUMNS } from "@/server/import/flashcards";
 import { MATERIAL_SHEET_COLUMNS } from "@/server/import/materials";
 import { materialsBySubject } from "@/server/admin/catalog-stats";
 import { listMaterialsForAdmin } from "@/server/admin/material-admin";
+import { getMindXStats } from "@/server/engine/mindx";
 
 export const metadata: Metadata = { title: "Materiais" };
 
@@ -18,6 +19,7 @@ const ROTULO_TIPO: Record<string, string> = {
   flashcard_deck: "Flashcards",
   mind_map: "Mapas mentais",
   video: "Videoaulas",
+  mindx: "Mind-X",
   study_text: "Resumos",
   pdf: "PDFs",
   audio: "Áudios",
@@ -57,9 +59,10 @@ export default async function MateriaisPage({
 }) {
   await requireAdmin();
 
-  const [linhas, itens, query] = await Promise.all([
+  const [linhas, itens, mindx, query] = await Promise.all([
     materialsBySubject(),
     listMaterialsForAdmin(),
+    getMindXStats(),
     searchParams,
   ]);
 
@@ -106,6 +109,56 @@ export default async function MateriaisPage({
         </div>
 
         <MaterialImportForm colunas={MATERIAL_SHEET_COLUMNS} />
+      </section>
+
+      {/*
+        ⚠️ O MIND-X É A ÚNICA PARTE CONTRATADA À PARTE, e até agora a cliente não
+        tinha como saber se ela funciona.
+
+        O retorno dela era abrir o feed com a própria conta e ver se aparecia
+        vídeo. Isso não responde a pergunta que importa: os alunos assistem?
+
+        "Nunca visto" é o número mais acionável dos quatro. Vídeo publicado que
+        ninguém abriu costuma estar num assunto fora dos editais em uso, e aí a
+        resposta é gravar sobre outro assunto, não gravar mais.
+      */}
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+        <div>
+          <h2 className="font-semibold text-foreground">Mind-X</h2>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            Os vídeos curtos do botão central. Eles não aparecem na Biblioteca:
+            o feed recorta pelo edital de cada aluno e começa pelas lacunas dele.
+          </p>
+        </div>
+
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Indicador rotulo="Publicados" valor={mindx.published} />
+          <Indicador
+            rotulo="Nunca vistos"
+            valor={mindx.neverSeen}
+            alerta={mindx.published > 0 && mindx.neverSeen === mindx.published}
+          />
+          <Indicador rotulo="Aberturas" valor={mindx.views} />
+          <Indicador rotulo="Alunos" valor={mindx.viewers} />
+        </dl>
+
+        {mindx.top.length > 0 ? (
+          <div>
+            <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+              Mais vistos
+            </p>
+            <ul className="mt-2 flex flex-col gap-1">
+              {mindx.top.map((video) => (
+                <li key={video.title} className="flex items-baseline gap-3 text-sm">
+                  <span className="text-metric shrink-0 text-xs text-muted-foreground">
+                    {video.views}
+                  </span>
+                  <span className="min-w-0 text-pretty text-foreground">{video.title}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
       {/*
@@ -216,6 +269,28 @@ export default async function MateriaisPage({
           </ul>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+function Indicador({
+  rotulo,
+  valor,
+  alerta = false,
+}: {
+  rotulo: string;
+  valor: number;
+  /** Pinta de aviso quando o número conta uma história ruim. */
+  alerta?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+        {rotulo}
+      </dt>
+      <dd className={`text-metric text-xl ${alerta ? "text-warning" : "text-foreground"}`}>
+        {valor}
+      </dd>
     </div>
   );
 }

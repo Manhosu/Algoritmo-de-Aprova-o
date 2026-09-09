@@ -50,6 +50,15 @@ const TIPOS: Array<[string, string]> = [
   ["video", "Videoaula"],
   ["pdf", "PDF"],
   ["audio", "Áudio"],
+  /*
+    ⚠️ MIND-X É TIPO PRÓPRIO, e não uma videoaula curta.
+
+    Ele não aparece na Biblioteca nem no bloco "Estude": mora no feed do botão
+    central, em tela cheia e vertical. Cadastrar um story como "Videoaula"
+    colocaria trinta segundos de dica no lugar de uma aula, e cadastrar uma aula
+    como Mind-X a faria tocar em tela cheia com barra de progresso de story.
+  */
+  ["mindx", "Mind-X (vídeo curto)"],
 ];
 
 export function MaterialForm({ material, subjects, topics }: MaterialFormProps) {

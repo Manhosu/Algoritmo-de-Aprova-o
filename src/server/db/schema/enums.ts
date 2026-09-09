@@ -457,6 +457,22 @@ export const contentTypeEnum = pgEnum("content_type", [
   "study_text",
   "pdf",
   "audio",
+  /**
+   * Vídeo curto do Mind-X, no estilo Stories.
+   *
+   * ⚠️ TIPO PRÓPRIO, e não "video" com alguma marca.
+   *
+   * Enquanto os dois compartilhavam o tipo, a confusão ia nos dois sentidos: os
+   * 29 stories de trinta segundos apareciam na Biblioteca rotulados como
+   * "Videoaula", e qualquer videoaula de verdade que a cliente cadastrasse
+   * entrava no feed do Mind-X para tocar em tela cheia, vertical, com barra de
+   * progresso de story.
+   *
+   * São materiais diferentes: duração, lugar na tela e forma de consumir. O
+   * enum é onde essa diferença fica registrada de um jeito que o código inteiro
+   * enxerga.
+   */
+  "mindx",
 ]);
 
 export const contentStatusEnum = pgEnum("content_status", [

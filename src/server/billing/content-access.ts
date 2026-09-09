@@ -33,7 +33,8 @@ export type ContentType =
   | "video"
   | "study_text"
   | "pdf"
-  | "audio";
+  | "audio"
+  | "mindx";
 
 export type AccessLevel = "limited" | "extended" | "full";
 

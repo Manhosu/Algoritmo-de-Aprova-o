@@ -40,6 +40,7 @@ export function MindXPlayer({ items }: { items: MindXItem[] }) {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const atual = items[indice];
+  const proximo = items[indice + 1];
 
   const avancar = useCallback(() => {
     setIndice((i) => (i + 1 < items.length ? i + 1 : i));
@@ -176,6 +177,33 @@ export function MindXPlayer({ items }: { items: MindXItem[] }) {
         }}
         onEnded={avancar}
       />
+
+      {/*
+        ⚠️ O PRÓXIMO VÍDEO JÁ VEM BAIXANDO, e é o que faz o feed parecer contínuo.
+
+        Cada story tem cerca de 2 MB. Sem isto, tocar na metade direita da tela
+        começa um download do zero: o aluno vê preto por alguns segundos, no
+        celular, a cada transição — e um feed que trava a cada toque ninguém
+        percorre até o fim.
+
+        `preload="auto"` num elemento escondido é o jeito de pedir os bytes sem
+        montar um segundo player. Ele não toca: não tem `autoPlay`, e o
+        `muted` existe porque navegador nenhum pré-carrega vídeo com som.
+
+        Só UM à frente. Dez elementos baixariam 20 MB do plano de dados do aluno
+        para um feed que ele pode fechar no segundo vídeo.
+      */}
+      {proximo?.src ? (
+        <video
+          key={`proximo-${proximo.id}`}
+          src={proximo.src}
+          preload="auto"
+          muted
+          playsInline
+          aria-hidden
+          className="pointer-events-none absolute size-px opacity-0"
+        />
+      ) : null}
 
       {/*
         As duas metades invisíveis que recebem o toque. Ficam ABAIXO da barra de

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { db } from "@/server/db";
 import {
@@ -50,6 +50,21 @@ export type MaterialCard = {
   progressPercent: number;
   completed: boolean;
 };
+
+/**
+ * O `mindx` já sai fora pelo SQL. Esta guarda repete a regra no tipo.
+ *
+ * ⚠️ SEM ELA, O TYPESCRIPT ACEITARIA O DIA EM QUE O `ne` DO SQL FOSSE REMOVIDO.
+ *
+ * O enum do banco tem sete tipos e `MaterialCard` tem seis. Um `as` calaria o
+ * compilador e deixaria o Mind-X voltar para a Biblioteca em silêncio, com um
+ * rótulo que não existe no mapa de ícones — card sem ícone e sem nome de tipo.
+ */
+function ehDaBiblioteca<T extends { type: string }>(
+  linha: T,
+): linha is T & { type: MaterialCard["type"] } {
+  return linha.type !== "mindx";
+}
 
 export type LibraryFilters = {
   type?: MaterialCard["type"] | null;
@@ -109,7 +124,19 @@ export async function getLibrary(input: {
       )
     : new Set<string>();
 
-  const condicoes = [eq(contentItems.status, "published"), isNull(contentItems.deletedAt)];
+  const condicoes = [
+    eq(contentItems.status, "published"),
+    isNull(contentItems.deletedAt),
+    /*
+      ⚠️ O MIND-X FICA DE FORA DA BIBLIOTECA, e tem tela própria.
+
+      Enquanto ele dividia o tipo `video`, os 29 stories de trinta segundos
+      apareciam aqui rotulados como "Videoaula". O aluno filtrava por videoaula
+      esperando aula e recebia uma sequência de dicas curtas, cada uma num card
+      separado. São materiais diferentes, e cada um tem o seu lugar.
+    */
+    ne(contentItems.type, "mindx"),
+  ];
 
   if (filtros.type) condicoes.push(eq(contentItems.type, filtros.type));
   if (filtros.canonicalSubjectId) {
@@ -194,7 +221,7 @@ export async function getLibrary(input: {
 
   let bloqueados = 0;
 
-  const itens: MaterialCard[] = linhas.map((linha) => {
+  const itens: MaterialCard[] = linhas.filter(ehDaBiblioteca).map((linha) => {
     const noPlano =
       linha.canonicalTopicId !== null && assuntosDoPlano.has(linha.canonicalTopicId);
 
@@ -273,6 +300,12 @@ export async function getMaterial(input: {
   const [linha] = await db
     .select({
       id: contentItems.id,
+      /*
+        ⚠️ O TIPO É ESTREITADO PARA OS DA BIBLIOTECA logo abaixo, com `ehDaBiblioteca`.
+
+        Um story do Mind-X aberto por esta tela cairia no ramo de "videoaula" e
+        tocaria num player comum, fora do feed. Ele tem tela própria.
+      */
       type: contentItems.type,
       title: contentItems.title,
       description: contentItems.description,
@@ -306,7 +339,8 @@ export async function getMaterial(input: {
     )
     .limit(1);
 
-  if (!linha) return null;
+  /* Story do Mind-X não abre por aqui: ele tem tela própria, em `/mind-x`. */
+  if (!linha || !ehDaBiblioteca(linha)) return null;
 
   const acesso = await getContentAccess(input.userId);
   const bloqueado = !acesso.canOpen(linha.requiredAccessLevel, linha.type);
@@ -414,8 +448,16 @@ export async function findMaterialsForTopic(
         eq(contentItems.canonicalTopicId, canonicalTopicId),
         eq(contentItems.status, "published"),
         isNull(contentItems.deletedAt),
+        /*
+          Story do Mind-X não é material de estudo do bloco "Estude": ele dura
+          trinta segundos e mora no feed. Ofertá-lo aqui mandaria o aluno para
+          uma tela de material com um vídeo vertical de dica rápida no lugar da
+          aula que a tarefa prometeu.
+        */
+        ne(contentItems.type, "mindx"),
       ),
     )
     .orderBy(asc(contentItems.sortOrder), desc(contentItems.createdAt))
-    .limit(limit);
+    .limit(limit)
+    .then((linhas) => linhas.filter(ehDaBiblioteca));
 }
