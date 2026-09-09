@@ -2,14 +2,13 @@
 
 import { AlertTriangle, Check, Loader2, RotateCcw } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { DueReviewView } from "@/server/engine/review";
 
-import { completeReviewAction } from "./actions";
+import { completeReviewAction, dismissReviewAction } from "./actions";
 
 /**
  * Uma revisão pendente, com o botão REVISAR do README 1.7.
@@ -30,7 +29,6 @@ const RATINGS = [
 const STAGE_LABEL = ["1ª revisão", "2ª revisão", "3ª revisão", "4ª revisão", "5ª revisão"];
 
 export function ReviewCard({ review }: { review: DueReviewView }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState<{ nextOn: string | null; xp: number } | null>(null);
   const [rating, setRating] = useState<"easy" | "ok" | "hard" | null>(null);
@@ -118,10 +116,15 @@ export function ReviewCard({ review }: { review: DueReviewView }) {
             Quem fecha a confirmação é o aluno. É este toque que recarrega a
             lista — sem ele, a revisão concluída continuaria aparecendo como
             pendente na próxima visita à tela.
+
+            ⚠️ `dismissReviewAction`, e não `router.refresh()` sozinho. O
+            refresh não trouxe dado novo no teste: o botão respondia ao clique e
+            a tela continuava com a revisão concluída e "Para hoje: 1". Quem faz
+            o Next remontar a página é o `revalidatePath` que a ação chama.
           */}
           <button
             type="button"
-            onClick={() => router.refresh()}
+            onClick={() => startTransition(() => dismissReviewAction())}
             className="inline-flex min-h-9 items-center text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             Fechar

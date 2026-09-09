@@ -36,22 +36,59 @@ export async function completeStudyAction(
   return result;
 }
 
+/**
+ * Conclui uma revisão.
+ *
+ * ⚠️ NÃO CHAMA `revalidatePath`, e a ausência dela é o conserto.
+ *
+ * Palavras da cliente, três vezes: "o aviso na tela de Revisões continua não
+ * aparecendo para mim, em nenhuma das contas que criei".
+ *
+ * `revalidatePath` numa Server Action faz o Next devolver, junto da resposta,
+ * uma versão nova da página atual — e o roteador aplica as duas coisas na mesma
+ * transição. A revisão recém-concluída já não está em `reviews.due`, então o
+ * card DESMONTA no mesmo instante em que o `setDone` do componente pediria para
+ * mostrar a confirmação. Ela nunca chega a pintar: o card simplesmente some, e
+ * com ele a data da próxima revisão e o XP ganho.
+ *
+ * Eu tinha diagnosticado isso como pressa de leitura e mexido no tempo que a
+ * mensagem ficava na tela — primeiro instantâneo, depois seis segundos. Ela
+ * repetiu a reclamação as duas vezes porque o tempo nunca foi o problema.
+ *
+ * Quem recarrega a lista agora é o botão "Fechar" da confirmação, quando o
+ * aluno decide sair dela. As duas telas são dinâmicas (leem o cookie da
+ * sessão), então não há cache de rota para invalidar — `revalidatePath` aqui
+ * não trazia nada além do estrago.
+ */
 export async function completeReviewAction(input: {
   occurrenceId: string;
   performanceRating?: "easy" | "ok" | "hard";
 }): Promise<CompleteReviewOutcome> {
   const session = await requireApiUser();
 
-  const result = await completeReviewOccurrence({
+  return completeReviewOccurrence({
     userId: session.user.id,
     occurrenceId: input.occurrenceId,
     performanceRating: input.performanceRating,
   });
+}
 
-  if (result.ok) {
-    revalidatePath("/inicio");
-    revalidatePath("/revisoes");
-  }
+/**
+ * Recarrega a lista de revisões, quando o aluno fecha a confirmação.
+ *
+ * ⚠️ É UMA AÇÃO DE SERVIDOR SÓ PARA REVALIDAR, e isso tem motivo.
+ *
+ * `router.refresh()` sozinho não trouxe dado novo: o botão "Fechar" ficava
+ * clicado e a tela continuava mostrando a revisão já concluída, com "Para hoje:
+ * 1". Só um `revalidatePath` faz o Next devolver a página remontada de verdade.
+ *
+ * É exatamente o mecanismo que quebrava a confirmação quando morava no
+ * `completeReviewAction`. A diferença inteira é QUANDO ele roda: ali derrubava
+ * a mensagem antes de o aluno ler; aqui é ele quem pede.
+ */
+export async function dismissReviewAction(): Promise<void> {
+  await requireApiUser();
 
-  return result;
+  revalidatePath("/inicio");
+  revalidatePath("/revisoes");
 }
