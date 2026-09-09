@@ -222,19 +222,32 @@ export default async function SchedulePage() {
                           ) : null}
                         </div>
 
+                        {/*
+                          ⚠️ O MINUTO DE CADA ASSUNTO SAIU (pedido da cliente em
+                          08/09/2026).
+
+                          Palavras dela: "excluir o tempo de estudo no
+                          cronograma adaptativo, caso seja possível distribuir o
+                          tempo igualmente entre os assuntos do dia".
+
+                          Desde que o cronograma passou a repartir o dia por
+                          igual, o número ao lado de cada linha é o MESMO em
+                          todas elas: "30min" repetido cinco vezes por dia,
+                          setenta vezes por tela. Um número que nunca varia não
+                          informa nada e ainda disputa espaço com o nome do
+                          assunto, que é a informação de verdade.
+
+                          O total do dia continua acessível: ele é a soma, e a
+                          semana já mostra "10,5h de 14h disponíveis".
+                        */}
                         {day.topics.length > 0 ? (
                           <ul className="mt-1 flex flex-col gap-1 pl-3">
                             {day.topics.map((topic) => (
                               <li
                                 key={topic.planTopicId}
-                                className="flex items-baseline gap-3 text-sm"
+                                className="text-pretty text-sm text-muted-foreground"
                               >
-                                <span className="min-w-0 flex-1 text-pretty text-muted-foreground">
-                                  {topic.topicName}
-                                </span>
-                                <span className="text-metric shrink-0 text-xs text-muted-foreground">
-                                  {topic.minutes}min
-                                </span>
+                                {topic.topicName}
                               </li>
                             ))}
                           </ul>
@@ -261,14 +274,9 @@ export default async function SchedulePage() {
                   {week.topics.map((topic) => (
                     <li
                       key={topic.planTopicId}
-                      className="flex items-baseline gap-3 text-sm"
+                      className="text-pretty text-sm text-foreground"
                     >
-                      <span className="min-w-0 flex-1 text-pretty text-foreground">
-                        {topic.topicName}
-                      </span>
-                      <span className="text-metric shrink-0 text-xs text-muted-foreground">
-                        {topic.minutes}min
-                      </span>
+                      {topic.topicName}
                     </li>
                   ))}
                 </ul>

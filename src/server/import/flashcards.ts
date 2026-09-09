@@ -42,6 +42,25 @@ export type FlashcardImportResult = {
   decks: Array<{ subject: string; topic: string; deck: string; count: number }>;
 };
 
+/**
+ * Os nomes de coluna que a tela do painel mostra a quem vai montar a planilha.
+ *
+ * ⚠️ SAI DAQUI, e não de uma lista repetida na tela. `COLUMNS` aceita
+ * sinônimos ("baralho" ou "deck"); a tela mostra o primeiro de cada. Uma
+ * segunda lista escrita à mão discordaria desta no dia em que uma coluna
+ * mudasse, e a cliente montaria a planilha pelo texto errado.
+ */
+export const FLASHCARD_SHEET_COLUMNS = [
+  "Disciplina",
+  "Assunto",
+  "Baralho",
+  "Frente",
+  "Verso",
+  "Dica",
+  "Ordem",
+  "Acesso",
+] as const;
+
 /** Os cabeçalhos aceitos, normalizados. */
 const COLUMNS = {
   subject: ["disciplina"],

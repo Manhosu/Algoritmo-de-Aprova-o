@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/server/auth/guards";
 import {
+  runFlashcardImport,
+  type FlashcardImportReport,
+} from "@/server/import/run-flashcard-import";
+import {
   runMaterialImport,
   type MaterialImportReport,
 } from "@/server/import/run-material-import";
@@ -127,6 +131,67 @@ export async function importMaterialsAction(
 
   try {
     const report = await runMaterialImport({
+      bytes: new Uint8Array(await arquivo.arrayBuffer()),
+      fileName: arquivo.name,
+      dryRun: conferir,
+    });
+
+    if (!conferir) {
+      revalidatePath("/admin/materiais");
+      /* A biblioteca do aluno e o card do Acervo leem a mesma tabela. */
+      revalidatePath("/estudos");
+      revalidatePath("/inicio");
+    }
+
+    return { report };
+  } catch (erro) {
+    return {
+      message: erro instanceof Error ? erro.message : "Não consegui ler a planilha.",
+    };
+  }
+}
+
+export type FlashcardImportState = {
+  message?: string;
+  report?: FlashcardImportReport;
+};
+
+/**
+ * Importa uma planilha de baralhos de flashcards.
+ *
+ * ⚠️ MESMA ESTRUTURA DAS OUTRAS DUAS IMPORTAÇÕES, de propósito.
+ *
+ * "Conferir" e "Importar" chamam a mesma função com `dryRun` diferente, o teto
+ * de tamanho é o mesmo, e a mensagem do leitor vai inteira para a tela. Três
+ * telas de importação que se comportam diferente ensinariam a cliente três
+ * coisas onde deveria haver uma.
+ */
+export async function importFlashcardsAction(
+  _prev: FlashcardImportState,
+  formData: FormData,
+): Promise<FlashcardImportState> {
+  await requireAdmin();
+
+  const arquivo = formData.get("sheet");
+  const conferir = formData.get("acao") === "conferir";
+
+  if (!(arquivo instanceof File) || arquivo.size === 0) {
+    return { message: "Escolha uma planilha .xlsx." };
+  }
+
+  if (arquivo.size > TAMANHO_MAXIMO) {
+    const mb = (arquivo.size / 1024 / 1024).toFixed(1);
+    return {
+      message: `A planilha tem ${mb} MB e o limite é 8 MB. Divida em partes menores.`,
+    };
+  }
+
+  if (!arquivo.name.toLowerCase().endsWith(".xlsx")) {
+    return { message: "O arquivo precisa ser .xlsx (Excel)." };
+  }
+
+  try {
+    const report = await runFlashcardImport({
       bytes: new Uint8Array(await arquivo.arrayBuffer()),
       fileName: arquivo.name,
       dryRun: conferir,

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { FlashcardImportForm } from "@/components/admin/flashcard-import-form";
 import { MaterialImportForm } from "@/components/admin/material-import-form";
 import { requireAdmin } from "@/server/auth/guards";
+import { FLASHCARD_SHEET_COLUMNS } from "@/server/import/flashcards";
 import { MATERIAL_SHEET_COLUMNS } from "@/server/import/materials";
 import { materialsBySubject } from "@/server/admin/catalog-stats";
 import { listMaterialsForAdmin } from "@/server/admin/material-admin";
@@ -104,6 +106,28 @@ export default async function MateriaisPage({
         </div>
 
         <MaterialImportForm colunas={MATERIAL_SHEET_COLUMNS} />
+      </section>
+
+      {/*
+        ⚠️ BARALHO TEM IMPORTAÇÃO PRÓPRIA, e não é capricho de organização.
+
+        Palavras da cliente em 08/09/2026: "tentei cadastrar um arquivo xlsx de
+        flashcards e um mapa mental, não deu certo". O mapa mental o botão de
+        enviar arquivo resolveu. O baralho não é arquivo: o conteúdo dele são os
+        CARTÕES, e cada linha da planilha vira um cartão que o aluno vira na
+        tela. Guardar o .xlsx no acervo entregaria uma planilha para download.
+      */}
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+        <div>
+          <h2 className="font-semibold text-foreground">Importar flashcards</h2>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            Cada linha vira um cartão. Reenviar a mesma planilha substitui os
+            cartões do baralho em vez de duplicar, então dá para corrigir uma
+            resposta e mandar de novo.
+          </p>
+        </div>
+
+        <FlashcardImportForm colunas={FLASHCARD_SHEET_COLUMNS} />
       </section>
 
       {query.aviso === "arquivado" ? (

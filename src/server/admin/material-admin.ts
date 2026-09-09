@@ -1,9 +1,14 @@
 import "server-only";
 
-import { and, count, desc, eq, isNull, ne } from "drizzle-orm";
+import { and, count, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 
 import { db } from "@/server/db";
-import { canonicalSubjects, canonicalTopics, contentItems } from "@/server/db/schema";
+import {
+  canonicalSubjects,
+  canonicalTopics,
+  contentItems,
+  flashcards,
+} from "@/server/db/schema";
 import { deleteContentFile } from "@/server/storage";
 
 /**
@@ -39,6 +44,8 @@ export type AdminMaterialRow = {
  * link para apontar. Exigir endereço marcaria todo baralho publicado como
  * defeituoso na lista e impediria publicar um novo, que é o oposto do que este
  * cadastro existe para fazer.
+ *
+ * ⚠️ O QUE ELE PRECISA É DE CARTÃO, e isso é conferido separado, abaixo.
  */
 function precisaDeEndereco(tipo: string): boolean {
   return tipo !== "flashcard_deck";
@@ -77,6 +84,21 @@ export async function listMaterialsForAdmin(input?: {
       topicName: canonicalTopics.name,
       storagePath: contentItems.storagePath,
       externalUrl: contentItems.externalUrl,
+      /*
+        ⚠️ BARALHO PUBLICADO SEM CARTÃO É UM CARD QUE ABRE VAZIO.
+
+        A cliente tem um no acervo agora: ela criou "Colocação Pronominal -
+        Flashcards" quando a planilha de flashcards não subiu, em 08/09/2026. O
+        item é válido em tudo que a lista conferia — tem título, disciplina e
+        assunto — e o aluno que o abre lê "este baralho ainda não tem cartões".
+
+        A contagem entra na mesma consulta. Uma segunda ida ao banco por linha
+        seriam duzentas consultas para desenhar uma tabela.
+      */
+      cardCount: sql<number>`(
+        select count(*)::int from ${flashcards}
+        where ${flashcards.contentItemId} = ${contentItems.id}
+      )`,
     })
     .from(contentItems)
     .leftJoin(canonicalSubjects, eq(canonicalSubjects.id, contentItems.canonicalSubjectId))
@@ -103,16 +125,26 @@ export async function listMaterialsForAdmin(input?: {
       coisa: o player não toca. Marcar como completo esconderia justamente o
       cadastro que já falhou uma vez.
     */
+    /*
+      ⚠️ PARA BARALHO, SÓ CARTÃO CONTA. Endereço não salva.
+
+      A cliente pôs o link do Drive no baralho quando a planilha não subiu, e
+      isso o marcava como completo. Não é: a tela do aluno monta o baralho a
+      partir de `flashcards` e ignora o endereço. O card abre e diz "este
+      baralho ainda não tem cartões", com um link do Drive gravado que ninguém
+      lê.
+    */
     hasSource:
-      !precisaDeEndereco(linha.type) ||
-      Boolean(linha.storagePath?.trim()) ||
-      Boolean(
-        linha.externalUrl?.trim() &&
-          !(
-            (linha.type === "video" || linha.type === "audio") &&
-            ehLinkDePagina(linha.externalUrl)
+      linha.type === "flashcard_deck"
+        ? linha.cardCount > 0
+        : Boolean(linha.storagePath?.trim()) ||
+          Boolean(
+            linha.externalUrl?.trim() &&
+              !(
+                (linha.type === "video" || linha.type === "audio") &&
+                ehLinkDePagina(linha.externalUrl)
+              ),
           ),
-      ),
   }));
 }
 
@@ -326,10 +358,28 @@ export async function countPublishedWithoutSource(): Promise<number> {
       and(
         isNull(contentItems.deletedAt),
         eq(contentItems.status, "published"),
-        isNull(contentItems.externalUrl),
-        isNull(contentItems.storagePath),
-        /* Baralho de flashcards guarda o conteúdo nos cartões, não num arquivo. */
-        ne(contentItems.type, "flashcard_deck"),
+        /*
+          ⚠️ BARALHO ENTRA NA CONTA, pelo critério dele.
+
+          Ele ficava de fora com o argumento de que guarda o conteúdo nos
+          cartões e não num arquivo. O argumento está certo e a conclusão
+          estava errada: baralho publicado SEM CARTÃO é o mesmo defeito, e a
+          cliente tem um no acervo desde que a planilha de flashcards não subiu.
+        */
+        or(
+          and(
+            eq(contentItems.type, "flashcard_deck"),
+            sql`not exists (
+              select 1 from ${flashcards}
+              where ${flashcards.contentItemId} = ${contentItems.id}
+            )`,
+          ),
+          and(
+            ne(contentItems.type, "flashcard_deck"),
+            isNull(contentItems.externalUrl),
+            isNull(contentItems.storagePath),
+          ),
+        ),
       ),
     );
 
