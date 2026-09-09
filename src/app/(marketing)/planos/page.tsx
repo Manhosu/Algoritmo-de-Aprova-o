@@ -197,6 +197,27 @@ export default async function PlansPage() {
                 </Button>
               );
             })()}
+
+            {/*
+              ⚠️ O CAMINHO SEM CONTA PRECISA ESTAR ESCRITO, e a cliente esbarrou
+              nisso em 09/09/2026: "o botão para confirmar na tela do Mercado
+              Pago não fica habilitado".
+
+              O checkout deles abre com duas opções, "Entrar com a minha conta"
+              e "Cartão". Quem entra com uma conta Mercado Pago que não pode
+              pagar aquela assinatura (a conta do próprio vendedor, por exemplo)
+              trava num botão apagado, sem explicação na tela.
+
+              Conferi as duas rotas nos dois planos: pelo cartão, o botão fica
+              habilitado. Uma linha aqui transforma um beco sem saída numa
+              escolha, e ela aparece ANTES do aluno bater na parede.
+            */}
+            {logado && plan.monthlyCents ? (
+              <p className="mt-3 text-xs text-pretty text-muted-foreground">
+                No Mercado Pago você pode pagar com cartão sem ter conta lá: é a
+                opção “Cartão”, abaixo de “Entrar com a minha conta”.
+              </p>
+            ) : null}
           </section>
         ))}
       </div>
