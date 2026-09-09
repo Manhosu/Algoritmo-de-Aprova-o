@@ -10,6 +10,7 @@ import {
   examBoards,
   questionAttempts,
   questionOptions,
+  questionTopics,
   questions,
 } from "@/server/db/schema";
 
@@ -69,7 +70,19 @@ export async function listQuestionsForAdmin(input: {
     condicoes.push(eq(questions.canonicalSubjectId, filtros.canonicalSubjectId));
   }
   if (filtros.canonicalTopicId) {
-    condicoes.push(eq(questions.canonicalTopicId, filtros.canonicalTopicId));
+    /*
+      Pelo vínculo, como na busca do aluno. Se o painel filtrasse pela coluna,
+      a cliente procuraria "Concordância" no acervo e não acharia a questão que
+      ela mesma marcou com "Crase; Concordância" — e concluiria que o ";" não
+      funcionou.
+    */
+    condicoes.push(
+      sql`exists (
+        select 1 from ${questionTopics}
+        where ${questionTopics.questionId} = ${questions.id}
+          and ${questionTopics.canonicalTopicId} = ${filtros.canonicalTopicId}
+      )`,
+    );
   }
   if (filtros.difficulty) condicoes.push(eq(questions.difficulty, filtros.difficulty));
   if (filtros.status) condicoes.push(eq(questions.status, filtros.status));

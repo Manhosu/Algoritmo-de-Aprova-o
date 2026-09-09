@@ -14,6 +14,7 @@ import {
   examBoards,
   questionAttempts,
   questionOptions,
+  questionTopics,
   questions,
   studyPlanTopics,
 } from "@/server/db/schema";
@@ -101,7 +102,14 @@ export async function getFilterCatalog(): Promise<FilterCatalog> {
         subjectId: canonicalTopics.subjectId,
       })
       .from(canonicalTopics)
-      .innerJoin(questions, eq(questions.canonicalTopicId, canonicalTopics.id))
+      /*
+        Pelo vínculo, e não pela coluna da questão: um assunto que só aparece
+        como segundo de uma célula "Crase; Concordância" some da lista se o
+        filtro for montado pela coluna, e a cliente veria o filtro prometer
+        menos assuntos do que a busca sabe encontrar.
+      */
+      .innerJoin(questionTopics, eq(questionTopics.canonicalTopicId, canonicalTopics.id))
+      .innerJoin(questions, eq(questions.id, questionTopics.questionId))
       .where(eq(questions.status, "published"))
       .orderBy(canonicalTopics.name),
   ]);
@@ -180,7 +188,27 @@ export async function findQuestions(input: {
     conditions.push(eq(questions.canonicalSubjectId, input.filters.canonicalSubjectId));
   }
   if (input.filters.canonicalTopicId) {
-    conditions.push(eq(questions.canonicalTopicId, input.filters.canonicalTopicId));
+    /**
+     * ⚠️ O ASSUNTO É LIDO DE `question_topics`, e não da coluna da questão.
+     *
+     * Pedido da cliente em 09/09/2026: "tem questões que possuem mais de um
+     * assunto que são separados por ';'. Tem como o sistema aceitar dessa forma
+     * e cadastrar a mesma questão em cada um dos assuntos?".
+     *
+     * Cadastrar a mesma questão duas vezes é impossível — `content_hash` tem
+     * índice único e a segunda cópia seria descartada em silêncio. Então uma
+     * questão só, e a tabela de vínculo diz em quais assuntos ela APARECE.
+     *
+     * `exists` em vez de join: com join, uma questão vinculada a dois assuntos
+     * do mesmo filtro voltaria duplicada na lista e contada duas vezes no total.
+     */
+    conditions.push(
+      sql`exists (
+        select 1 from ${questionTopics}
+        where ${questionTopics.questionId} = ${questions.id}
+          and ${questionTopics.canonicalTopicId} = ${input.filters.canonicalTopicId}
+      )`,
+    );
   }
   if (input.filters.difficulty) {
     conditions.push(eq(questions.difficulty, input.filters.difficulty));

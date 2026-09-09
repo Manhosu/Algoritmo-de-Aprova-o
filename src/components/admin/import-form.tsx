@@ -158,6 +158,17 @@ function Relatorio({ report }: { report: NonNullable<ImportState["report"]> }) {
             ) : null}
           </>
         ) : null}
+        {report.multiTopic > 0 ? (
+          /*
+            ⚠️ O ";" PRECISA APARECER NA TELA.
+
+            A cliente perguntou se o sistema aceita "Crase; Concordância" e
+            cadastra a questão nos dois assuntos. Sem esta linha, ela importaria
+            a planilha, veria o mesmo relatório de sempre e continuaria sem
+            saber se o ponto e vírgula foi entendido ou engolido.
+          */
+          <Linha rotulo="Com mais de um assunto" valor={report.multiTopic} />
+        ) : null}
         {report.issues.length > 0 ? (
           <Linha rotulo="Linhas com problema" valor={report.issues.length} />
         ) : null}

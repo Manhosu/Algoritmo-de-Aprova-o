@@ -8,6 +8,7 @@ import { db } from "@/server/db";
 import {
   preparations,
   questions,
+  questionTopics,
   studyPlanSubjects,
   studyPlanTopics,
 } from "@/server/db/schema";
@@ -198,16 +199,22 @@ export async function getPlanContent(
 
   const questionCounts = new Map<string, number>();
   if (canonicalIds.length > 0) {
+    /*
+      Pelo vínculo, e não pela coluna: é a mesma disponibilidade que o Banco de
+      Questões mostra ao aluno quando ele filtra por assunto. Duas contas
+      diferentes para a mesma pergunta acabariam divergindo na tela.
+    */
     const rows = await db
-      .select({ topicId: questions.canonicalTopicId, total: count() })
-      .from(questions)
+      .select({ topicId: questionTopics.canonicalTopicId, total: count() })
+      .from(questionTopics)
+      .innerJoin(questions, eq(questions.id, questionTopics.questionId))
       .where(
         and(
-          inArray(questions.canonicalTopicId, canonicalIds),
+          inArray(questionTopics.canonicalTopicId, canonicalIds),
           eq(questions.status, "published"),
         ),
       )
-      .groupBy(questions.canonicalTopicId);
+      .groupBy(questionTopics.canonicalTopicId);
 
     for (const row of rows) {
       if (row.topicId) questionCounts.set(row.topicId, row.total);

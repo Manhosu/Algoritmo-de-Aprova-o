@@ -18,7 +18,7 @@ import type { ParsedQuestion } from "@/server/import/questions";
  *     delete from questions where import_batch_id = '<id do lote de exemplos>';
  */
 
-type Example = Omit<ParsedQuestion, "sourceRow" | "options"> & {
+type Example = Omit<ParsedQuestion, "sourceRow" | "options" | "topicNames"> & {
   answer: "A" | "B" | "C" | "D" | "E";
   alternatives: [string, string, string, string, string];
 };
@@ -243,6 +243,8 @@ export function buildExampleQuestions(): ParsedQuestion[] {
     examBoardName: example.examBoardName,
     subjectName: example.subjectName,
     topicName: example.topicName,
+    /* Exemplo do seed cobre um assunto só. Ver a nota em `questionTopics`. */
+    topicNames: [example.topicName],
     difficulty: example.difficulty,
     statement: example.statement,
     explanation: example.explanation,

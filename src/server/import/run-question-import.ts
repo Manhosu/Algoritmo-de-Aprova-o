@@ -10,6 +10,7 @@ import {
   examBoards,
   questionImportBatches,
   questionOptions,
+  questionTopics,
   questions,
 } from "@/server/db/schema";
 import { loadCatalog, matchSubject, matchTopic } from "@/server/taxonomy/mapping";
@@ -52,6 +53,13 @@ export type ImportReport = {
   createdTopics: Array<{ label: string; count: number }>;
   /** Bancas que a planilha citou e que não existem no cadastro. */
   unknownBoards: Array<{ label: string; count: number }>;
+  /**
+   * Questões que cobrem mais de um assunto, vindas de uma célula com ";".
+   *
+   * Pedido da cliente em 09/09/2026. Ela precisa ver o número para saber que o
+   * ";" foi entendido, e não engolido.
+   */
+  multiTopic: number;
   /** §8 do padrão editorial: gabarito concentrado numa alternativa. */
   answerBalanceWarning: string | null;
   /** Preenchido quando a planilha já tinha sido importada antes. */
@@ -224,6 +232,15 @@ export async function runQuestionImport(input: {
     }
   }
 
+  /*
+    ⚠️ CONTADO SOBRE `prontas`, e antes de gravar, para que "Conferir sem
+    gravar" e "Importar" mostrem O MESMO número. Contar dentro do laço de
+    escrita daria um número menor na importação — as questões repetidas não
+    passam por lá — e a conferência passaria a prometer diferente do que
+    entrega, que é o pior defeito de uma tela de conferência.
+  */
+  const multiAssunto = prontas.filter((p) => p.questao.topicNames.length > 1).length;
+
   const base: ImportReport = {
     fileName: input.fileName,
     parsed: resultado.questions.length,
@@ -235,6 +252,7 @@ export async function runQuestionImport(input: {
     unmatched: ordenar(foraDoCatalogo),
     createdTopics: ordenar(assuntosCriados),
     unknownBoards: [],
+    multiTopic: multiAssunto,
     answerBalanceWarning: resultado.answerBalanceWarning ?? null,
     alreadyImported: false,
   };
@@ -301,6 +319,54 @@ export async function runQuestionImport(input: {
   let gravadas = 0;
   let repetidas = 0;
 
+  /*
+    Cache dos assuntos extras já resolvidos nesta importação.
+
+    Sem ele, uma planilha com setenta questões de "Crase; Concordância" faria
+    setenta consultas ao catálogo pelo mesmo nome, e a criação do assunto novo
+    aconteceria setenta vezes.
+  */
+  const cacheDeAssunto = new Map<string, string | null>();
+
+  /**
+   * O id do assunto extra, criando no catálogo quando ele ainda não existe.
+   *
+   * Segue a mesma regra do assunto principal: o do catálogo manda, e o que não
+   * existe nasce dentro da disciplina que já casou. Um extra descartado deixaria
+   * a questão fora justamente do assunto que a cliente quis marcar.
+   */
+  async function resolverAssunto(nome: string, subjectId: string): Promise<string | null> {
+    const chave = `${subjectId}::${taxonomyKey(nome)}`;
+    const emCache = cacheDeAssunto.get(chave);
+    if (emCache !== undefined) return emCache;
+
+    const casado = matchTopic(nome, subjectId, catalogo);
+
+    if (casado.canonicalId) {
+      cacheDeAssunto.set(chave, casado.canonicalId);
+      return casado.canonicalId;
+    }
+
+    const normalizado = taxonomyKey(nome);
+    const base = normalizado.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 180);
+    const dona = catalogo.subjects.find((d) => d.id === subjectId);
+
+    const [criado] = await db
+      .insert(canonicalTopics)
+      .values({
+        subjectId,
+        name: nome,
+        slug: `${base}-${Math.random().toString(36).slice(2, 8)}`,
+        normalizedName: normalizado,
+        path: `${taxonomyKey(dona?.name ?? "")}.${normalizado}`,
+      })
+      .returning({ id: canonicalTopics.id });
+
+    conta(assuntosCriados, `${dona?.name ?? "?"} › ${nome}`);
+    cacheDeAssunto.set(chave, criado.id);
+    return criado.id;
+  }
+
   for (const { questao, subjectId, topicId } of prontas) {
     const contentHash = questionContentHash(questao.statement);
 
@@ -340,6 +406,34 @@ export async function runQuestionImport(input: {
         sortOrder: index,
       })),
     );
+
+    /*
+      ⚠️ OS ASSUNTOS DA QUESTÃO, incluindo o principal.
+
+      O principal entra aqui também, e não só em `questions.canonical_topic_id`.
+      Sem isso, a busca por assunto precisaria consultar as duas colunas e unir
+      os resultados — duas fontes para a mesma pergunta, que um dia divergem.
+
+      Questão sem assunto nenhum (disciplina casou, assunto não) não gera linha:
+      a tabela só diz ONDE a questão aparece, e essa não aparece em lugar algum
+      até alguém classificá-la no painel.
+    */
+    const idsDosAssuntos = new Set<string>(topicId ? [topicId] : []);
+
+    for (const nome of questao.topicNames.slice(1)) {
+      const extra = await resolverAssunto(nome, subjectId);
+      if (extra) idsDosAssuntos.add(extra);
+    }
+
+    if (idsDosAssuntos.size > 0) {
+      await db.insert(questionTopics).values(
+        [...idsDosAssuntos].map((id) => ({
+          questionId: linha.id,
+          canonicalTopicId: id,
+          isPrimary: id === topicId,
+        })),
+      );
+    }
 
     gravadas++;
   }

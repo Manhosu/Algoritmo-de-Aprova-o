@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import {
   canonicalTopics,
   questions,
+  questionTopics,
   studyPlanSubjects,
   studyPlanTopics,
   topicStates,
@@ -95,10 +96,20 @@ export async function getTrails(preparationId: string): Promise<Trail[]> {
         Subconsulta, e não `join` com `group by`: um join com `questions`
         multiplicaria a linha do assunto por questão, e todo agregado de
         `topic_states` acima passaria a ser somado uma vez por questão.
+
+        E conta pelo VÍNCULO: o número aqui é o que a trilha promete ao aluno, e
+        precisa bater com o que o Banco de Questões mostra quando ele filtra por
+        este assunto. Contando pela coluna da questão, a trilha diria "0
+        questões" num assunto que só aparece como segundo de uma célula
+        "Crase; Concordância" — e o botão levaria a uma lista cheia.
       */
       availableQuestions: sql<number>`(
         select count(*)::int from ${questions}
-         where ${questions.canonicalTopicId} = ${studyPlanTopics.canonicalTopicId}
+         where exists (
+                 select 1 from ${questionTopics}
+                  where ${questionTopics.questionId} = ${questions.id}
+                    and ${questionTopics.canonicalTopicId} = ${studyPlanTopics.canonicalTopicId}
+               )
            and ${questions.status} = 'published'
            and ${questions.deletedAt} is null
       )`,

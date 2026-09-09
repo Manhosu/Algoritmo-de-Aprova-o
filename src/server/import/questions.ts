@@ -48,7 +48,21 @@ export type ParsedQuestion = {
   sourceRow: number;
   examBoardName: string;
   subjectName: string;
+  /**
+   * O assunto PRINCIPAL: o primeiro da célula.
+   *
+   * É ele que vai para `questions.canonical_topic_id`, e é a quem o desempenho
+   * do aluno é atribuído. Ver a nota em `questionTopics`.
+   */
   topicName: string;
+  /**
+   * Todos os assuntos da célula, incluindo o principal.
+   *
+   * ⚠️ A CÉLULA PODE TRAZER MAIS DE UM, separado por ";". Pedido da cliente em
+   * 09/09/2026: "tem questões que possuem mais de um assunto que são separados
+   * por ';'. Tem como o sistema aceitar dessa forma?".
+   */
+  topicNames: string[];
   difficulty: QuestionDifficulty;
   statement: string;
   explanation: string;
@@ -259,13 +273,27 @@ export function parseQuestionSheet(
       return;
     }
 
+    /*
+      ⚠️ UMA CÉLULA PODE TRAZER VÁRIOS ASSUNTOS, separados por ";".
+
+      Sem separar, "Crase; Concordância" virava UM nome de assunto: não casava
+      com o catálogo, o importador criava um assunto canônico com esse nome, e a
+      questão ficava arquivada num assunto que edital nenhum menciona.
+    */
+    const assuntos = separarAssuntos(topic);
+    if (assuntos.length === 0) {
+      fail("Banca, Disciplina e Assunto são obrigatórios.");
+      return;
+    }
+
     answerDistribution[answerRaw] = (answerDistribution[answerRaw] ?? 0) + 1;
 
     questions.push({
       sourceRow: row,
       examBoardName: board,
       subjectName: subject,
-      topicName: topic,
+      topicName: assuntos[0],
+      topicNames: assuntos,
       difficulty,
       statement,
       explanation,
@@ -327,4 +355,35 @@ export function buildAnswerBalanceWarning(
   }
 
   return `Gabarito desequilibrado — ${parts.join(" e ")}. Distribuição: ${summary}.`;
+}
+
+/**
+ * Separa a célula "Assunto" em um ou mais nomes.
+ *
+ * ⚠️ SÓ O PONTO E VÍRGULA SEPARA, e a vírgula sozinha não.
+ *
+ * Nome de assunto usa vírgula com frequência: "Planejamento estratégico,
+ * tático e operacional", "Concordância nominal e verbal", "Elaboração,
+ * execução, monitoramento e avaliação". Separar por vírgula quebraria dezenas
+ * de assuntos legítimos do catálogo dela em pedaços que não casam com nada.
+ *
+ * Repetido some: uma célula "Crase; crase" descreve um assunto só, e duas
+ * linhas iguais na tabela de vínculo seriam recusadas pela chave primária.
+ */
+export function separarAssuntos(celula: string): string[] {
+  const vistos = new Set<string>();
+  const saida: string[] = [];
+
+  for (const parte of celula.split(";")) {
+    const nome = parte.trim();
+    if (!nome) continue;
+
+    const chave = nome.toLowerCase();
+    if (vistos.has(chave)) continue;
+
+    vistos.add(chave);
+    saida.push(nome);
+  }
+
+  return saida;
 }

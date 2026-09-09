@@ -17,6 +17,7 @@ import {
   dailyTaskItems,
   dailyTasks,
   preparations,
+  questionTopics,
   questions,
   reviewOccurrences,
   studyLogs,
@@ -478,16 +479,25 @@ async function countQuestionsByTopic(
   const result = new Map<string, number>();
   if (canonicalIds.length === 0) return result;
 
+  /*
+    ⚠️ CONTA PELO VÍNCULO, e não pela coluna da questão.
+
+    O motor usa este número para decidir se manda o aluno resolver questões do
+    assunto. Contando pela coluna, um assunto que só existe como segundo de uma
+    célula "Crase; Concordância" contaria zero, e a tarefa do dia mandaria ler
+    em vez de resolver — com o acervo cheio de questões daquele assunto.
+  */
   const rows = await db
-    .select({ topicId: questions.canonicalTopicId, total: count() })
-    .from(questions)
+    .select({ topicId: questionTopics.canonicalTopicId, total: count() })
+    .from(questionTopics)
+    .innerJoin(questions, eq(questions.id, questionTopics.questionId))
     .where(
       and(
-        inArray(questions.canonicalTopicId, canonicalIds),
+        inArray(questionTopics.canonicalTopicId, canonicalIds),
         eq(questions.status, "published"),
       ),
     )
-    .groupBy(questions.canonicalTopicId);
+    .groupBy(questionTopics.canonicalTopicId);
 
   for (const row of rows) {
     if (row.topicId) result.set(row.topicId, row.total);

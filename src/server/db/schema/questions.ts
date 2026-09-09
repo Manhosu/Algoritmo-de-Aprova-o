@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
@@ -343,6 +344,84 @@ export const questionsRelations = relations(questions, ({ one, many }) => ({
   }),
   options: many(questionOptions),
   attempts: many(questionAttempts),
+}));
+
+/* ========================================================================== *
+ * ASSUNTOS ADICIONAIS DE UMA QUESTÃO
+ * ========================================================================== */
+
+/**
+ * Os assuntos que a questão cobre, quando ela cobre mais de um.
+ *
+ * ⚠️ PEDIDO DA CLIENTE EM 09/09/2026, e ele conserta um defeito junto.
+ *
+ * Palavras dela: "ao subir questões da Vunesp notei que tem questões que
+ * possuem mais de um assunto que são separados por ';'. Tem como o sistema
+ * aceitar dessa forma e cadastrar a mesma questão em cada um dos assuntos?".
+ *
+ * Duplicar a questão, uma linha por assunto, é impossível e seria errado: o
+ * índice único de `content_hash` recusa o segundo enunciado igual, e sem ele o
+ * aluno veria a mesma pergunta duas vezes na mesma sessão de prática.
+ *
+ * O defeito que isso conserta: sem tratar o ";", o importador lia "Crase;
+ * Concordância" como UM nome de assunto, não achava no catálogo e criava um
+ * assunto canônico com esse nome. A questão ficava arquivada num assunto que
+ * edital nenhum menciona, invisível para todo aluno, e a taxonomia ganhava
+ * lixo com ponto e vírgula no meio.
+ *
+ * ⚠️ `questions.canonical_topic_id` CONTINUA SENDO O ASSUNTO PRINCIPAL.
+ *
+ * Ele é lido pelo Motor 1, pela maestria, pelas Trilhas e pelas estatísticas.
+ * Trocar tudo por uma relação muitos-para-muitos mudaria o significado de
+ * "acertei neste assunto" em nove lugares de uma vez. Aqui a tabela é um ÍNDICE
+ * A MAIS: ela decide onde a questão APARECE, e o principal continua decidindo a
+ * quem o desempenho é atribuído.
+ *
+ * Onde cada um manda, hoje:
+ *
+ *   ONDE A QUESTÃO APARECE — lê esta tabela
+ *     `findQuestions` e o catálogo de filtros do Banco de Questões
+ *     o filtro por assunto do painel (`listQuestionsForAdmin`)
+ *     `countQuestionsByTopic`, que diz ao Motor 1 se há o que resolver
+ *     `availableQuestions` das Trilhas e a disponibilidade por assunto do plano
+ *
+ *   A QUEM O DESEMPENHO PERTENCE — lê `questions.canonical_topic_id`
+ *     a maestria e o "comprovar domínio"
+ *     as estatísticas por assunto do painel
+ *
+ * A separação é deliberada. Uma questão de "Crase; Concordância" cobre os dois
+ * assuntos o suficiente para ser oferecida nos dois, e não o suficiente para
+ * que um acerto conte como domínio de ambos.
+ */
+export const questionTopics = pgTable(
+  "question_topics",
+  {
+    questionId: uuid()
+      .notNull()
+      .references(() => questions.id, { onDelete: "cascade" }),
+    canonicalTopicId: uuid()
+      .notNull()
+      .references(() => canonicalTopics.id, { onDelete: "cascade" }),
+    /** Verdadeiro para o mesmo assunto gravado em `questions.canonicalTopicId`. */
+    isPrimary: boolean().notNull().default(false),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.questionId, table.canonicalTopicId] }),
+    /* A busca por assunto entra por aqui, e ela é o caminho mais quente da tela. */
+    index("question_topics_topic_idx").on(table.canonicalTopicId),
+  ],
+);
+
+export const questionTopicsRelations = relations(questionTopics, ({ one }) => ({
+  question: one(questions, {
+    fields: [questionTopics.questionId],
+    references: [questions.id],
+  }),
+  topic: one(canonicalTopics, {
+    fields: [questionTopics.canonicalTopicId],
+    references: [canonicalTopics.id],
+  }),
 }));
 
 export const questionOptionsRelations = relations(questionOptions, ({ one }) => ({
