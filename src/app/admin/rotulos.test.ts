@@ -35,7 +35,20 @@ function enumsDeclarados(): Map<string, string[]> {
   const padrao = /export const (\w+) = pgEnum\(\s*"[a-z_]+",\s*\[([\s\S]*?)\]\s*\)/g;
 
   for (const achado of fonte.matchAll(padrao)) {
-    const valores = [...achado[2].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    /*
+      ⚠️ COMENTÁRIO FORA ANTES DE PROCURAR VALOR.
+
+      Um comentário dentro do enum explicando por que o valor novo existe pode
+      citar outro valor entre aspas, e a varredura o contava como um item a
+      mais. Aconteceu com a nota do `mindx`, que diz `não "video" com alguma
+      marca`: o teste passou a exigir um rótulo para um valor duplicado, e a
+      mensagem de falha não dava pista nenhuma da causa.
+    */
+    const semComentario = achado[2]
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n]*/g, "");
+
+    const valores = [...semComentario.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
     mapa.set(achado[1], valores);
   }
 
