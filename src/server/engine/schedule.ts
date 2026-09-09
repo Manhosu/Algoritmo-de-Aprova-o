@@ -118,6 +118,7 @@ async function loadPendingTopics(preparationId: string): Promise<PendingTopic[]>
       priorityScore: topicStates.priorityScore,
       currentMasteryScore: topicStates.currentMasteryScore,
       initialMastery: topicStates.initialMastery,
+      lastStudiedAt: topicStates.lastStudiedAt,
     })
     .from(studyPlanTopics)
     .innerJoin(studyPlanSubjects, eq(studyPlanTopics.planSubjectId, studyPlanSubjects.id))
@@ -131,6 +132,28 @@ async function loadPendingTopics(preparationId: string): Promise<PendingTopic[]>
     );
 
   return rows
+    /*
+      ⚠️ ASSUNTO JÁ ESTUDADO SAI DO CRONOGRAMA, e passa a ser assunto do Motor 2.
+
+      A cliente perguntou isso nas observações da 2ª etapa e eu nunca respondi:
+      "quando um assunto é estudado, ele sai do cronograma? Garantir que o Motor
+      do Cronograma não continue priorizando conteúdos que já deveriam ter sido
+      retirados dele".
+
+      Enquanto o cronograma distribuía MINUTOS, o assunto estudado ficava com um
+      custo menor e o defeito era discreto. Contando assuntos, ele voltou a
+      ocupar uma vaga inteira — o aluno estudaria "Crase" hoje e a veria de novo
+      amanhã, no lugar do próximo assunto do edital.
+
+      Concluir o estudo abre a série de revisões (`completeStudy`), então o
+      assunto não fica sem dono: ele sai da fila de COBRIR e entra na de FIXAR.
+      É a divisão de trabalho entre os dois motores que o produto promete.
+
+      ⚠️ O SINAL É `lastStudiedAt`, e não `coverageStatus`. `in_progress` também
+      aparece quando o aluno só responde questões, sem ter estudado o material —
+      esse assunto continua precisando entrar no cronograma.
+    */
+    .filter((row) => row.lastStudiedAt === null)
     .filter((row) => (row.coverageStatus ?? "not_started") !== "mastered")
     .map((row) => ({
       planTopicId: row.planTopicId,

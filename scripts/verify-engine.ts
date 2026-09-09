@@ -625,6 +625,7 @@ async function main() {
 
       const idsNoCronograma = new Set(dias.flatMap((dia) => dia.topics.map((t) => t.planTopicId)));
 
+
       /* Marca um assunto como dominado e confere que ele sai da projeção. */
       const [algum] = await db
         .select({ id: schema.studyPlanTopics.id })
@@ -901,6 +902,30 @@ async function main() {
       "Concluir um estudo faz nascer a série de revisões",
       studied.ok && typeof studied.firstReviewOn === "string",
       studied.ok ? `primeira revisão em ${studied.firstReviewOn}` : "falhou",
+    );
+
+    /*
+      ⚠️ E O ASSUNTO SAI DO CRONOGRAMA na mesma hora.
+
+      A cliente perguntou isso nas observações e nunca teve resposta: "quando um
+      assunto é estudado, ele sai do cronograma? Garantir que o Motor do
+      Cronograma não continue priorizando conteúdos que já deveriam ter sido
+      retirados dele".
+
+      Enquanto a distribuição era por minutos, o estudado ficava com custo menor
+      e o defeito passava batido. Contando assuntos, ele voltaria a ocupar uma
+      vaga inteira: o aluno estudaria "Crase" hoje e a veria de novo amanhã, no
+      lugar do próximo assunto do edital.
+    */
+    const depoisDoEstudo = await getSchedule({ userId, preparationId });
+    const aindaNoPlano = (depoisDoEstudo?.weeks ?? [])
+      .flatMap((semana) => semana.days)
+      .some((dia) => dia.topics.some((t) => t.planTopicId === studiedTopicId));
+
+    check(
+      "Assunto já estudado sai do cronograma (o Motor 2 assume)",
+      !aindaNoPlano,
+      aindaNoPlano ? "continuou no plano" : "saiu do plano",
     );
 
     /**
