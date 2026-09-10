@@ -99,6 +99,15 @@ const serverEnvSchema = z.object({
   /** Marco 2 — assinaturas. Não é exigida no Marco 1. */
   MERCADOPAGO_ACCESS_TOKEN: z.string().optional(),
   MERCADOPAGO_WEBHOOK_SECRET: z.string().optional(),
+  /**
+   * A chave PÚBLICA, que o formulário de cartão usa no navegador para gerar o
+   * token. Não é segredo — o Mercado Pago a desenhou para ir ao navegador.
+   *
+   * Lida no servidor e passada à página, e não como NEXT_PUBLIC_: assim trocar
+   * de teste para produção na Vercel vale no próximo acesso, sem novo build.
+   * Sem ela, o botão volta ao checkout do Mercado Pago.
+   */
+  MERCADOPAGO_PUBLIC_KEY: z.string().optional(),
 
   /** Escape hatch para builds de CI que não têm acesso aos segredos. */
   SKIP_ENV_VALIDATION: bool.optional(),

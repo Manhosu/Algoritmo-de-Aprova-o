@@ -409,3 +409,17 @@ async function voltarParaFree(userId: string): Promise<void> {
     */
     .onConflictDoNothing();
 }
+
+/**
+ * Aplica o estado atual de uma assinatura, lido da API do Mercado Pago.
+ *
+ * É o mesmo caminho do webhook, exposto para quem acabou de criar uma
+ * assinatura com cartão: ela nasce `authorized`, e o aluno não deve esperar a
+ * notificação chegar para ver o plano liberado. Quando o webhook vier depois,
+ * ele reaplica o mesmo estado — e ativar duas vezes dá no mesmo.
+ *
+ * ⚠️ O ESTADO VEM DA API, nunca de quem chama. É a mesma garantia do webhook.
+ */
+export async function sincronizarAssinatura(preapprovalId: string): Promise<WebhookResult> {
+  return aplicarAssinatura(preapprovalId);
+}

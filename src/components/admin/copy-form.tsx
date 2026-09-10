@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,35 +9,55 @@ import type { LandingCopy } from "@/content/landing-schema";
 import { cn } from "@/lib/utils";
 
 import { publishCopyAction, type CopyFormState } from "./copy-actions";
-import { rotular } from "./copy-labels";
+import { montarArvore, type No } from "./copy-fields";
 
 /**
  * Editor da copy da página inicial.
  *
- * ⚠️ OS CAMPOS SÃO GERADOS A PARTIR DA COPY ATUAL, não escritos um a um.
+ * ⚠️ OS CAMPOS SAEM DE `montarArvore`, não são escritos um a um.
  *
- * Escrever trinta inputs à mão cria um segundo lugar onde a estrutura mora, e
- * ele sai de sincronia no primeiro campo novo: o schema ganharia a chave, o
- * formulário não, e a cliente publicaria sem nunca ver o campo. Percorrer o
- * objeto garante que tudo que o schema aceita aparece na tela.
+ * Escrever os campos à mão cria um segundo lugar onde a estrutura mora, e ele
+ * sai de sincronia no primeiro campo novo. A árvore é pura e testada: o teste
+ * remonta o que ela gera e passa pelo schema, que é exatamente o que publicar
+ * faz. Ver a nota em `copy-fields.ts` — foi assim que dez listas ficaram de fora.
  *
- * O `name` de cada input é o CAMINHO dentro do objeto (`hero.titleLine1`), e a
- * ação remonta o objeto a partir disso.
+ * ⚠️ A AÇÃO É CHAMADA DE DENTRO DO `onSubmit`, e não por `action={}`.
+ *
+ * O React 19 limpa o formulário que governa pelo `action` assim que a ação
+ * termina — inclusive quando ela RECUSA. Com `action={}`, uma publicação
+ * recusada apagava tudo o que a cliente tinha digitado no celular e devolvia os
+ * campos ao texto antigo. É o mesmo conserto dos formulários de importação.
  */
-
-/** Campos longos ganham `textarea`; o resto é `input`. */
-const LONGOS = new Set(["subtitle", "body", "footnote"]);
-
 export function CopyForm({ inicial }: { inicial: LandingCopy }) {
-  const [state, formAction, pending] = useActionState<CopyFormState, FormData>(
-    publishCopyAction,
-    { ok: false },
-  );
+  const [state, dispatch] = useActionState<CopyFormState, FormData>(publishCopyAction, {
+    ok: false,
+  });
+  const [pending, startTransition] = useTransition();
+
+  function enviar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const dados = new FormData(evento.currentTarget);
+    startTransition(() => dispatch(dados));
+  }
 
   return (
-    <form action={formAction} className="flex flex-col gap-8">
-      {Object.entries(inicial).map(([chave, valor]) => (
-        <Grupo key={chave} titulo={rotular(chave)} caminho={chave} valor={valor} />
+    <form onSubmit={enviar} className="flex flex-col gap-8">
+      {montarArvore(inicial).map((no) => (
+        <section key={chaveDe(no)} className="rounded-xl border border-border p-4">
+          {no.tipo === "grupo" ? (
+            <>
+              <h2 className="text-sm font-semibold tracking-wide text-foreground">{no.titulo}</h2>
+              <div className="mt-4 flex flex-col gap-4">
+                {no.filhos.map((filho) => (
+                  <Campo key={chaveDe(filho)} no={filho} />
+                ))}
+              </div>
+              {no.nota ? <p className="mt-3 text-xs text-muted-foreground">{no.nota}</p> : null}
+            </>
+          ) : (
+            <Campo no={no} />
+          )}
+        </section>
       ))}
 
       <div className="flex flex-col gap-3 border-t border-border pt-6">
@@ -84,126 +104,56 @@ export function CopyForm({ inicial }: { inicial: LandingCopy }) {
   );
 }
 
-/** Um bloco do objeto: vira uma seção com os campos dentro. */
-function Grupo({
-  titulo,
-  caminho,
-  valor,
-}: {
-  titulo: string;
-  caminho: string;
-  valor: unknown;
-}) {
-  if (Array.isArray(valor)) {
+function chaveDe(no: No): string {
+  return no.tipo === "grupo" ? no.id : no.nome;
+}
+
+function Campo({ no }: { no: No }) {
+  if (no.tipo === "grupo") {
     return (
-      <section className="rounded-xl border border-border p-4">
-        <h2 className="text-sm font-semibold tracking-wide text-foreground">{titulo}</h2>
-        <div className="mt-4 flex flex-col gap-4">
-          {valor.map((item, i) => (
-            <div key={`${caminho}.${i}`} className="rounded-lg border border-border/60 p-3">
-              <p className="mb-3 text-xs text-muted-foreground">Item {i + 1}</p>
-              <Campos caminho={`${caminho}.${i}`} valor={item} />
-            </div>
+      <div className="rounded-lg border border-border/60 p-3">
+        <p className="text-xs font-medium text-foreground">{no.titulo}</p>
+        <div className="mt-3 flex flex-col gap-3">
+          {no.filhos.map((filho) => (
+            <Campo key={chaveDe(filho)} no={filho} />
           ))}
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          A quantidade de itens é fixa — o desenho da tela depende dela.
-        </p>
-      </section>
+        {no.nota ? <p className="mt-2 text-xs text-muted-foreground">{no.nota}</p> : null}
+      </div>
     );
   }
 
-  return (
-    <section className="rounded-xl border border-border p-4">
-      <h2 className="text-sm font-semibold tracking-wide text-foreground">{titulo}</h2>
-      <div className="mt-4">
-        <Campos caminho={caminho} valor={valor} />
+  if (no.tipo === "marcador") {
+    return (
+      <div className="flex items-center gap-2">
+        {/* O `hidden` garante que "false" chegue: caixa desmarcada não envia
+            nada, e o campo sumiria do objeto remontado. */}
+        <input type="hidden" name={no.nome} value="false" />
+        <input
+          type="checkbox"
+          id={no.nome}
+          name={no.nome}
+          value="true"
+          defaultChecked={no.valor}
+          className="size-4 accent-[var(--primary)]"
+        />
+        <Label htmlFor={no.nome} className="text-sm font-normal">
+          {no.rotulo}
+        </Label>
       </div>
-    </section>
-  );
-}
+    );
+  }
 
-/** Percorre um objeto e desenha um campo por folha. */
-function Campos({ caminho, valor }: { caminho: string; valor: unknown }) {
-  if (valor === null || typeof valor !== "object") return null;
-
-  return (
-    <div className="flex flex-col gap-4">
-      {Object.entries(valor as Record<string, unknown>).map(([chave, item]) => {
-        const nome = `${caminho}.${chave}`;
-
-        if (typeof item === "string") {
-          return <CampoTexto key={nome} nome={nome} chave={chave} valor={item} />;
-        }
-
-        if (typeof item === "boolean") {
-          return (
-            <div key={nome} className="flex items-center gap-2">
-              {/* O `hidden` garante que "false" chegue: caixa desmarcada não
-                  envia nada, e o campo sumiria do objeto remontado. */}
-              <input type="hidden" name={nome} value="false" />
-              <input
-                type="checkbox"
-                id={nome}
-                name={nome}
-                value="true"
-                defaultChecked={item}
-                className="size-4 accent-[var(--primary)]"
-              />
-              <Label htmlFor={nome} className="text-sm font-normal">
-                {rotular(chave)}
-              </Label>
-            </div>
-          );
-        }
-
-        if (Array.isArray(item)) {
-          return (
-            <div key={nome} className="rounded-lg border border-border/60 p-3">
-              <p className="text-xs font-medium text-foreground">{rotular(chave, nome)}</p>
-              <div className="mt-3 flex flex-col gap-3">
-                {item.map((sub, i) => (
-                  <div key={`${nome}.${i}`} className="rounded border border-border/50 p-2.5">
-                    <Campos caminho={`${nome}.${i}`} valor={sub} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        }
-
-        return (
-          <div key={nome} className="rounded-lg border border-border/60 p-3">
-            <p className="text-xs font-medium text-foreground">{rotular(chave, nome)}</p>
-            <div className="mt-3">
-              <Campos caminho={nome} valor={item} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function CampoTexto({
-  nome,
-  chave,
-  valor,
-}: {
-  nome: string;
-  chave: string;
-  valor: string;
-}) {
   const classe =
     "rounded-lg border border-input bg-input px-3 py-2.5 text-sm text-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={nome}>{rotular(chave, nome)}</Label>
-      {LONGOS.has(chave) ? (
-        <textarea id={nome} name={nome} defaultValue={valor} rows={4} className={classe} />
+      <Label htmlFor={no.nome}>{no.rotulo}</Label>
+      {no.longo ? (
+        <textarea id={no.nome} name={no.nome} defaultValue={no.valor} rows={4} className={classe} />
       ) : (
-        <input id={nome} name={nome} defaultValue={valor} className={cn(classe, "h-11")} />
+        <input id={no.nome} name={no.nome} defaultValue={no.valor} className={cn(classe, "h-11")} />
       )}
     </div>
   );

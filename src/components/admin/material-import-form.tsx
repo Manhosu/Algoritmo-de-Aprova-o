@@ -4,12 +4,12 @@ import { Loader2, Upload } from "lucide-react";
 import { useActionState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 
 import {
   importMaterialsAction,
   type MaterialImportState,
 } from "./import-actions";
+import { SheetSourceFields } from "./sheet-source-fields";
 
 const INICIAL: MaterialImportState = {};
 
@@ -48,25 +48,7 @@ export function MaterialImportForm({ colunas }: { colunas: readonly string[] }) 
     <div className="flex flex-col gap-4">
       <form onSubmit={enviar} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="material-sheet">Planilha (.xlsx)</Label>
-          <input
-            id="material-sheet"
-            name="sheet"
-            type="file"
-            /*
-              ⚠️ SEM `accept`, de propósito.
-
-              Com `accept=".xlsx"` o seletor filtra por extensão, e arquivo
-              escolhido pelo Google Drive chega sem uma. A cliente ficou sem
-              conseguir clicar na própria planilha: "eu coloco pra selecionar no
-              drive, e o sistema não permite selecionar o excel".
-
-              Filtrar é conforto; conseguir escolher o arquivo é o requisito.
-              Quem valida é o servidor, pelos bytes.
-            */
-            required
-            className="rounded-lg border border-input bg-input px-3 py-2.5 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary/15 file:px-3 file:py-1.5 file:text-sm file:text-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          />
+          <SheetSourceFields id="material-sheet" />
           <p className="text-xs text-pretty text-muted-foreground">
             Colunas: <span className="text-metric">{colunas.join(", ")}</span>. As
             quatro primeiras são obrigatórias; as outras podem ficar em branco.

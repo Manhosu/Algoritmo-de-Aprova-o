@@ -107,9 +107,22 @@ export function proxy(request: NextRequest) {
    */
   const armazenamento = origemDoArmazenamento();
 
+  /*
+    ⚠️ O MERCADO PAGO SÓ ENTRA NO CSP DA PÁGINA DE PLANOS.
+
+    O formulário de cartão carrega o SDK deles e desenha número, validade e
+    código em iframes do domínio deles — é isso que mantém o cartão fora do
+    nosso servidor. Liberar esses domínios no site inteiro abriria todas as
+    outras telas a script de terceiro sem motivo nenhum.
+  */
+  const pagamento = pathname === "/planos" || pathname.startsWith("/planos/");
+  const mercadoPago = pagamento
+    ? " https://sdk.mercadopago.com https://*.mercadopago.com https://*.mercadolibre.com https://*.mlstatic.com"
+    : "";
+
   const csp = [
     `default-src 'self'`,
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${mercadoPago}`,
     // O Tailwind e o next/font injetam estilo inline; não há como evitar.
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' blob: data: https:`,
@@ -124,7 +137,7 @@ export function proxy(request: NextRequest) {
       a mensagem de rede que o próprio controle mostra, apontando para a conexão
       da cliente quando o problema era nosso.
     */
-    `connect-src 'self'${armazenamento}${isDev ? " ws: wss:" : ""}`,
+    `connect-src 'self'${armazenamento}${mercadoPago}${isDev ? " ws: wss:" : ""}`,
     /* Vídeo e áudio do acervo — nossa origem em desenvolvimento, o bucket em produção. */
     `media-src 'self' blob:${armazenamento}`,
     /*
@@ -136,6 +149,7 @@ export function proxy(request: NextRequest) {
      * PDF e imagem; Flash e Java não existem mais para relaxar aqui.
      */
     `object-src 'self'${armazenamento}`,
+    `frame-src 'self'${mercadoPago}`,
     `frame-ancestors 'none'`,
     `form-action 'self'`,
     `base-uri 'self'`,

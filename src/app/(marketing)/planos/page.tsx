@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { SubscribeButton } from "@/components/plans/subscribe-button";
+import { env } from "@/config/env";
 import { Button } from "@/components/ui/button";
 import { getCurrentSession } from "@/server/auth/session";
 import {
@@ -40,6 +41,8 @@ export const dynamic = "force-dynamic";
 export default async function PlansPage() {
   const [plans, session] = await Promise.all([listPublicPlans(), getCurrentSession()]);
   const logado = Boolean(session);
+  /* Com a chave pública, o cartão é digitado aqui — ver `CardCheckout`. */
+  const chavePublica = env.MERCADOPAGO_PUBLIC_KEY ?? null;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6 sm:py-24">
@@ -152,6 +155,8 @@ export default async function PlansPage() {
                 planCode={plan.code}
                 billingPeriod="monthly"
                 label={`Assinar ${plan.name}`}
+                valor={`${formatPrice(plan.monthlyCents)} por mês`}
+                chavePublica={chavePublica}
                 variant={plan.isFeatured ? "default" : "outline"}
                 className="mt-6"
               />
@@ -186,6 +191,8 @@ export default async function PlansPage() {
                   planCode={plan.code}
                   billingPeriod="annual"
                   label={`Quero o plano anual · ${savings.percentOff}% OFF`}
+                  valor={`${formatPrice(plan.annualCents)} por ano`}
+                  chavePublica={chavePublica}
                   variant="outline"
                   className="mt-2"
                 />
@@ -212,7 +219,7 @@ export default async function PlansPage() {
               habilitado. Uma linha aqui transforma um beco sem saída numa
               escolha, e ela aparece ANTES do aluno bater na parede.
             */}
-            {logado && plan.monthlyCents ? (
+            {logado && plan.monthlyCents && !chavePublica ? (
               <p className="mt-3 text-xs text-pretty text-muted-foreground">
                 No Mercado Pago você pode pagar com cartão sem ter conta lá: é a
                 opção “Cartão”, abaixo de “Entrar com a minha conta”.

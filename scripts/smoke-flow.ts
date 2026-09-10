@@ -920,6 +920,34 @@ async function main() {
         : `faltando: ${DIRETIVAS_DO_ACERVO.filter((d) => !midiaLiberada.includes(d)).join(", ")}`,
     );
 
+    /* --- 7d. o formulário de cartão tem o CSP de que precisa, e só ele ----- *
+     *
+     * O cartão passou a ser digitado na página de planos (10/09/2026), em
+     * iframes do Mercado Pago com o SDK deles. Faltando uma diretiva, os campos
+     * simplesmente não aparecem — a mesma armadilha das duas acima. E os
+     * domínios deles não podem vazar para o resto do site.
+     */
+    const respPlanos = await fetch(`${BASE}/planos`);
+    const cspPlanos = respPlanos.headers.get("content-security-policy") ?? "";
+    const diretivaDe = (texto: string, nome: string) =>
+      texto.split(";").find((d) => d.trim().startsWith(nome)) ?? "";
+
+    const DIRETIVAS_DO_CARTAO = ["script-src", "frame-src", "connect-src"];
+    const cartaoLiberado = DIRETIVAS_DO_CARTAO.filter((d) =>
+      diretivaDe(cspPlanos, d).includes("mercadopago.com"),
+    );
+    const vazou = csp.includes("mercadopago");
+
+    record(
+      "O CSP de /planos libera o cartão do Mercado Pago, e o resto do site não",
+      cartaoLiberado.length === DIRETIVAS_DO_CARTAO.length && !vazou,
+      vazou
+        ? "domínio do Mercado Pago no CSP da página inicial"
+        : cartaoLiberado.length === DIRETIVAS_DO_CARTAO.length
+          ? "script-src, frame-src e connect-src só em /planos"
+          : `faltando em /planos: ${DIRETIVAS_DO_CARTAO.filter((d) => !cartaoLiberado.includes(d)).join(", ")}`,
+    );
+
     /* --- 8. logout revoga a sessão no banco -------------------------------- */
     res = await fetch(`${BASE}/sair`, { headers: { cookie }, redirect: "manual" });
     const [session] = await sql<Array<{ revoked_at: Date | null }>>`

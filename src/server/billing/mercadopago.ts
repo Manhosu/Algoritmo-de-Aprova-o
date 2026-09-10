@@ -135,6 +135,11 @@ export async function createPreapproval(input: {
   billingPeriod: "monthly" | "annual";
   backUrl: string;
   idempotencyKey: string;
+  /**
+   * O token do cartão digitado na NOSSA tela, quando o aluno pagou por ela.
+   * Sem ele, a assinatura nasce pendente e o aluno vai ao checkout deles.
+   */
+  cardTokenId?: string;
 }): Promise<Preapproval> {
   return chamar<Preapproval>("/preapproval", {
     method: "POST",
@@ -145,11 +150,22 @@ export async function createPreapproval(input: {
       payer_email: input.payerEmail,
       back_url: input.backUrl,
       /*
-        `authorized` faria o Mercado Pago tentar cobrar na hora, o que exige o
-        cartão já autorizado. `pending` abre o checkout para o aluno escolher a
-        forma de pagamento — que é o fluxo que a tela oferece.
+        Sem cartão: `pending` abre o checkout deles para o aluno escolher a
+        forma de pagamento.
+
+        Com cartão: `authorized` e o token. ⚠️ É O CAMINHO DO CELULAR. Palavras
+        da cliente em 10/09/2026: "estou tentando fazer a assinatura pelo
+        celular e ele abre o aplicativo do Mercado Pago exigindo login ou
+        criação de conta". O sistema do telefone entrega o endereço do checkout
+        ao aplicativo deles, e o aplicativo não tem a opção "sem conta" que o
+        site tem. Com o cartão digitado aqui, ninguém sai do nosso site.
+
+        O Mercado Pago cobra a primeira parcela na hora; cartão recusado faz a
+        criação falhar, e quem chama traduz o erro.
       */
-      status: "pending",
+      ...(input.cardTokenId
+        ? { status: "authorized", card_token_id: input.cardTokenId }
+        : { status: "pending" }),
       auto_recurring: {
         /*
           ⚠️ ANUAL É 12 MESES, e não `frequency_type: "years"`.

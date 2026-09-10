@@ -271,6 +271,140 @@ async function main() {
       depois?.planId === free.id,
       depois ? `ativo no plano ${depois.planId === free.id ? "Free" : "errado"}` : "SEM PLANO",
     );
+
+    /* --- 5. ASSINAR COM CARTÃO, SEM SAIR DO SITE -------------------------- */
+    /*
+      O caminho do celular (10/09/2026): no aplicativo do Mercado Pago não existe
+      "pagar sem conta", então o cartão passou a ser digitado na página de
+      planos. Aqui o token nasce pela API, com os cartões de teste deles; no
+      site, quem gera é o SDK. As credenciais são de teste: nada é cobrado.
+    */
+    /*
+      ⚠️ O VISA DE TESTE, e não o Mastercard. O Mastercard de teste deles é
+      recusado para recorrência ("Unsupported_credit_card_for_recurring_payment")
+      — o que também acontece com cartão de débito de verdade, e por isso ele
+      tem a própria checagem abaixo.
+    */
+    const VISA = { numero: "4235647728025682", codigo: "123" };
+    const MASTERCARD_SEM_RECORRENCIA = { numero: "5031433215406351", codigo: "123" };
+
+    async function tokenDeTeste(
+      titular: "APRO" | "OTHE",
+      cartao: { numero: string; codigo: string } = VISA,
+    ): Promise<string | null> {
+      const resposta = await fetch("https://api.mercadopago.com/v1/card_tokens", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          card_number: cartao.numero,
+          expiration_month: 11,
+          expiration_year: 2030,
+          security_code: cartao.codigo,
+          cardholder: { name: titular, identification: { type: "CPF", number: "12345678909" } },
+        }),
+      });
+      const corpo = (await resposta.json()) as { id?: string };
+      return corpo.id ?? null;
+    }
+
+    const aprovado = await tokenDeTeste("APRO");
+    check("O Mercado Pago gera o token do cartão de teste", Boolean(aprovado), aprovado ? "token criado" : "sem token");
+
+    const comCartao = await startSubscriptionCheckout({
+      userId,
+      planCode: "premium",
+      billingPeriod: "monthly",
+      cardTokenId: aprovado ?? undefined,
+    });
+
+    check(
+      "Com o cartão, a assinatura é criada sem sair do site",
+      comCartao.ok && comCartao.checkoutUrl.startsWith("/planos/retorno"),
+      comCartao.ok ? comCartao.checkoutUrl.slice(0, 44) : comCartao.message,
+    );
+
+    const [premium] = await db
+      .select({ id: plans.id })
+      .from(plans)
+      .where(eq(plans.code, "premium"))
+      .limit(1);
+
+    const [ativa] = await db
+      .select({ planId: subscriptions.planId, externo: subscriptions.externalSubscriptionId })
+      .from(subscriptions)
+      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")))
+      .limit(1);
+
+    check(
+      "O Premium fica ativo na hora, sem esperar o webhook",
+      ativa?.planId === premium?.id,
+      ativa ? (ativa.planId === premium?.id ? "Premium ativo" : "plano errado") : "nenhum plano ativo",
+    );
+
+    if (ativa?.externo) {
+      const remotaCartao = await getPreapproval(ativa.externo);
+      check(
+        "No Mercado Pago ela nasceu autorizada, com o valor do banco",
+        remotaCartao.status === "authorized" && remotaCartao.auto_recurring?.transaction_amount === 89.9,
+        `${remotaCartao.status} · R$ ${remotaCartao.auto_recurring?.transaction_amount}`,
+      );
+
+      const canceladaCartao = await cancelPreapproval(ativa.externo);
+      await processWebhook({
+        eventId: `cancelamento-cartao-${Date.now()}`,
+        eventType: "subscription_preapproval",
+        dataId: ativa.externo,
+        payload: {},
+        signatureValid: true,
+      });
+
+      check("E cancela do mesmo jeito", canceladaCartao.status === "cancelled", canceladaCartao.status);
+    }
+
+    const recusadoToken = await tokenDeTeste("OTHE");
+    const recusada = await startSubscriptionCheckout({
+      userId,
+      planCode: "premium",
+      billingPeriod: "monthly",
+      cardTokenId: recusadoToken ?? undefined,
+    });
+
+    const penduradas = await db
+      .select({ id: subscriptions.id })
+      .from(subscriptions)
+      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "pending")));
+
+    check(
+      "Cartão recusado não libera plano, não deixa linha pendurada e diz o que fazer",
+      !recusada.ok && penduradas.length === 0,
+      recusada.ok ? "ACEITOU um cartão recusado" : recusada.message.slice(0, 70),
+    );
+
+    if (recusada.ok) {
+      /* Se aceitou, desfaz: a verificação não pode deixar assinatura viva lá. */
+      const [viva] = await db
+        .select({ externo: subscriptions.externalSubscriptionId })
+        .from(subscriptions)
+        .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")))
+        .limit(1);
+      if (viva?.externo) await cancelPreapproval(viva.externo);
+    }
+
+    const semRecorrencia = await startSubscriptionCheckout({
+      userId,
+      planCode: "premium",
+      billingPeriod: "monthly",
+      cardTokenId: (await tokenDeTeste("APRO", MASTERCARD_SEM_RECORRENCIA)) ?? undefined,
+    });
+
+    check(
+      "Cartão sem recorrência (débito) recebe a mensagem certa, e não 'recusado'",
+      !semRecorrencia.ok && /não aceita cobrança recorrente/.test(semRecorrencia.message),
+      semRecorrencia.ok ? "aceitou" : semRecorrencia.message.slice(0, 70),
+    );
   } finally {
     await limpar(userId);
     console.log("\nDados de teste removidos.");

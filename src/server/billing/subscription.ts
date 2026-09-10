@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { planPrices, plans, subscriptions, users } from "@/server/db/schema";
 
 import { createPreapproval, isMercadoPagoConfigured, MercadoPagoError } from "./mercadopago";
+import { sincronizarAssinatura } from "./webhook";
 
 /**
  * ASSINATURA — do clique em "Assinar" até a volta do Mercado Pago.
@@ -21,6 +22,12 @@ import { createPreapproval, isMercadoPagoConfigured, MercadoPagoError } from "./
  *
  * O preço disso é linha pendente de gente que desistiu no checkout. É barato:
  * elas não dão acesso a nada e o índice único de assinatura ativa não as vê.
+ *
+ * DOIS CAMINHOS
+ * ----------------------------------------------------------------------------
+ * Com `cardTokenId`, o aluno digitou o cartão na nossa tela: a assinatura nasce
+ * autorizada e o plano é liberado na hora. Sem ele, o aluno vai ao checkout do
+ * Mercado Pago e volta pela `back_url`. Ver a nota em `createPreapproval`.
  */
 
 export type StartCheckoutResult =
@@ -31,6 +38,8 @@ export async function startSubscriptionCheckout(input: {
   userId: string;
   planCode: string;
   billingPeriod: "monthly" | "annual";
+  /** Token do cartão gerado pelo formulário da página de planos. */
+  cardTokenId?: string;
 }): Promise<StartCheckoutResult> {
   if (!isMercadoPagoConfigured()) {
     return {
@@ -91,9 +100,9 @@ export async function startSubscriptionCheckout(input: {
 
   /*
     A assinatura anterior NÃO é cancelada aqui. Ela só cai quando a nova for
-    confirmada pelo webhook — cancelar antes deixaria o aluno sem acesso nenhum
-    caso ele desistisse no checkout, e o índice único de assinatura ativa impede
-    que as duas coexistam depois.
+    confirmada — cancelar antes deixaria o aluno sem acesso nenhum caso ele
+    desistisse no checkout, e o índice único de assinatura ativa impede que as
+    duas coexistam depois.
   */
   const [pendente] = await db
     .insert(subscriptions)
@@ -107,6 +116,8 @@ export async function startSubscriptionCheckout(input: {
     })
     .returning({ id: subscriptions.id });
 
+  const retorno = `/planos/retorno?assinatura=${pendente.id}`;
+
   try {
     const assinatura = await createPreapproval({
       externalReference: pendente.id,
@@ -114,19 +125,33 @@ export async function startSubscriptionCheckout(input: {
       reason: `${preco.planName} — O Algoritmo da Aprovação`,
       amountCents: preco.amountCents,
       billingPeriod: input.billingPeriod,
-      backUrl: `${env.APP_URL}/planos/retorno?assinatura=${pendente.id}`,
+      backUrl: `${env.APP_URL}${retorno}`,
       /*
         A chave é o id da NOSSA linha. Dois cliques no botão criam duas linhas e
         duas chaves, então isto protege só a retentativa da mesma requisição —
         que é o caso que o Mercado Pago cobra em dobro.
       */
       idempotencyKey: pendente.id,
+      cardTokenId: input.cardTokenId,
     });
 
     await db
       .update(subscriptions)
       .set({ externalSubscriptionId: assinatura.id, updatedAt: new Date() })
       .where(eq(subscriptions.id, pendente.id));
+
+    if (input.cardTokenId) {
+      /*
+        O cartão passou e a assinatura já nasceu autorizada. O plano é liberado
+        agora, pelo mesmo caminho do webhook — o estado é relido da API, não
+        presumido. O aluno vai direto à tela de "Pronto!".
+      */
+      if (assinatura.status === "authorized") {
+        await sincronizarAssinatura(assinatura.id);
+      }
+
+      return { ok: true, checkoutUrl: retorno };
+    }
 
     return { ok: true, checkoutUrl: assinatura.init_point };
   } catch (erro) {
@@ -142,36 +167,68 @@ export async function startSubscriptionCheckout(input: {
 
     console.error("[mercadopago] falha ao criar assinatura", erro);
 
-    /*
-      ⚠️ O ERRO DO AMBIENTE DE TESTE MERECE A PRÓPRIA MENSAGEM.
-
-      Com credenciais de teste, o Mercado Pago recusa qualquer pagador que não
-      seja um usuário de teste: "Both payer and collector must be real or test
-      users". Aconteceu na primeira vez que a cliente clicou em Assinar com a
-      conta dela.
-
-      A mensagem genérica ("tente de novo em alguns minutos") manda a pessoa
-      repetir para sempre uma ação que nunca vai funcionar. Dizer o que é
-      transforma um beco sem saída numa instrução — e some sozinha quando as
-      credenciais de produção entrarem, porque o erro deixa de acontecer.
-    */
-    const recusaDeAmbiente =
-      erro instanceof MercadoPagoError &&
-      /must be real or test users|guest_site_mismatch/i.test(erro.message);
-
-    if (recusaDeAmbiente) {
-      return {
-        ok: false,
-        message:
-          "O pagamento está em modo de teste, e nele só uma conta de teste do " +
-          "Mercado Pago consegue assinar. Com as credenciais de produção, " +
-          "qualquer conta funciona.",
-      };
-    }
-
-    return {
-      ok: false,
-      message: "Não consegui abrir o pagamento agora. Tente de novo em alguns minutos.",
-    };
+    return { ok: false, message: traduzirRecusa(erro, Boolean(input.cardTokenId)) };
   }
+}
+
+/**
+ * A recusa do Mercado Pago, na língua de quem está tentando pagar.
+ *
+ * A mensagem crua dele ("CC_VAL_433 Credit card validation has failed") vai
+ * para o log; para o aluno vai o que ele pode fazer a seguir.
+ */
+function traduzirRecusa(erro: unknown, comCartao: boolean): string {
+  const texto = erro instanceof MercadoPagoError ? erro.message : "";
+
+  /*
+    ⚠️ O ERRO DO AMBIENTE DE TESTE MERECE A PRÓPRIA MENSAGEM.
+
+    Com credenciais de teste, o Mercado Pago recusa qualquer pagador que não
+    seja um usuário de teste. A mensagem genérica mandaria a pessoa repetir para
+    sempre uma ação que nunca vai funcionar.
+  */
+  if (/must be real or test users|guest_site_mismatch/i.test(texto)) {
+    return (
+      "O pagamento está em modo de teste, e nele só uma conta de teste do " +
+      "Mercado Pago consegue assinar. Com as credenciais de produção, " +
+      "qualquer conta funciona."
+    );
+  }
+
+  /*
+    O vendedor não pode assinar o próprio plano. Aconteceu com a cliente em
+    09/09/2026, logada na conta que recebe; pelo cartão, o que conta é o e-mail
+    da conta do site, que vira o `payer_email`.
+  */
+  if (/collector/i.test(texto)) {
+    return (
+      "O e-mail desta conta é o mesmo da conta do Mercado Pago que recebe os " +
+      "pagamentos, e ela não pode assinar o próprio plano. Teste com uma conta " +
+      "de outro e-mail."
+    );
+  }
+
+  /*
+    ⚠️ CARTÃO QUE NÃO ACEITA RECORRÊNCIA, e não "cartão recusado".
+
+    Débito e boa parte dos pré-pagos não aceitam cobrança automática. O Mercado
+    Pago devolve "Unsupported_credit_card_for_recurring_payment" — apareceu no
+    primeiro teste do cartão digitado na página. Dizer só "não foi aceito"
+    mandaria a pessoa redigitar o mesmo cartão para sempre.
+  */
+  if (/unsupported_credit_card_for_recurring/i.test(texto)) {
+    return (
+      "Este cartão não aceita cobrança recorrente — cartões de débito e alguns " +
+      "pré-pagos não aceitam. Use um cartão de crédito. Nada foi cobrado."
+    );
+  }
+
+  if (comCartao) {
+    return (
+      "O cartão não foi aceito. Confira número, validade, código e CPF, ou use " +
+      "outro cartão. Nada foi cobrado."
+    );
+  }
+
+  return "Não consegui abrir o pagamento agora. Tente de novo em alguns minutos.";
 }
