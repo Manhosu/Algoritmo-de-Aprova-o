@@ -52,15 +52,52 @@ declare global {
 
 const SDK = "https://sdk.mercadopago.com/js/v2";
 
+/**
+ * Quanto esperar o SDK antes de desistir e dizer isso na tela.
+ *
+ * ⚠️ SEM PRAZO, O BOTÃO GIRAVA PARA SEMPRE. Foi o que a cliente viu no celular
+ * em 10/09/2026: "o botão só fica carregando e não termina o carregamento". Um
+ * script que o navegador barra, ou uma rede que some no meio, não dispara
+ * `load` — e a promessa ficava pendurada sem erro nenhum para mostrar.
+ */
+const PRAZO_DO_SDK = 15_000;
+
 function carregarSdk(): Promise<void> {
   if (window.MercadoPago) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
-    const existente = document.querySelector<HTMLScriptElement>(`script[src="${SDK}"]`);
+    /*
+      Um `<script>` que já falhou nunca mais dispara `load`. Reaproveitá-lo —
+      depois de "Voltar" e abrir de novo, por exemplo — deixaria a espera
+      pendurada. Ele sai e entra um novo.
+    */
+    const anterior = document.querySelector<HTMLScriptElement>(`script[src="${SDK}"]`);
+    if (anterior?.dataset.estado === "falhou") anterior.remove();
+    if (anterior?.dataset.estado === "carregou") return reject(new Error("sdk sem MercadoPago"));
+
+    const existente = anterior?.isConnected ? anterior : null;
     const script = existente ?? Object.assign(document.createElement("script"), { src: SDK, async: true });
 
-    script.addEventListener("load", () => resolve(), { once: true });
-    script.addEventListener("error", () => reject(new Error("sdk")), { once: true });
+    const prazo = window.setTimeout(() => reject(new Error("sdk demorou")), PRAZO_DO_SDK);
+
+    script.addEventListener(
+      "load",
+      () => {
+        window.clearTimeout(prazo);
+        script.dataset.estado = "carregou";
+        resolve();
+      },
+      { once: true },
+    );
+    script.addEventListener(
+      "error",
+      () => {
+        window.clearTimeout(prazo);
+        script.dataset.estado = "falhou";
+        reject(new Error("sdk"));
+      },
+      { once: true },
+    );
 
     if (!existente) document.head.appendChild(script);
   });
@@ -93,6 +130,7 @@ export function CardCheckout({
 
   const [pronto, setPronto] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [falhou, setFalhou] = useState(false);
   const [gerandoToken, setGerandoToken] = useState(false);
 
   const [estado, dispatch] = useActionState(subscribeWithCardAction, INICIAL);
@@ -117,17 +155,30 @@ export function CardCheckout({
         const style = { fontSize: "16px", ...(cor ? { color: cor } : {}) };
 
         campos.push(
-          mp.fields.create("cardNumber", { placeholder: "0000 0000 0000 0000", style }).mount(ids.numero),
-          mp.fields.create("expirationDate", { placeholder: "MM/AA", style }).mount(ids.validade),
-          mp.fields.create("securityCode", { placeholder: "123", style }).mount(ids.codigo),
+          /*
+            `srLabel` é o nome que o leitor de tela anuncia DENTRO do iframe. O
+            rótulo visível da página não alcança o campo de outro domínio.
+          */
+          mp.fields
+            .create("cardNumber", { placeholder: "0000 0000 0000 0000", srLabel: "Número do cartão", style })
+            .mount(ids.numero),
+          mp.fields
+            .create("expirationDate", { placeholder: "MM/AA", srLabel: "Validade do cartão", style })
+            .mount(ids.validade),
+          mp.fields
+            .create("securityCode", { placeholder: "123", srLabel: "Código de segurança", style })
+            .mount(ids.codigo),
         );
 
         setPronto(true);
       })
       .catch(() => {
-        if (vivo) {
-          setErro("Não consegui abrir o formulário do cartão. Confira a conexão e tente de novo.");
-        }
+        if (!vivo) return;
+        setFalhou(true);
+        setErro(
+          "Não consegui abrir o formulário do cartão. Recarregue a página, ou use a " +
+            "opção de pagar com a conta do Mercado Pago, logo abaixo.",
+        );
       });
 
     return () => {
@@ -193,19 +244,19 @@ export function CardCheckout({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={ids.numero}>Número do cartão</Label>
+        <Label>Número do cartão</Label>
         <div id={ids.numero} className={`${CLASSE_CAMPO} py-2.5`} />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={ids.validade}>Validade</Label>
+          <Label>Validade</Label>
           <div id={ids.validade} className={`${CLASSE_CAMPO} py-2.5`} />
         </div>
         <div className="flex flex-col gap-1.5">
           {/* "Código de segurança" quebrava em duas linhas a 390px e empurrava o
               quadro para baixo do da validade. */}
-          <Label htmlFor={ids.codigo}>Código (CVV)</Label>
+          <Label>Código (CVV)</Label>
           <div id={ids.codigo} className={`${CLASSE_CAMPO} py-2.5`} />
         </div>
       </div>
@@ -228,10 +279,21 @@ export function CardCheckout({
         </p>
       ) : null}
 
-      <Button type="submit" size="lg" disabled={!pronto || ocupado} className="w-full">
-        {ocupado || !pronto ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Lock aria-hidden />}
-        {!pronto ? "Abrindo formulário…" : ocupado ? "Confirmando…" : `Assinar · ${valor}`}
-      </Button>
+      {falhou ? (
+        /*
+          Recarregar é a saída que resolve: a página chega de novo do servidor,
+          com tudo o que o formulário precisa. Um botão que só gira não diz ao
+          aluno o que fazer.
+        */
+        <Button type="button" size="lg" variant="outline" className="w-full" onClick={() => window.location.reload()}>
+          Recarregar e tentar de novo
+        </Button>
+      ) : (
+        <Button type="submit" size="lg" disabled={!pronto || ocupado} className="w-full">
+          {ocupado || !pronto ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Lock aria-hidden />}
+          {!pronto ? "Abrindo formulário…" : ocupado ? "Confirmando…" : `Assinar · ${valor}`}
+        </Button>
+      )}
 
       <p className="text-xs text-pretty text-muted-foreground">
         A cobrança se repete no mesmo cartão a cada período. Os dados do cartão vão

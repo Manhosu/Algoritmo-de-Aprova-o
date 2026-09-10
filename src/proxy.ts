@@ -108,17 +108,25 @@ export function proxy(request: NextRequest) {
   const armazenamento = origemDoArmazenamento();
 
   /*
-    ⚠️ O MERCADO PAGO SÓ ENTRA NO CSP DA PÁGINA DE PLANOS.
+    O formulário de cartão carrega o SDK do Mercado Pago e desenha número,
+    validade e código em iframes do domínio deles — é isso que mantém o cartão
+    fora do nosso servidor.
 
-    O formulário de cartão carrega o SDK deles e desenha número, validade e
-    código em iframes do domínio deles — é isso que mantém o cartão fora do
-    nosso servidor. Liberar esses domínios no site inteiro abriria todas as
-    outras telas a script de terceiro sem motivo nenhum.
+    ⚠️ VALE PARA O SITE INTEIRO, e não só para /planos. Eu tinha limitado à
+    página de planos, e o pagamento travou no celular da cliente em 10/09/2026:
+    "o botão só fica carregando e não termina o carregamento".
+
+    O CSP vale para o DOCUMENTO, e o documento é o da primeira página aberta. Quem
+    chega a /planos pelo menu, pelo aviso de limite ou pela biblioteca navega
+    sem recarregar, e continua com o CSP de /entrar ou /inicio — onde o SDK não
+    estava liberado. Eu testei abrindo /planos pelo endereço, que é justamente o
+    único caminho em que funcionava.
+
+    Restringir não comprava segurança que compense: `script-src` já tem
+    `'unsafe-inline'`, e o SDK só carrega quando o formulário do cartão pede.
   */
-  const pagamento = pathname === "/planos" || pathname.startsWith("/planos/");
-  const mercadoPago = pagamento
-    ? " https://sdk.mercadopago.com https://*.mercadopago.com https://*.mercadolibre.com https://*.mlstatic.com"
-    : "";
+  const mercadoPago =
+    " https://sdk.mercadopago.com https://*.mercadopago.com https://*.mercadolibre.com https://*.mlstatic.com";
 
   const csp = [
     `default-src 'self'`,

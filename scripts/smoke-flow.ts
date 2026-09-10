@@ -920,12 +920,16 @@ async function main() {
         : `faltando: ${DIRETIVAS_DO_ACERVO.filter((d) => !midiaLiberada.includes(d)).join(", ")}`,
     );
 
-    /* --- 7d. o formulário de cartão tem o CSP de que precisa, e só ele ----- *
+    /* --- 7d. o formulário de cartão tem o CSP de que precisa, em TODA página - *
      *
-     * O cartão passou a ser digitado na página de planos (10/09/2026), em
-     * iframes do Mercado Pago com o SDK deles. Faltando uma diretiva, os campos
-     * simplesmente não aparecem — a mesma armadilha das duas acima. E os
-     * domínios deles não podem vazar para o resto do site.
+     * O cartão é digitado na página de planos (10/09/2026), em iframes do
+     * Mercado Pago com o SDK deles. Faltando uma diretiva, os campos não montam
+     * e o botão fica girando — foi o que a cliente viu no celular.
+     *
+     * ⚠️ A CHECAGEM OLHA A PÁGINA INICIAL, e não só /planos. O CSP é do
+     * documento: quem chega a /planos pelo menu do app carrega o CSP da página
+     * onde entrou. A primeira versão desta checagem exigia o contrário (o
+     * Mercado Pago SÓ em /planos) e aprovou exatamente o defeito.
      */
     const respPlanos = await fetch(`${BASE}/planos`);
     const cspPlanos = respPlanos.headers.get("content-security-policy") ?? "";
@@ -933,19 +937,21 @@ async function main() {
       texto.split(";").find((d) => d.trim().startsWith(nome)) ?? "";
 
     const DIRETIVAS_DO_CARTAO = ["script-src", "frame-src", "connect-src"];
-    const cartaoLiberado = DIRETIVAS_DO_CARTAO.filter((d) =>
-      diretivaDe(cspPlanos, d).includes("mercadopago.com"),
-    );
-    const vazou = csp.includes("mercadopago");
+    const faltando = [
+      ...DIRETIVAS_DO_CARTAO.filter((d) => !diretivaDe(cspPlanos, d).includes("mercadopago.com")).map(
+        (d) => `/planos ${d}`,
+      ),
+      ...DIRETIVAS_DO_CARTAO.filter((d) => !diretivaDe(csp, d).includes("mercadopago.com")).map(
+        (d) => `/ ${d}`,
+      ),
+    ];
 
     record(
-      "O CSP de /planos libera o cartão do Mercado Pago, e o resto do site não",
-      cartaoLiberado.length === DIRETIVAS_DO_CARTAO.length && !vazou,
-      vazou
-        ? "domínio do Mercado Pago no CSP da página inicial"
-        : cartaoLiberado.length === DIRETIVAS_DO_CARTAO.length
-          ? "script-src, frame-src e connect-src só em /planos"
-          : `faltando em /planos: ${DIRETIVAS_DO_CARTAO.filter((d) => !cartaoLiberado.includes(d)).join(", ")}`,
+      "O CSP libera o cartão do Mercado Pago também para quem chega a /planos pelo app",
+      faltando.length === 0,
+      faltando.length === 0
+        ? "script-src, frame-src e connect-src em /planos e na página de entrada"
+        : `faltando: ${faltando.join(", ")}`,
     );
 
     /* --- 8. logout revoga a sessão no banco -------------------------------- */
