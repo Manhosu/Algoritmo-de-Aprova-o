@@ -146,7 +146,19 @@ export function LabeledBar({ label, percent, className }: LabeledBarProps) {
 
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{label}</span>
+      {/*
+        ⚠️ O NOME QUEBRA LINHA, e não é cortado (pedido da cliente em 11/09/2026:
+        "quebrar em outra linha os textos do card Desempenho por Disciplina").
+
+        Com `truncate`, "RACIOCÍNIO LÓGICO APLICADO À MATEMÁTICA" deixava de ter
+        largura mínima: o card, que é item de grade, crescia até caber a frase
+        numa linha só e empurrava a Home para fora da tela — o "espaço lateral"
+        e a barra de baixo escondida que ela relatou. Quebrando, a largura
+        mínima volta a ser a palavra mais longa.
+      */}
+      <span className="min-w-0 flex-1 text-sm text-pretty break-words text-foreground">
+        {label}
+      </span>
       <span
         className="hidden h-1.5 w-28 shrink-0 overflow-hidden rounded-full bg-secondary sm:block lg:w-36"
         aria-hidden

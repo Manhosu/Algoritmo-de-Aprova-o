@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ChevronDown } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronDown } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -245,9 +245,27 @@ export default async function SchedulePage() {
                             {day.topics.map((topic) => (
                               <li
                                 key={topic.planTopicId}
-                                className="text-pretty text-sm text-muted-foreground"
+                                className={`flex items-start gap-1.5 text-pretty text-sm ${
+                                  topic.done
+                                    ? "text-muted-foreground/70 line-through"
+                                    : "text-muted-foreground"
+                                }`}
                               >
-                                {topic.topicName}
+                                {/*
+                                  O dia de hoje é a missão de hoje, e o que já
+                                  foi estudado aparece marcado — ver a nota em
+                                  `ProjectScheduleInput.todayPlan`.
+                                */}
+                                {topic.done ? (
+                                  <Check
+                                    className="mt-0.5 size-3.5 shrink-0 text-success"
+                                    aria-hidden
+                                  />
+                                ) : null}
+                                <span>
+                                  {topic.topicName}
+                                  {topic.done ? <span className="sr-only"> (estudado)</span> : null}
+                                </span>
                               </li>
                             ))}
                           </ul>
@@ -274,9 +292,17 @@ export default async function SchedulePage() {
                   {week.topics.map((topic) => (
                     <li
                       key={topic.planTopicId}
-                      className="text-pretty text-sm text-foreground"
+                      className={`flex items-start gap-1.5 text-pretty text-sm ${
+                        topic.done ? "text-muted-foreground line-through" : "text-foreground"
+                      }`}
                     >
-                      {topic.topicName}
+                      {topic.done ? (
+                        <Check className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden />
+                      ) : null}
+                      <span>
+                        {topic.topicName}
+                        {topic.done ? <span className="sr-only"> (estudado)</span> : null}
+                      </span>
                     </li>
                   ))}
                 </ul>

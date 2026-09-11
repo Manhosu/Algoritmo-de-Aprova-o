@@ -71,4 +71,39 @@ describe("colunas do painel", () => {
 
     expect(cards).toMatch(/truncate/);
   });
+
+  it("⚠️ os cards lado a lado dentro da coluna também encolhem", () => {
+    /*
+      O defeito voltou por aqui em 11/09/2026. As colunas tinham `min-w-0`, mas
+      o card de desempenho mora numa grade DENTRO da coluna, e item de grade
+      começa com `min-width: auto`. "RACIOCÍNIO LÓGICO APLICADO À MATEMÁTICA",
+      cortado com `truncate`, esticou o card e a página. A cliente relatou como
+      "espaço lateral, e barra de botões embaixo ficando escondida".
+    */
+    const grades = HOME.match(/className="[^"]*sm:grid-cols-2[^"]*"/g) ?? [];
+
+    expect(grades.length, "não achei a grade dos cards").toBeGreaterThan(0);
+
+    for (const grade of grades) {
+      expect(grade, "grade sem `[&>*]:min-w-0` estoura a largura da página").toContain(
+        "[&>*]:min-w-0",
+      );
+    }
+  });
+
+  it("o nome da disciplina no card de desempenho quebra linha, e não é cortado", () => {
+    const surface = readFileSync(
+      join(process.cwd(), "src/components/shared/surface.tsx"),
+      "utf8",
+    );
+
+    const inicio = surface.indexOf("export function LabeledBar");
+    expect(inicio, "LabeledBar não encontrada").toBeGreaterThan(-1);
+
+    const corpo = surface.slice(inicio, surface.indexOf("\n}\n", inicio));
+    /* A nota que explica a troca CITA o `truncate`; comentário não conta. */
+    const semComentario = corpo.replace(/\{?\/\*[\s\S]*?\*\/\}?/g, "");
+
+    expect(semComentario).not.toMatch(/\btruncate\b/);
+  });
 });

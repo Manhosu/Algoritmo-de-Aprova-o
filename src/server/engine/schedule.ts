@@ -7,11 +7,14 @@ import {
   projectSchedule,
   type PendingTopic,
   type ScheduleProjection,
+  type TodayPlanTopic,
   type WeeklyAvailability,
 } from "@/modules/schedule";
 import { toCivilDate, type CivilDate } from "@/modules/shared/dates";
 import { db } from "@/server/db";
 import {
+  dailyTaskItems,
+  dailyTasks,
   preparations,
   reviewOccurrences,
   studyPlanSubjects,
@@ -75,12 +78,14 @@ export async function getSchedule(input: {
 
   if (!preparation) return null;
 
-  const [pendingTopics, availability, reviewMinutes, scheduleParams] = await Promise.all([
-    loadPendingTopics(input.preparationId),
-    loadAvailability(input.userId),
-    averageReviewMinutesPerDay(input.userId, today),
-    getActiveConfig("schedule_params"),
-  ]);
+  const [pendingTopics, availability, reviewMinutes, scheduleParams, todayPlan] =
+    await Promise.all([
+      loadPendingTopics(input.preparationId),
+      loadAvailability(input.userId),
+      averageReviewMinutesPerDay(input.userId, today),
+      getActiveConfig("schedule_params"),
+      loadTodayPlan(input.preparationId, today),
+    ]);
 
   const projection = projectSchedule({
     today,
@@ -90,6 +95,7 @@ export async function getSchedule(input: {
     pendingTopics,
     averageReviewMinutesPerDay: reviewMinutes,
     scheduleParams: scheduleParams.value,
+    todayPlan,
   });
 
   return {
@@ -174,6 +180,45 @@ async function loadPendingTopics(preparationId: string): Promise<PendingTopic[]>
       */
       masteryLevel: row.initialMastery,
     }));
+}
+
+/**
+ * A missão de hoje, na ordem da tela, com o que já foi estudado.
+ *
+ * Vazia enquanto a missão não existe — é o caso de `ensureDailyTask`, que lê o
+ * cronograma justamente para montá-la. Ver a nota em
+ * `ProjectScheduleInput.todayPlan`.
+ */
+async function loadTodayPlan(preparationId: string, today: CivilDate): Promise<TodayPlanTopic[]> {
+  const rows = await db
+    .select({
+      planTopicId: dailyTaskItems.planTopicId,
+      topicName: studyPlanTopics.displayName,
+      kind: dailyTaskItems.kind,
+      status: dailyTaskItems.status,
+    })
+    .from(dailyTaskItems)
+    .innerJoin(dailyTasks, eq(dailyTasks.id, dailyTaskItems.dailyTaskId))
+    .innerJoin(studyPlanTopics, eq(studyPlanTopics.id, dailyTaskItems.planTopicId))
+    .where(and(eq(dailyTasks.preparationId, preparationId), eq(dailyTasks.taskDate, today)))
+    .orderBy(dailyTaskItems.blockIndex);
+
+  const porAssunto = new Map<string, TodayPlanTopic>();
+
+  for (const row of rows) {
+    const assunto = porAssunto.get(row.planTopicId) ?? {
+      planTopicId: row.planTopicId,
+      topicName: row.topicName,
+      done: false,
+    };
+
+    /* Feito é o ESTUDO concluído — o mesmo sinal que tira o assunto da fila. */
+    if (row.kind === "study" && row.status === "completed") assunto.done = true;
+
+    porAssunto.set(row.planTopicId, assunto);
+  }
+
+  return [...porAssunto.values()];
 }
 
 function remainingFor(

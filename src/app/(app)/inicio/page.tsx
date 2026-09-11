@@ -292,7 +292,7 @@ async function ActiveDashboard({
             <MissionsCard home={home} />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
             <SubjectPerformanceCard
               subjects={home.subjects}
               answersOutOfPlan={home.answersOutOfPlan}

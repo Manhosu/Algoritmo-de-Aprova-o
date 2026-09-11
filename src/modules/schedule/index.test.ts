@@ -741,3 +741,73 @@ describe("divisão do tempo do dia (pedido da cliente em 08/09/2026)", () => {
     }
   });
 });
+
+describe("projectSchedule — o dia de hoje é a missão de hoje", () => {
+  /*
+    Palavras da cliente em 11/09/2026: "as 3 tarefas do cronograma não é
+    nenhuma das 6 das Missões do Dia". Ela tinha concluído as seis; o cronograma
+    tirou as seis da fila e mostrou os três próximos no lugar de hoje.
+  */
+  const pendentes = ["b", "c", "d", "e", "f", "g"].map((id) => topic(id, 45));
+
+  it("com a missão, hoje mostra os assuntos dela, com o que já foi feito", () => {
+    const projecao = projectSchedule(
+      input({
+        pendingTopics: pendentes,
+        todayPlan: [
+          { planTopicId: "a", topicName: "Assunto a", done: true },
+          { planTopicId: "b", topicName: "Assunto b", done: false },
+        ],
+      }),
+    );
+
+    const hoje = projecao.weeks[0].days[0];
+    expect(hoje.date).toBe(HOJE);
+    expect(hoje.topics.map((t) => [t.planTopicId, t.done])).toEqual([
+      ["a", true],
+      ["b", false],
+    ]);
+  });
+
+  it("o que está na missão de hoje não reaparece nos dias seguintes", () => {
+    const projecao = projectSchedule(
+      input({
+        pendingTopics: pendentes,
+        todayPlan: [{ planTopicId: "b", topicName: "Assunto b", done: false }],
+      }),
+    );
+
+    const depois = projecao.weeks
+      .flatMap((semana) => semana.days)
+      .filter((dia) => dia.date !== HOJE)
+      .flatMap((dia) => dia.topics.map((t) => t.planTopicId));
+
+    expect(depois).not.toContain("b");
+    expect(new Set(depois)).toEqual(new Set(["c", "d", "e", "f", "g"]));
+  });
+
+  it("⚠️ o caso da cliente: concluir tudo de hoje não troca os assuntos de hoje", () => {
+    /* Os seis foram estudados: saíram da fila, e a missão continua sendo hoje. */
+    const missao = ["m1", "m2", "m3", "m4", "m5", "m6"].map((id) => ({
+      planTopicId: id,
+      topicName: `Assunto ${id}`,
+      done: true,
+    }));
+
+    const projecao = projectSchedule(input({ pendingTopics: pendentes, todayPlan: missao }));
+
+    expect(projecao.weeks[0].days[0].topics.map((t) => t.planTopicId)).toEqual(
+      missao.map((m) => m.planTopicId),
+    );
+    expect(projecao.weeks[0].days[0].topics.every((t) => t.done)).toBe(true);
+  });
+
+  it("sem missão, hoje continua vindo da fila, e nenhum assunto carrega a marca de feito", () => {
+    const projecao = projectSchedule(input({ pendingTopics: pendentes }));
+    const hoje = projecao.weeks[0].days[0];
+
+    expect(hoje.topics.length).toBeGreaterThan(0);
+    expect(hoje.topics.every((t) => t.done === undefined)).toBe(true);
+  });
+});
+

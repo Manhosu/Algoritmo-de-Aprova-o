@@ -69,6 +69,14 @@ export type WeeklyAvailability = {
   minutesAvailable: number;
 };
 
+/** Um assunto da missão de hoje, como ela está na tela. */
+export type TodayPlanTopic = {
+  planTopicId: string;
+  topicName: string;
+  /** O estudo do bloco já foi concluído. */
+  done: boolean;
+};
+
 export type ProjectScheduleInput = {
   today: CivilDate;
   examDate: CivilDate | null;
@@ -80,6 +88,34 @@ export type ProjectScheduleInput = {
   scheduleParams: ScheduleParams;
   /** Horizonte usado quando não há data de prova. */
   fallbackHorizonDays?: number;
+  /**
+   * A missão de hoje, quando ela já existe.
+   *
+   * ⚠️ COM ELA, O DIA DE HOJE É A MISSÃO, e não a fila recalculada.
+   *
+   * Palavras da cliente em 11/09/2026: "as missões do dia não estão casando com
+   * as tarefas do cronograma novamente. As 3 tarefas do cronograma não é nenhuma
+   * das 6 das Missões do Dia".
+   *
+   * O cronograma é calculado a cada abertura, e assunto estudado sai da fila.
+   * Ela concluiu as seis missões às 13h59 e, na abertura seguinte, o dia de hoje
+   * já mostrava os três PRÓXIMOS assuntos. As duas telas contavam a mesma manhã
+   * de jeitos diferentes: a missão, o que foi planejado para hoje; o cronograma,
+   * o que ainda faltava a partir daquele minuto.
+   *
+   * Hoje é o dia que já começou: ele fica como foi planejado, com o que foi
+   * feito marcado, e a redistribuição vale de amanhã em diante.
+   */
+  todayPlan?: TodayPlanTopic[];
+};
+
+/** Um assunto num dia do cronograma. */
+export type ScheduleTopic = {
+  planTopicId: string;
+  topicName: string;
+  minutes: number;
+  /** Só nos assuntos da missão de hoje: se o estudo já foi concluído. */
+  done?: boolean;
 };
 
 /** Um dia dentro da semana, com o que cabe nele. */
@@ -87,7 +123,7 @@ export type ScheduleDay = {
   date: CivilDate;
   /** Minutos livres depois de descontar a reserva de revisão. */
   availableMinutes: number;
-  topics: Array<{ planTopicId: string; topicName: string; minutes: number }>;
+  topics: ScheduleTopic[];
 };
 
 export type ScheduleWeek = {
@@ -95,7 +131,7 @@ export type ScheduleWeek = {
   endDate: CivilDate;
   availableMinutes: number;
   plannedMinutes: number;
-  topics: Array<{ planTopicId: string; topicName: string; minutes: number }>;
+  topics: ScheduleTopic[];
   /**
    * A mesma distribuição, quebrada por dia.
    *
@@ -201,6 +237,7 @@ export function projectSchedule(input: ProjectScheduleInput): ScheduleProjection
     reviewMinutesPerDay: input.averageReviewMinutesPerDay,
     pendingTopics: input.pendingTopics,
     minBlockMinutes: input.scheduleParams.defaultStudyBlockMinutes,
+    todayPlan: input.todayPlan ?? [],
   });
 
   /*
@@ -355,8 +392,14 @@ function buildWeeks(args: {
   pendingTopics: PendingTopic[];
   /** Tamanho de uma sessão de estudo. Cada assunto do dia vale uma. */
   minBlockMinutes: number;
+  /** A missão de hoje. Ver a nota em `ProjectScheduleInput.todayPlan`. */
+  todayPlan: TodayPlanTopic[];
 }): { weeks: ScheduleWeek[]; leftovers: PendingTopic[] } {
   const weeks: ScheduleWeek[] = [];
+
+  /* Com missão, hoje já está decidido e a fila é só do que vem depois. */
+  const hojeAncorado = args.todayPlan.length > 0;
+  const idsDeHoje = new Set(args.todayPlan.map((topic) => topic.planTopicId));
 
   /*
     Fila de assuntos por prioridade.
@@ -368,14 +411,16 @@ function buildWeeks(args: {
     mesmo dia. Ver a nota em `modules/shared/spread-subjects`.
   */
   const queue = spreadAcrossSubjects(
-    [...args.pendingTopics].sort((a, b) => {
-      /* Baixo domínio, depois intermediário, depois afinidade. */
-      const dominio = rankDeDominio(a.masteryLevel) - rankDeDominio(b.masteryLevel);
-      if (dominio !== 0) return dominio;
+    args.pendingTopics
+      .filter((topic) => !idsDeHoje.has(topic.planTopicId))
+      .sort((a, b) => {
+        /* Baixo domínio, depois intermediário, depois afinidade. */
+        const dominio = rankDeDominio(a.masteryLevel) - rankDeDominio(b.masteryLevel);
+        if (dominio !== 0) return dominio;
 
-      /* Dentro da mesma faixa, o Motor 1 desempata. */
-      return b.priorityScore - a.priorityScore;
-    }),
+        /* Dentro da mesma faixa, o Motor 1 desempata. */
+        return b.priorityScore - a.priorityScore;
+      }),
     (topic) => topic.planSubjectId,
   );
 
@@ -396,7 +441,21 @@ function buildWeeks(args: {
     assuntos de um dia para o outro"; "existe uma quantidade limitada de
     assuntos por dia, não podendo ultrapassar o limite (pode ser 5 no máximo)".
   */
-  const diasDeEstudo = contarDiasDeEstudo(args);
+  /*
+    Com o dia de hoje ancorado na missão, o ritmo é calculado sobre os dias que
+    RESTAM: a fila começa amanhã. Contar hoje de novo daria a ele uma parte da
+    fila que ele nunca vai receber, e o resto do plano ficaria mais leve do que
+    o tempo até a prova pede.
+  */
+  const diasDeEstudo = contarDiasDeEstudo(
+    hojeAncorado
+      ? {
+          ...args,
+          today: addDays(args.today, 1),
+          daysRemaining: Math.max(0, args.daysRemaining - 1),
+        }
+      : args,
+  );
 
   const porDia =
     diasDeEstudo === 0
@@ -430,8 +489,13 @@ function buildWeeks(args: {
       const dayMinutes = args.minutesByWeekday.get(weekdayOf(date)) ?? 0;
       const dayCapacity = Math.max(0, dayMinutes - args.reviewMinutesPerDay);
 
-      const doDia = queue.slice(queueIndex, queueIndex + (dayCapacity > 0 ? porDia : 0));
-      queueIndex += doDia.length;
+      const ancorado = hojeAncorado && date === args.today;
+
+      const doDia: Array<{ planTopicId: string; topicName: string; done?: boolean }> = ancorado
+        ? args.todayPlan
+        : queue.slice(queueIndex, queueIndex + (dayCapacity > 0 ? porDia : 0));
+
+      if (!ancorado) queueIndex += doDia.length;
 
       /*
         ⚠️ O TEMPO DO DIA É REPARTIDO IGUALMENTE (pedido dela em 08/09/2026).
@@ -445,10 +509,11 @@ function buildWeeks(args: {
           ? 0
           : Math.max(1, Math.min(args.minBlockMinutes, Math.floor(dayCapacity / doDia.length)));
 
-      const dayTopics = doDia.map((topic) => ({
+      const dayTopics: ScheduleTopic[] = doDia.map((topic) => ({
         planTopicId: topic.planTopicId,
         topicName: topic.topicName,
         minutes: porAssunto,
+        ...(ancorado ? { done: topic.done === true } : {}),
       }));
 
       plannedMinutes += porAssunto * dayTopics.length;
