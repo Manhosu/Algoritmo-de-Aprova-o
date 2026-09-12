@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { APP_TIMEZONE } from "@/config/app";
 import { toCivilDate } from "@/modules/shared/dates";
+import { encerrarAssinaturaVencida } from "@/server/billing/cancel";
 import { db } from "@/server/db";
 
 import { getCurrentSession, type SessionUser } from "./session";
@@ -50,6 +51,19 @@ export const getStudentContext = cache(async (): Promise<StudentContext | null> 
   if (!session) return null;
 
   const userId = session.user.id;
+
+  /*
+    ⚠️ ASSINATURA CANCELADA PELO ALUNO SÓ CAI QUANDO O PERÍODO PAGO ACABA, e é
+    aqui que ela cai.
+
+    O projeto não tem job agendado. A primeira visita depois do vencimento
+    aplica o fim: uma consulta indexada por requisição, e uma escrita por
+    assinatura, no dia em que ela vence. Falhar aqui não pode derrubar a tela —
+    o pior caso é o acesso durar uma visita a mais.
+  */
+  await encerrarAssinaturaVencida(userId).catch((erro) =>
+    console.error("[assinatura] falha ao encerrar assinatura vencida", erro),
+  );
 
   const [preparation, availability, gamification] = await Promise.all([
     db.query.preparations.findFirst({

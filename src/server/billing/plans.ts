@@ -5,6 +5,8 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/server/db";
 import { planLimits, planPrices, plans } from "@/server/db/schema";
 
+import { promocoesVigentes } from "./promotions";
+
 /**
  * Os planos, como a página pública precisa deles.
  *
@@ -31,6 +33,10 @@ export type PlanView = {
    * abria a página de planos.
    */
   annualCents: number | null;
+  /** A promoção do mensal que vale hoje, quando há. */
+  monthlyPromo: { amountCents: number; endsOn: string } | null;
+  /** A promoção do anual que vale hoje, quando há. */
+  annualPromo: { amountCents: number; endsOn: string } | null;
   /** `null` = ilimitado. Nunca zero: zero significaria "não pode nenhuma". */
   dailyQuestionLimit: number | null;
   maxActivePreparations: number | null;
@@ -40,6 +46,7 @@ export type PlanView = {
 export async function listPublicPlans(): Promise<PlanView[]> {
   const rows = await db
     .select({
+      id: plans.id,
       code: plans.code,
       name: plans.name,
       tagline: plans.tagline,
@@ -66,6 +73,12 @@ export async function listPublicPlans(): Promise<PlanView[]> {
     .innerJoin(plans, eq(planPrices.planId, plans.id))
     .where(eq(planPrices.isActive, true));
 
+  const promocoes = await promocoesVigentes();
+  const promoDe = (planId: string, periodo: "monthly" | "annual") => {
+    const achada = promocoes.find((p) => p.planId === planId && p.billingPeriod === periodo);
+    return achada ? { amountCents: achada.amountCents, endsOn: achada.endsOn } : null;
+  };
+
   const monthlyBy = new Map(
     prices
       .filter((price) => price.period === "monthly")
@@ -85,6 +98,8 @@ export async function listPublicPlans(): Promise<PlanView[]> {
     isFeatured: row.isFeatured,
     monthlyCents: monthlyBy.get(row.code) ?? null,
     annualCents: annualBy.get(row.code) ?? null,
+    monthlyPromo: promoDe(row.id, "monthly"),
+    annualPromo: promoDe(row.id, "annual"),
     dailyQuestionLimit: row.dailyQuestionLimit,
     maxActivePreparations: row.maxActivePreparations,
     monthlyEditalUploadLimit: row.monthlyEditalUploadLimit,

@@ -718,9 +718,9 @@ describe("a missão nasce do cronograma (pedido da cliente em 08/09/2026)", () =
     expect(missao(["t0"])[0]).toBe("t0");
   });
 
-  it("o motor acrescenta no máximo dois", () => {
+  it("o motor acrescenta UM (pedido da cliente em 11/09/2026)", () => {
     const blocos = missao(["t0"]);
-    expect(blocos).toHaveLength(3);
+    expect(blocos).toHaveLength(2);
     expect(blocos.slice(1).every((id) => id !== "t0")).toBe(true);
   });
 
@@ -728,6 +728,17 @@ describe("a missão nasce do cronograma (pedido da cliente em 08/09/2026)", () =
     const blocos = missao(["t0", "t1", "t2"]);
     expect(blocos.slice(0, 3).sort()).toEqual(["t0", "t1", "t2"]);
     expect(blocos.length).toBeLessThanOrEqual(5);
+  });
+
+  it("⚠️ com cinco assuntos no cronograma, a missão fica nos cinco e o extra sai", () => {
+    /*
+      "Podemos limitar para 5" (cliente, 11/09/2026). O dia do cronograma pode
+      ter até cinco assuntos; somar o extra daria seis. O corte come o extra,
+      nunca o que o cronograma prometeu.
+    */
+    const blocos = missao(["t0", "t1", "t2", "t3", "t4"]);
+    expect(blocos).toHaveLength(5);
+    expect([...blocos].sort()).toEqual(["t0", "t1", "t2", "t3", "t4"]);
   });
 
   it("SEM CRONOGRAMA, o motor monta o dia sozinho", () => {
@@ -777,7 +788,7 @@ describe("o orçamento do dia cabe o cronograma E o acréscimo do motor", () => 
     Quem calcula o orçamento é `ensureDailyTask`, no servidor. O que este teste
     trava é a outra ponta: dado espaço, o motor de fato acrescenta.
   */
-  it("com espaço para cinco blocos, entrega os do cronograma mais dois", () => {
+  it("com espaço de sobra, entrega os do cronograma mais UM", () => {
     const muitos = Array.from({ length: 10 }, (_, i) =>
       topic({ planTopicId: `t${i}`, planSubjectId: `s${i % 3}`, topicName: `Assunto ${i}` }),
     );
@@ -788,7 +799,7 @@ describe("o orçamento do dia cabe o cronograma E o acréscimo do motor", () => 
       today: HOJE,
       examDate: d("2026-12-15"),
       examDateIsEstimated: false,
-      /* Três do cronograma mais dois do motor, ao custo real de cada bloco. */
+      /* Espaço para cinco blocos: três do cronograma e o extra, que é um só. */
       availableMinutes: 5 * custoDoBloco(DEFAULT_SCHEDULE_PARAMS),
       reservedReviewMinutes: 0,
       topics: muitos,
@@ -801,6 +812,6 @@ describe("o orçamento do dia cabe o cronograma E o acréscimo do motor", () => 
     const ids = plano.blocks.map((b) => b.planTopicId);
 
     expect(ids.slice(0, 3).sort()).toEqual(["t0", "t1", "t2"]);
-    expect(ids).toHaveLength(5);
+    expect(ids).toHaveLength(4);
   });
 });

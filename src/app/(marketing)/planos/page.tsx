@@ -13,6 +13,7 @@ import {
   listPublicPlans,
 } from "@/server/billing/plans";
 import { socialMetadata } from "@/lib/metadata";
+import { formatarDataCivil } from "@/modules/billing/promotions";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -87,14 +88,27 @@ export default async function PlansPage() {
               {plan.name}
             </h2>
 
-            <p className="mt-4 flex items-baseline gap-1.5">
+            <p className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              {/* Em promoção, o preço normal aparece riscado ao lado. */}
+              {plan.monthlyPromo ? (
+                <span className="text-base text-muted-foreground line-through">
+                  {formatPrice(plan.monthlyCents)}
+                </span>
+              ) : null}
               <span className="text-metric text-3xl text-foreground">
-                {formatPrice(plan.monthlyCents)}
+                {formatPrice(plan.monthlyPromo?.amountCents ?? plan.monthlyCents)}
               </span>
               {plan.monthlyCents ? (
                 <span className="text-sm text-muted-foreground">/mês</span>
               ) : null}
             </p>
+
+            {plan.monthlyPromo ? (
+              <p className="mt-1 text-xs font-medium text-pretty text-primary">
+                Promoção até {formatarDataCivil(plan.monthlyPromo.endsOn)}. Quem assina
+                agora mantém este preço enquanto a assinatura durar.
+              </p>
+            ) : null}
 
             {/*
               O anual, quando existe. Mostrado como EQUIVALENTE MENSAL: quem lê
@@ -102,7 +116,8 @@ export default async function PlansPage() {
               R$ 69,90 logo acima, e quase ninguém divide.
             */}
             {(() => {
-              const savings = annualSavings(plan.monthlyCents, plan.annualCents);
+              const anual = plan.annualPromo?.amountCents ?? plan.annualCents;
+              const savings = annualSavings(plan.monthlyCents, anual);
               if (!savings) return null;
 
               return (
@@ -111,8 +126,11 @@ export default async function PlansPage() {
                   <span className="font-medium text-primary">
                     {formatPrice(savings.perMonthCents)}/mês
                   </span>{" "}
-                  no plano anual de {formatPrice(plan.annualCents)} — economia de{" "}
+                  no plano anual de {formatPrice(anual)} — economia de{" "}
                   {savings.percentOff}%
+                  {plan.annualPromo
+                    ? ` (promoção até ${formatarDataCivil(plan.annualPromo.endsOn)})`
+                    : ""}
                 </p>
               );
             })()}
@@ -155,7 +173,7 @@ export default async function PlansPage() {
                 planCode={plan.code}
                 billingPeriod="monthly"
                 label={`Assinar ${plan.name}`}
-                valor={`${formatPrice(plan.monthlyCents)} por mês`}
+                valor={`${formatPrice(plan.monthlyPromo?.amountCents ?? plan.monthlyCents)} por mês`}
                 chavePublica={chavePublica}
                 variant={plan.isFeatured ? "default" : "outline"}
                 className="mt-6"
@@ -183,7 +201,8 @@ export default async function PlansPage() {
               como botão, ele vira uma escolha e não uma observação.
             */}
             {(() => {
-              const savings = annualSavings(plan.monthlyCents, plan.annualCents);
+              const anual = plan.annualPromo?.amountCents ?? plan.annualCents;
+              const savings = annualSavings(plan.monthlyCents, anual);
               if (!savings) return null;
 
               return logado ? (
@@ -191,7 +210,7 @@ export default async function PlansPage() {
                   planCode={plan.code}
                   billingPeriod="annual"
                   label={`Quero o plano anual · ${savings.percentOff}% OFF`}
-                  valor={`${formatPrice(plan.annualCents)} por ano`}
+                  valor={`${formatPrice(anual)} por ano`}
                   chavePublica={chavePublica}
                   variant="outline"
                   className="mt-2"

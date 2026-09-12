@@ -1,6 +1,8 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
+  date,
   index,
   integer,
   jsonb,
@@ -83,6 +85,44 @@ export const planPrices = pgTable(
   },
   (table) => [
     index("plan_prices_plan_idx").on(table.planId, table.billingPeriod, table.isActive),
+  ],
+);
+
+/**
+ * Promoção de um plano, com data de início e fim (pedido da cliente em
+ * 11/09/2026: "criar promoção pelo painel administrativo, estipulando a data de
+ * início e fim").
+ *
+ * ⚠️ NÃO MEXE EM `plan_prices`. O preço normal continua lá; a promoção é uma
+ * linha à parte que vale entre duas datas. Quem assina durante ela leva o valor
+ * promocional para a assinatura do Mercado Pago, e é esse valor que o Mercado
+ * Pago cobra enquanto a assinatura existir — "pode manter até o final da
+ * assinatura", nas palavras dela.
+ *
+ * Encerrar antes da hora é `canceled_at`, e não apagar: a assinatura feita na
+ * promoção aponta para cá, e o relatório precisa saber de onde veio o preço.
+ */
+export const planPromotions = pgTable(
+  "plan_promotions",
+  {
+    id: primaryId(),
+    planId: uuid()
+      .notNull()
+      .references(() => plans.id, { onDelete: "cascade" }),
+    billingPeriod: billingPeriodEnum().notNull(),
+    /** Em centavos. */
+    amountCents: integer().notNull(),
+    /** Dias civis, inclusivos nas duas pontas. */
+    startsOn: date({ mode: "string" }).notNull(),
+    endsOn: date({ mode: "string" }).notNull(),
+    createdByUserId: uuid().references(() => users.id, { onDelete: "set null" }),
+    canceledAt: timestamp({ withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index("plan_promotions_plan_idx").on(table.planId, table.billingPeriod, table.startsOn),
+    check("plan_promotions_amount_positive", sql`${table.amountCents} > 0`),
+    check("plan_promotions_dates_ordered", sql`${table.endsOn} >= ${table.startsOn}`),
   ],
 );
 
@@ -179,6 +219,8 @@ export const subscriptions = pgTable(
       .notNull()
       .references(() => plans.id),
     planPriceId: uuid().references(() => planPrices.id),
+    /** A promoção em que a assinatura nasceu, quando nasceu numa. */
+    promotionId: uuid().references(() => planPromotions.id, { onDelete: "set null" }),
 
     status: subscriptionStatusEnum().notNull().default("active"),
     provider: paymentProviderEnum().notNull().default("manual"),

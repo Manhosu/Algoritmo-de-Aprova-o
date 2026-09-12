@@ -4,10 +4,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/components/account/account-forms";
+import { CancelarAssinatura } from "@/components/account/cancel-subscription";
 import { AchievementList } from "@/components/gamification/achievement-list";
 import { SectionTitle, Surface } from "@/components/shared/surface";
+import { APP_TIMEZONE } from "@/config/app";
 import { LOGIN_ROUTE } from "@/config/routes";
 import { getStudentContext } from "@/server/auth/current-user";
+import { getMinhaAssinatura, type MinhaAssinatura } from "@/server/billing/cancel";
 import { db } from "@/server/db";
 import { listAchievements } from "@/server/engine/achievements";
 import { getLevel } from "@/server/engine/progress";
@@ -33,7 +36,7 @@ export default async function PerfilPage() {
   const context = await getStudentContext();
   if (!context) redirect(LOGIN_ROUTE);
 
-  const [progresso, conquistas, contato] = await Promise.all([
+  const [progresso, conquistas, contato, assinatura] = await Promise.all([
     getLevel(context.gamification.totalXp),
     listAchievements(context.user.id),
     /*
@@ -48,6 +51,7 @@ export default async function PerfilPage() {
       where: (u, { eq }) => eq(u.id, context.user.id),
       columns: { whatsapp: true },
     }),
+    getMinhaAssinatura(context.user.id),
   ]);
 
   const desbloqueadas = conquistas.filter((c) => c.unlockedAt).length;
@@ -147,6 +151,17 @@ export default async function PerfilPage() {
         <ProfileForm name={context.user.name} whatsapp={contato?.whatsapp ?? null} />
       </Surface>
 
+      {/*
+        Seu plano, com o botão de cancelar (pedido da cliente em 11/09/2026:
+        "pode incluir o botão 'Cancelar assinatura' no perfil do aluno").
+      */}
+      {assinatura ? (
+        <Surface className="flex flex-col gap-3 p-5">
+          <SectionTitle>Seu plano</SectionTitle>
+          <SeuPlano assinatura={assinatura} />
+        </Surface>
+      ) : null}
+
       <Surface className="flex flex-col gap-2 p-5">
         <SectionTitle>Sua conta</SectionTitle>
         <p className="text-pretty text-sm text-muted-foreground">
@@ -162,3 +177,70 @@ export default async function PerfilPage() {
     </div>
   );
 }
+
+/**
+ * O plano do aluno e o que ele pode fazer com ele.
+ *
+ * ⚠️ SÓ ASSINATURA PAGA PELO MERCADO PAGO TEM BOTÃO DE CANCELAR. O Free não tem
+ * o que cancelar, e um plano liberado pela equipe no painel não passa pelo
+ * Mercado Pago — cancelar ali não pararia cobrança nenhuma, porque não há.
+ */
+function SeuPlano({ assinatura }: { assinatura: MinhaAssinatura }) {
+  const data = assinatura.fimDoPeriodo ? formatarData(assinatura.fimDoPeriodo) : null;
+  const periodo =
+    assinatura.billingPeriod === "annual"
+      ? "anual"
+      : assinatura.billingPeriod === "monthly"
+        ? "mensal"
+        : null;
+
+  if (!assinatura.paga) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-pretty text-sm text-muted-foreground">
+          {assinatura.planCode === "free"
+            ? "Você está no plano Gratuito."
+            : `Você está no ${assinatura.planName}, liberado pela equipe.`}
+        </p>
+        {assinatura.planCode === "free" ? (
+          <Link href="/planos" className="text-sm text-primary underline-offset-4 hover:underline">
+            Ver os planos
+          </Link>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (assinatura.cancelada) {
+    return (
+      <p className="text-pretty text-sm text-muted-foreground">
+        Assinatura cancelada.{" "}
+        {data
+          ? `Você continua no ${assinatura.planName} até ${data}, e não haverá novas cobranças.`
+          : "Não haverá novas cobranças."}
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-pretty text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">
+          {assinatura.planName}
+          {periodo ? ` ${periodo}` : ""}
+        </span>
+        {data ? ` · próxima cobrança em ${data}` : ""}
+      </p>
+      <CancelarAssinatura planName={assinatura.planName} acessoAte={data} />
+    </div>
+  );
+}
+
+function formatarData(data: Date): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "numeric",
+    month: "long",
+    timeZone: APP_TIMEZONE,
+  }).format(data);
+}
+

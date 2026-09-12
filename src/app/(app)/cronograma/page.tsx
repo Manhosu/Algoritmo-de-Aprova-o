@@ -3,11 +3,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { MoverAssunto } from "@/components/schedule/move-topic";
 import { PendingStep } from "@/components/shared/pending-step";
 import { EmptyState, Metric, Surface } from "@/components/shared/surface";
 import { Button } from "@/components/ui/button";
 import { LOGIN_ROUTE } from "@/config/routes";
 import { nextStep } from "@/modules/onboarding/next-step";
+import { addDays, type CivilDate } from "@/modules/shared/dates";
 import { getStudentContext } from "@/server/auth/current-user";
 import { getSchedule } from "@/server/engine/schedule";
 
@@ -52,6 +54,19 @@ export default async function SchedulePage() {
   const { feasibility, summary } = schedule;
 
   /*
+    Os dias para onde um assunto pode ir: de amanhã até a véspera da prova (ou
+    do fim do horizonte). Hoje fica fora — hoje é a missão, que já está montada.
+  */
+  const datasParaMover: Array<{ value: string; label: string }> = [];
+  for (
+    let data = addDays(schedule.horizonStart, 1);
+    data < schedule.horizonEnd && datasParaMover.length < 120;
+    data = addDays(data, 1)
+  ) {
+    datasParaMover.push({ value: data, label: formatDay(data as CivilDate) });
+  }
+
+  /*
     Quantos dias sobram entre o fim do conteúdo e a prova.
 
     `horizonEnd` é a data da prova (ou o horizonte projetado); a última semana
@@ -75,7 +90,8 @@ export default async function SchedulePage() {
         <h1 className="text-xl font-bold text-foreground">Cronograma adaptativo</h1>
         <p className="mt-1 text-sm text-pretty text-muted-foreground">
           Ele se refaz sozinho conforme você estuda, responde questões e revisa. Não é
-          um calendário fixo — é a projeção do que falta com o tempo que você tem.
+          um calendário fixo — é a projeção do que falta com o tempo que você tem. Se
+          preferir outro dia para um assunto, abra &quot;Ver por dia&quot; e toque em Mover.
         </p>
       </header>
 
@@ -262,9 +278,27 @@ export default async function SchedulePage() {
                                     aria-hidden
                                   />
                                 ) : null}
-                                <span>
+                                <span className="min-w-0 flex-1">
                                   {topic.topicName}
                                   {topic.done ? <span className="sr-only"> (estudado)</span> : null}
+                                  {topic.moved ? (
+                                    <span className="ml-1.5 text-xs text-primary">movido por você</span>
+                                  ) : null}
+                                  {/*
+                                    "Mover" só a partir de amanhã (pedido da cliente
+                                    em 11/09/2026). Hoje é a missão, que já está
+                                    montada; o que não for feito hoje se espalha
+                                    sozinho pelos dias seguintes.
+                                  */}
+                                  {day.date > schedule.horizonStart ? (
+                                    <MoverAssunto
+                                      planTopicId={topic.planTopicId}
+                                      topicName={topic.topicName}
+                                      dataAtual={day.date}
+                                      datas={datasParaMover}
+                                      movido={topic.moved === true}
+                                    />
+                                  ) : null}
                                 </span>
                               </li>
                             ))}

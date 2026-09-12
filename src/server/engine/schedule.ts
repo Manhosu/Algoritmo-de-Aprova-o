@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, eq, isNull, sql } from "drizzle-orm";
+import { and, count, eq, gt, isNull, lt, ne, sql } from "drizzle-orm";
 
 import { APP_TIMEZONE } from "@/config/app";
 import {
@@ -17,6 +17,7 @@ import {
   dailyTasks,
   preparations,
   reviewOccurrences,
+  scheduleEntries,
   studyPlanSubjects,
   studyPlanTopics,
   topicStates,
@@ -78,13 +79,15 @@ export async function getSchedule(input: {
 
   if (!preparation) return null;
 
-  const [pendingTopics, availability, reviewMinutes, scheduleParams, todayPlan] =
+  const [pendingTopics, availability, reviewMinutes, scheduleParams, todayPlan, overdueTopicIds, pins] =
     await Promise.all([
       loadPendingTopics(input.preparationId),
       loadAvailability(input.userId),
       averageReviewMinutesPerDay(input.userId, today),
       getActiveConfig("schedule_params"),
       loadTodayPlan(input.preparationId, today),
+      loadOverdueTopicIds(input.preparationId, today),
+      loadPins(input.preparationId, today),
     ]);
 
   const projection = projectSchedule({
@@ -96,6 +99,8 @@ export async function getSchedule(input: {
     averageReviewMinutesPerDay: reviewMinutes,
     scheduleParams: scheduleParams.value,
     todayPlan,
+    overdueTopicIds,
+    pins,
   });
 
   return {
@@ -219,6 +224,56 @@ async function loadTodayPlan(preparationId: string, today: CivilDate): Promise<T
   }
 
   return [...porAssunto.values()];
+}
+
+/**
+ * Assuntos que estiveram numa missão ANTERIOR a hoje e não foram estudados.
+ *
+ * O cronograma cuida só dos que continuam pendentes; os que foram estudados
+ * depois, por outro caminho, já saíram da fila e este conjunto não os afeta.
+ * Ver a nota em `ProjectScheduleInput.overdueTopicIds`.
+ */
+async function loadOverdueTopicIds(preparationId: string, today: CivilDate): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ planTopicId: dailyTaskItems.planTopicId })
+    .from(dailyTaskItems)
+    .innerJoin(dailyTasks, eq(dailyTasks.id, dailyTaskItems.dailyTaskId))
+    .where(
+      and(
+        eq(dailyTasks.preparationId, preparationId),
+        lt(dailyTasks.taskDate, today),
+        eq(dailyTaskItems.kind, "study"),
+        ne(dailyTaskItems.status, "completed"),
+      ),
+    );
+
+  return rows.map((row) => row.planTopicId);
+}
+
+/**
+ * Os dias que o aluno escolheu pelo botão "Mover", de amanhã em diante.
+ *
+ * ⚠️ É O USO QUE `schedule_entries` ESPERAVA desde o schema: "quando o aluno
+ * puder ARRASTAR um item para outro dia, aí sim há uma decisão humana que
+ * precisa sobreviver ao recálculo, e ela precisa de linha própria".
+ */
+async function loadPins(
+  preparationId: string,
+  today: CivilDate,
+): Promise<Array<{ planTopicId: string; date: CivilDate }>> {
+  const rows = await db
+    .select({ planTopicId: scheduleEntries.planTopicId, date: scheduleEntries.scheduledDate })
+    .from(scheduleEntries)
+    .where(
+      and(
+        eq(scheduleEntries.preparationId, preparationId),
+        eq(scheduleEntries.source, "student_moved"),
+        eq(scheduleEntries.isPinned, true),
+        gt(scheduleEntries.scheduledDate, today),
+      ),
+    );
+
+  return rows.map((row) => ({ planTopicId: row.planTopicId, date: row.date as CivilDate }));
 }
 
 function remainingFor(

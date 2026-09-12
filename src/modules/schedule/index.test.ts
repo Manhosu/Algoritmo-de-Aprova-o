@@ -811,3 +811,106 @@ describe("projectSchedule — o dia de hoje é a missão de hoje", () => {
   });
 });
 
+describe("projectSchedule — o que ficou pendente se espalha pelos dias seguintes", () => {
+  /*
+    Regra da cliente, corrigida em 11/09/2026: "as tarefas pendentes de hoje são
+    distribuídas pelos dias seguintes, nunca acumula para o próximo dia".
+
+    Prova na segunda (25/08): quinta, sexta, sábado e segunda têm tempo, então
+    são quatro dias de estudo para quinze assuntos — quatro por dia.
+  */
+  const atrasados = ["x1", "x2", "x3"].map((id) => topic(id, 45));
+  const emDia = Array.from({ length: 12 }, (_, i) => topic(`n${i}`, 45));
+
+  function projetar() {
+    return projectSchedule(
+      input({
+        examDate: d("2026-08-25"),
+        pendingTopics: [...atrasados, ...emDia],
+        overdueTopicIds: ["x1", "x2", "x3"],
+      }),
+    );
+  }
+
+  const diasComAssunto = () =>
+    projetar()
+      .weeks.flatMap((semana) => semana.days)
+      .filter((dia) => dia.topics.length > 0);
+
+  it("⚠️ o primeiro dia não vira a lista de ontem", () => {
+    const primeiro = diasComAssunto()[0];
+    const atrasadosNoDia = primeiro.topics.filter((t) => t.planTopicId.startsWith("x"));
+
+    expect(atrasadosNoDia.length).toBeLessThanOrEqual(1);
+    expect(primeiro.topics.some((t) => t.planTopicId.startsWith("n"))).toBe(true);
+  });
+
+  it("cada dia recebe no máximo um atrasado", () => {
+    for (const dia of diasComAssunto()) {
+      expect(dia.topics.filter((t) => t.planTopicId.startsWith("x")).length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("nenhum atrasado se perde, e nenhum dia passa do ritmo", () => {
+    const dias = diasComAssunto();
+    const todos = dias.flatMap((dia) => dia.topics.map((t) => t.planTopicId));
+
+    expect(todos).toEqual(expect.arrayContaining(["x1", "x2", "x3"]));
+    for (const dia of dias) expect(dia.topics.length).toBeLessThanOrEqual(4);
+  });
+});
+
+describe("projectSchedule — o aluno move um assunto de dia", () => {
+  /*
+    Pedido da cliente em 11/09/2026: "é possível colocar um botão de mover nas
+    tarefas do cronograma, para o aluno ajustar o cronograma como preferir?".
+  */
+  const pendentes = ["a", "b", "c", "d", "e", "f"].map((id) => topic(id, 45));
+  const dias = (p: ReturnType<typeof projectSchedule>) => p.weeks.flatMap((semana) => semana.days);
+
+  it("o assunto aparece no dia escolhido, marcado como movido", () => {
+    const projecao = projectSchedule(
+      input({ pendingTopics: pendentes, pins: [{ planTopicId: "a", date: d("2026-08-27") }] }),
+    );
+
+    const dia = dias(projecao).find((x) => x.date === "2026-08-27");
+    expect(dia?.topics.find((t) => t.planTopicId === "a")?.moved).toBe(true);
+  });
+
+  it("e aparece só lá, uma vez", () => {
+    const projecao = projectSchedule(
+      input({ pendingTopics: pendentes, pins: [{ planTopicId: "a", date: d("2026-08-27") }] }),
+    );
+
+    const ondeAparece = dias(projecao).filter((x) => x.topics.some((t) => t.planTopicId === "a"));
+    expect(ondeAparece.map((x) => x.date)).toEqual(["2026-08-27"]);
+  });
+
+  it("movido para longe, depois do último dia com conteúdo, ainda aparece", () => {
+    const projecao = projectSchedule(
+      input({ pendingTopics: pendentes, pins: [{ planTopicId: "a", date: d("2026-11-10") }] }),
+    );
+
+    expect(dias(projecao).find((x) => x.date === "2026-11-10")?.topics[0]?.planTopicId).toBe("a");
+  });
+
+  it("movido para um dia que já passou volta para a fila, sem marca", () => {
+    const projecao = projectSchedule(
+      input({ pendingTopics: pendentes, pins: [{ planTopicId: "a", date: d("2026-08-19") }] }),
+    );
+
+    const todos = dias(projecao).flatMap((x) => x.topics).filter((t) => t.planTopicId === "a");
+    expect(todos).toHaveLength(1);
+    expect(todos[0].moved).toBeUndefined();
+  });
+
+  it("nenhum assunto some por causa de um movido", () => {
+    const projecao = projectSchedule(
+      input({ pendingTopics: pendentes, pins: [{ planTopicId: "c", date: d("2026-08-22") }] }),
+    );
+
+    const ids = dias(projecao).flatMap((x) => x.topics.map((t) => t.planTopicId));
+    expect([...ids].sort()).toEqual(["a", "b", "c", "d", "e", "f"]);
+  });
+});
+

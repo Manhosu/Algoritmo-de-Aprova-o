@@ -1,8 +1,10 @@
 import { asc, eq, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 
+import { PromotionsPanel } from "@/components/admin/promotions";
 import { formatCents, getFinanceSummary } from "@/server/admin/finance";
 import { getMercadoPagoAccount } from "@/server/billing/mercadopago";
+import { listarPromocoesParaOPainel } from "@/server/billing/promotions";
 import { requireAdmin } from "@/server/auth/guards";
 import { db } from "@/server/db";
 import {
@@ -55,11 +57,16 @@ const ROTULO_PERIODO: Record<string, string> = {
  * o assinante, a tela mostra o que vale hoje e eu mudo por script quando ela
  * pedir. Editar aqui seria construir o botão antes de existir a regra do que
  * acontece depois de apertá-lo.
+ *
+ * ⚠️ PROMOÇÃO É A EXCEÇÃO, e é editável daqui (pedido da cliente em
+ * 11/09/2026). A regra do que acontece depois existe e é segura: a promoção
+ * vale só para quem assina durante ela, e nunca toca assinatura antiga — ver
+ * `modules/billing/promotions`.
  */
 export default async function AdminPlanosPage() {
   await requireAdmin();
 
-  const [financeiro, contaMp, linhas, precos, acessos] = await Promise.all([
+  const [financeiro, contaMp, linhas, precos, acessos, promocoes] = await Promise.all([
     getFinanceSummary(),
     getMercadoPagoAccount(),
     db
@@ -110,6 +117,8 @@ export default async function AdminPlanosPage() {
         maxItems: planContentAccess.maxItems,
       })
       .from(planContentAccess),
+
+    listarPromocoesParaOPainel(),
   ]);
 
   return (
@@ -189,6 +198,32 @@ export default async function AdminPlanosPage() {
         ) : null}
       </section>
 
+      <PromotionsPanel
+        planos={linhas
+          .map((plano) => ({
+            id: plano.id,
+            name: plano.name,
+            mensalCents:
+              precos.find((p) => p.planId === plano.id && p.billingPeriod === "monthly")
+                ?.amountCents ?? null,
+            anualCents:
+              precos.find((p) => p.planId === plano.id && p.billingPeriod === "annual")
+                ?.amountCents ?? null,
+          }))
+          /* Promoção só faz sentido em plano que custa alguma coisa. */
+          .filter((plano) => (plano.mensalCents ?? 0) > 0 || (plano.anualCents ?? 0) > 0)}
+        promocoes={promocoes.map((p) => ({
+          id: p.id,
+          planName: p.planName,
+          billingPeriod: p.billingPeriod,
+          amountCents: p.amountCents,
+          precoNormalCents: p.precoNormalCents,
+          startsOn: p.startsOn,
+          endsOn: p.endsOn,
+          situacao: p.situacao,
+        }))}
+      />
+
       <ul className="flex flex-col gap-4">
         {linhas.map((plano) => {
           const meusPrecos = precos.filter((p) => p.planId === plano.id);
@@ -261,9 +296,10 @@ export default async function AdminPlanosPage() {
       </ul>
 
       <p className="text-pretty text-sm text-muted-foreground">
-        Mudar limite ou preço afeta quem já assinou, então isso não é um botão
-        aqui. Me diga o que precisa alterar e eu ajusto com o registro da
-        mudança.
+        Mudar limite ou preço normal afeta quem já assinou, então isso não é um
+        botão aqui. Me diga o que precisa alterar e eu ajusto com o registro da
+        mudança. Para oferecer um preço menor por um período, use as promoções
+        acima: elas não mexem em nenhuma assinatura existente.
       </p>
     </div>
   );

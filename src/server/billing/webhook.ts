@@ -137,6 +137,26 @@ async function aplicarAssinatura(preapprovalId: string): Promise<WebhookResult> 
   }
 
   if (remota.status === "cancelled" || remota.status === "paused") {
+    /*
+      ⚠️ CANCELADA PELO ALUNO, COM PERÍODO PAGO PELA FRENTE: não derruba agora.
+
+      O botão "Cancelar assinatura" do perfil cancela no Mercado Pago, e o
+      Mercado Pago avisa por aqui. Derrubar para o Free neste instante tiraria
+      do aluno o mês que ele já pagou. Quem encerra, no fim do período, é
+      `encerrarAssinaturaVencida`.
+    */
+    if (
+      remota.status === "cancelled" &&
+      nossa.cancelAtPeriodEnd &&
+      nossa.currentPeriodEnd &&
+      nossa.currentPeriodEnd.getTime() > Date.now()
+    ) {
+      return {
+        handled: true,
+        detail: `assinatura ${nossa.id} segue ativa até ${nossa.currentPeriodEnd.toISOString().slice(0, 10)}`,
+      };
+    }
+
     await db
       .update(subscriptions)
       .set({
@@ -272,6 +292,9 @@ type AssinaturaNossa = {
   billingPeriod: "monthly" | "annual" | null;
   externalSubscriptionId: string | null;
   failedPaymentCount: number;
+  /** O aluno cancelou pelo perfil: o acesso vai até `currentPeriodEnd`. */
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: Date | null;
 };
 
 /**
@@ -291,6 +314,8 @@ async function acharAssinatura(
     billingPeriod: subscriptions.billingPeriod,
     externalSubscriptionId: subscriptions.externalSubscriptionId,
     failedPaymentCount: subscriptions.failedPaymentCount,
+    cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd,
+    currentPeriodEnd: subscriptions.currentPeriodEnd,
   };
 
   if (externalReference) {
@@ -379,7 +404,7 @@ async function ativar(
 }
 
 /** Devolve o aluno ao Free. Ver a nota em `aplicarAssinatura`. */
-async function voltarParaFree(userId: string): Promise<void> {
+export async function voltarParaFree(userId: string): Promise<void> {
   const free = await db.query.plans.findFirst({
     where: (t, { eq: e }) => e(t.code, "free"),
     columns: { id: true },

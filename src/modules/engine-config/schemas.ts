@@ -314,7 +314,12 @@ export type ScheduleParams = z.infer<typeof scheduleParamsSchema>;
 export const DEFAULT_SCHEDULE_PARAMS: ScheduleParams = {
   materializedWindowDays: 14,
   reviewTimeShare: 0.3,
-  maxDailyTaskItems: 6,
+  /*
+    Cinco desde 11/09/2026 (pedido da cliente: "6 tarefas na Missão do dia é
+    bastante coisa, podemos limitar para 5"). O cronograma do dia mais UM extra
+    do motor; ver `EXTRAS_DO_MOTOR`.
+  */
+  maxDailyTaskItems: 5,
   defaultStudyBlockMinutes: 30,
   urgencyAllocationExponent: 1,
 };

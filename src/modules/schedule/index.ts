@@ -107,6 +107,31 @@ export type ProjectScheduleInput = {
    * feito marcado, e a redistribuição vale de amanhã em diante.
    */
   todayPlan?: TodayPlanTopic[];
+  /**
+   * Assuntos que estiveram numa missão passada e não foram estudados.
+   *
+   * ⚠️ ELES SE ESPALHAM PELOS DIAS SEGUINTES, e não voltam todos amanhã.
+   *
+   * Regra da cliente, corrigida em 11/09/2026: "as tarefas pendentes de hoje
+   * são distribuídas pelos dias seguintes, nunca acumula para o próximo dia".
+   * Antes, a fila os punha na frente de novo, e o dia seguinte virava a lista
+   * de ontem inteira — foi exatamente o que ela viu: as seis missões de 10/09,
+   * não feitas, voltaram como as seis de 11/09.
+   */
+  overdueTopicIds?: string[];
+  /**
+   * Assuntos que o aluno moveu para um dia, pelo botão "Mover" do cronograma.
+   *
+   * Pedido da cliente em 11/09/2026: "é possível colocar um botão de mover nas
+   * tarefas do cronograma, para o aluno ajustar o cronograma como preferir? É
+   * que estou achando muito engessado".
+   *
+   * O movido fica no dia que o aluno escolheu, e o resto da fila se acomoda em
+   * volta. Vale só para dias futuros até a prova e só enquanto o assunto está
+   * pendente: movido para um dia que já passou volta para a fila normal, como
+   * qualquer atrasado.
+   */
+  pins?: Array<{ planTopicId: string; date: CivilDate }>;
 };
 
 /** Um assunto num dia do cronograma. */
@@ -116,6 +141,8 @@ export type ScheduleTopic = {
   minutes: number;
   /** Só nos assuntos da missão de hoje: se o estudo já foi concluído. */
   done?: boolean;
+  /** O aluno escolheu este dia pelo botão "Mover". */
+  moved?: boolean;
 };
 
 /** Um dia dentro da semana, com o que cabe nele. */
@@ -238,6 +265,8 @@ export function projectSchedule(input: ProjectScheduleInput): ScheduleProjection
     pendingTopics: input.pendingTopics,
     minBlockMinutes: input.scheduleParams.defaultStudyBlockMinutes,
     todayPlan: input.todayPlan ?? [],
+    overdueTopicIds: input.overdueTopicIds ?? [],
+    pins: input.pins ?? [],
   });
 
   /*
@@ -394,12 +423,35 @@ function buildWeeks(args: {
   minBlockMinutes: number;
   /** A missão de hoje. Ver a nota em `ProjectScheduleInput.todayPlan`. */
   todayPlan: TodayPlanTopic[];
+  /** Ver a nota em `ProjectScheduleInput.overdueTopicIds`. */
+  overdueTopicIds: string[];
+  /** Ver a nota em `ProjectScheduleInput.pins`. */
+  pins: Array<{ planTopicId: string; date: CivilDate }>;
 }): { weeks: ScheduleWeek[]; leftovers: PendingTopic[] } {
   const weeks: ScheduleWeek[] = [];
 
   /* Com missão, hoje já está decidido e a fila é só do que vem depois. */
   const hojeAncorado = args.todayPlan.length > 0;
   const idsDeHoje = new Set(args.todayPlan.map((topic) => topic.planTopicId));
+
+  /*
+    Os movidos pelo aluno que ainda valem: assunto pendente, fora da missão de
+    hoje, num dia entre amanhã e a véspera da prova. O resto volta para a fila.
+  */
+  const porId = new Map(args.pendingTopics.map((topic) => [topic.planTopicId, topic]));
+  const fixados = new Map<string, string[]>();
+  const idsFixados = new Set<string>();
+
+  for (const pin of args.pins) {
+    if (!porId.has(pin.planTopicId)) continue;
+    if (idsDeHoje.has(pin.planTopicId) || idsFixados.has(pin.planTopicId)) continue;
+    if (pin.date <= args.today || pin.date >= args.horizonEnd) continue;
+
+    idsFixados.add(pin.planTopicId);
+    fixados.set(pin.date, [...(fixados.get(pin.date) ?? []), pin.planTopicId]);
+  }
+
+  const ultimoFixado = [...fixados.keys()].sort().at(-1) ?? null;
 
   /*
     Fila de assuntos por prioridade.
@@ -412,7 +464,7 @@ function buildWeeks(args: {
   */
   const queue = spreadAcrossSubjects(
     args.pendingTopics
-      .filter((topic) => !idsDeHoje.has(topic.planTopicId))
+      .filter((topic) => !idsDeHoje.has(topic.planTopicId) && !idsFixados.has(topic.planTopicId))
       .sort((a, b) => {
         /* Baixo domínio, depois intermediário, depois afinidade. */
         const dominio = rankDeDominio(a.masteryLevel) - rankDeDominio(b.masteryLevel);
@@ -462,8 +514,12 @@ function buildWeeks(args: {
       ? 0
       : Math.min(
           MAX_TOPICS_PER_DAY,
-          Math.max(1, Math.ceil(queue.length / diasDeEstudo)),
+          /* Os movidos contam no ritmo: eles ocupam vaga no dia em que caem. */
+          Math.max(1, Math.ceil((queue.length + idsFixados.size) / diasDeEstudo)),
         );
+
+  /* Um atrasado por dia, no máximo. Ver `espalharAtrasados`. */
+  const fila = espalharAtrasados(queue, new Set(args.overdueTopicIds), porDia);
 
   let cursor = 0;
   let queueIndex = 0;
@@ -491,11 +547,19 @@ function buildWeeks(args: {
 
       const ancorado = hojeAncorado && date === args.today;
 
-      const doDia: Array<{ planTopicId: string; topicName: string; done?: boolean }> = ancorado
-        ? args.todayPlan
-        : queue.slice(queueIndex, queueIndex + (dayCapacity > 0 ? porDia : 0));
+      const fixadosNoDia = (fixados.get(date) ?? []).flatMap((id) => {
+        const topic = porId.get(id);
+        return topic ? [{ planTopicId: topic.planTopicId, topicName: topic.topicName, moved: true }] : [];
+      });
 
-      if (!ancorado) queueIndex += doDia.length;
+      /* O movido ocupa uma das vagas do dia; o que sobra vem da fila. */
+      const vagas = dayCapacity > 0 ? Math.max(0, porDia - fixadosNoDia.length) : 0;
+      const daFila = ancorado ? [] : fila.slice(queueIndex, queueIndex + vagas);
+
+      const doDia: Array<{ planTopicId: string; topicName: string; done?: boolean; moved?: boolean }> =
+        ancorado ? args.todayPlan : [...fixadosNoDia, ...daFila];
+
+      if (!ancorado) queueIndex += daFila.length;
 
       /*
         ⚠️ O TEMPO DO DIA É REPARTIDO IGUALMENTE (pedido dela em 08/09/2026).
@@ -514,6 +578,7 @@ function buildWeeks(args: {
         topicName: topic.topicName,
         minutes: porAssunto,
         ...(ancorado ? { done: topic.done === true } : {}),
+        ...(topic.moved ? { moved: true } : {}),
       }));
 
       plannedMinutes += porAssunto * dayTopics.length;
@@ -540,7 +605,8 @@ function buildWeeks(args: {
 
     // Todo o conteúdo já foi distribuído: as semanas seguintes ficariam vazias
     // e só poluiriam a tela.
-    if (queueIndex >= queue.length) break;
+    /* Acabou a fila, mas ainda pode haver um movido lá na frente. */
+    if (queueIndex >= fila.length && (ultimoFixado === null || ultimoFixado <= endDate)) break;
   }
 
   /*
@@ -550,7 +616,7 @@ function buildWeeks(args: {
     cabem no cronograma". Com o teto de cinco por dia, o número de assuntos que
     o horizonte comporta é finito, e o resto da fila é a resposta exata.
   */
-  return { weeks, leftovers: queue.slice(queueIndex) };
+  return { weeks, leftovers: fila.slice(queueIndex) };
 }
 
 /** Quantos dias do horizonte têm tempo livre depois da reserva de revisão. */
@@ -569,6 +635,40 @@ function contarDiasDeEstudo(args: {
   }
 
   return total;
+}
+
+/**
+ * Redistribui pela fila os assuntos que ficaram para trás: cada dia recebe no
+ * máximo um deles, e o resto do dia vem da fila normal.
+ *
+ * Os atrasados mantêm a ordem entre si (domínio, depois prioridade). O que
+ * muda é só ONDE entram: um por dia, a partir do primeiro, em vez de todos na
+ * frente. Quando a fila normal acaba, os atrasados que sobrarem enchem os dias
+ * seguintes — não há mais nada com que intercalar.
+ */
+function espalharAtrasados(
+  fila: PendingTopic[],
+  atrasados: Set<string>,
+  porDia: number,
+): PendingTopic[] {
+  if (atrasados.size === 0) return fila;
+
+  const emDia = fila.filter((topic) => !atrasados.has(topic.planTopicId));
+  const pendurados = fila.filter((topic) => atrasados.has(topic.planTopicId));
+  if (pendurados.length === 0) return fila;
+
+  const novosPorDia = Math.max(1, porDia - 1);
+  const resultado: PendingTopic[] = [];
+  let i = 0;
+  let j = 0;
+
+  while (i < emDia.length || j < pendurados.length) {
+    resultado.push(...emDia.slice(i, i + novosPorDia));
+    i += novosPorDia;
+    if (j < pendurados.length) resultado.push(pendurados[j++]);
+  }
+
+  return resultado;
 }
 
 function round(value: number): number {

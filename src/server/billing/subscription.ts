@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { planPrices, plans, subscriptions, users } from "@/server/db/schema";
 
 import { createPreapproval, isMercadoPagoConfigured, MercadoPagoError } from "./mercadopago";
+import { precoVigente } from "./promotions";
 import { sincronizarAssinatura } from "./webhook";
 
 /**
@@ -40,6 +41,8 @@ export async function startSubscriptionCheckout(input: {
   billingPeriod: "monthly" | "annual";
   /** Token do cartão gerado pelo formulário da página de planos. */
   cardTokenId?: string;
+  /** Para a verificação escolher o dia da promoção. A tela nunca passa. */
+  now?: Date;
 }): Promise<StartCheckoutResult> {
   if (!isMercadoPagoConfigured()) {
     return {
@@ -99,6 +102,14 @@ export async function startSubscriptionCheckout(input: {
   }
 
   /*
+    ⚠️ O VALOR QUE VAI PARA O MERCADO PAGO É O VIGENTE HOJE: o promocional
+    durante uma promoção, o normal fora dela. Ele fica gravado na assinatura de
+    lá e é o que ela cobra enquanto existir — ver `modules/billing/promotions`.
+  */
+  const vigente = await precoVigente(preco.planId, input.billingPeriod, input.now ?? new Date());
+  const valorCents = vigente?.amountCents ?? preco.amountCents;
+
+  /*
     A assinatura anterior NÃO é cancelada aqui. Ela só cai quando a nova for
     confirmada — cancelar antes deixaria o aluno sem acesso nenhum caso ele
     desistisse no checkout, e o índice único de assinatura ativa impede que as
@@ -113,6 +124,7 @@ export async function startSubscriptionCheckout(input: {
       status: "pending",
       provider: "mercadopago",
       billingPeriod: input.billingPeriod,
+      promotionId: vigente?.promotionId ?? null,
     })
     .returning({ id: subscriptions.id });
 
@@ -123,7 +135,7 @@ export async function startSubscriptionCheckout(input: {
       externalReference: pendente.id,
       payerEmail: aluno.email,
       reason: `${preco.planName} — O Algoritmo da Aprovação`,
-      amountCents: preco.amountCents,
+      amountCents: valorCents,
       billingPeriod: input.billingPeriod,
       backUrl: `${env.APP_URL}${retorno}`,
       /*

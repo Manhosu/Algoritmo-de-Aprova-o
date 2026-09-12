@@ -151,10 +151,16 @@ const MINUTES_PER_QUESTION = 2;
 /**
  * Quantos assuntos o Motor 1 acrescenta ao que o cronograma já marcou.
  *
- * "Mais um ou dois assuntos escolhidos pelo motor", nas palavras da cliente.
- * Dois é o teto: o motor deixou de desenhar o dia e passou a temperá-lo.
+ * ⚠️ UM, desde 11/09/2026. Em 08/09 a cliente tinha pedido "mais um ou dois
+ * assuntos escolhidos pelo motor"; depois de usar, corrigiu: "6 tarefas na
+ * Missão do dia é bastante coisa, podemos limitar para 5 (...) o sistema pega o
+ * conteúdo do cronograma para aquele dia e acrescenta uma missão".
+ *
+ * O teto de cinco mora em `scheduleParams.maxDailyTaskItems`. Quando o dia do
+ * cronograma já tem cinco assuntos, quem fica de fora é o extra — ver a nota do
+ * corte em `generateDailyTask`.
  */
-export const EXTRAS_DO_MOTOR = 2;
+export const EXTRAS_DO_MOTOR = 1;
 
 /** Quanto de prática acompanha cada bloco de estudo, como fração dele. */
 const PROPORCAO_DE_PRATICA = 0.6;

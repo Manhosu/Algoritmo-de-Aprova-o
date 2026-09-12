@@ -74,7 +74,7 @@ async function main() {
   */
   const { db } = await import("../src/server/db");
   const { plans, subscriptions, users } = await import("../src/server/db/schema");
-  const { and, eq } = await import("drizzle-orm");
+  const { and, desc, eq } = await import("drizzle-orm");
   const { cancelPreapproval, getPreapproval } = await import(
     "../src/server/billing/mercadopago"
   );
@@ -352,16 +352,65 @@ async function main() {
         `${remotaCartao.status} · R$ ${remotaCartao.auto_recurring?.transaction_amount}`,
       );
 
-      const canceladaCartao = await cancelPreapproval(ativa.externo);
+      /* --- 6. O ALUNO CANCELA PELO PERFIL ---------------------------------- */
+      /*
+        Pedido da cliente em 11/09/2026: o botão "Cancelar assinatura" no perfil.
+        Ele para as cobranças no Mercado Pago e mantém o plano até o fim do
+        período que o aluno já pagou.
+      */
+      const { cancelarAssinaturaDoAluno, encerrarAssinaturaVencida } = await import(
+        "../src/server/billing/cancel"
+      );
+
+      const cancelamento = await cancelarAssinaturaDoAluno(userId);
+      const remotaDepois = await getPreapproval(ativa.externo);
+
+      check(
+        "O botão Cancelar para as cobranças no Mercado Pago",
+        cancelamento.ok && remotaDepois.status === "cancelled",
+        cancelamento.ok ? remotaDepois.status : cancelamento.message,
+      );
+
+      /* O Mercado Pago avisa o cancelamento por webhook, logo em seguida. */
       await processWebhook({
-        eventId: `cancelamento-cartao-${Date.now()}`,
+        eventId: `cancelamento-aluno-${Date.now()}`,
         eventType: "subscription_preapproval",
         dataId: ativa.externo,
         payload: {},
         signatureValid: true,
       });
 
-      check("E cancela do mesmo jeito", canceladaCartao.status === "cancelled", canceladaCartao.status);
+      const [aindaAtiva] = await db
+        .select({ planId: subscriptions.planId })
+        .from(subscriptions)
+        .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")))
+        .limit(1);
+
+      check(
+        "O Premium continua até o fim do período pago, mesmo depois do aviso do Mercado Pago",
+        aindaAtiva?.planId === premium?.id,
+        aindaAtiva?.planId === premium?.id ? "Premium até o fim do período" : "caiu antes da hora",
+      );
+
+      /* O período acaba: o vencimento vai para um minuto atrás. */
+      await db
+        .update(subscriptions)
+        .set({ currentPeriodEnd: new Date(Date.now() - 60_000) })
+        .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")));
+
+      const encerrou = await encerrarAssinaturaVencida(userId);
+
+      const [depoisDoFim] = await db
+        .select({ planId: subscriptions.planId })
+        .from(subscriptions)
+        .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")))
+        .limit(1);
+
+      check(
+        "Quando o período pago acaba, o aluno volta para o Free",
+        encerrou && depoisDoFim?.planId === free.id,
+        depoisDoFim ? (depoisDoFim.planId === free.id ? "Free" : "plano errado") : "SEM PLANO",
+      );
     }
 
     const recusadoToken = await tokenDeTeste("OTHE");
@@ -405,6 +454,82 @@ async function main() {
       !semRecorrencia.ok && /não aceita cobrança recorrente/.test(semRecorrencia.message),
       semRecorrencia.ok ? "aceitou" : semRecorrencia.message.slice(0, 70),
     );
+
+    /* --- 7. PROMOÇÃO: o preço promocional é o que chega ao Mercado Pago ---- */
+    /*
+      Pedido da cliente em 11/09/2026: promoção com data de início e fim, e o
+      preço promocional valendo até o fim da assinatura.
+
+      ⚠️ A PROMOÇÃO É DE 2099, e o checkout é chamado "em 2099". A página de
+      planos de hoje não enxerga nada, e nenhum visitante de verdade compra por
+      esse preço enquanto o teste roda — o banco é o de produção.
+    */
+    const { criarPromocao, precoVigente } = await import("../src/server/billing/promotions");
+    const { planPromotions } = await import("../src/server/db/schema");
+    const [premiumParaPromo] = await db
+      .select({ id: plans.id })
+      .from(plans)
+      .where(eq(plans.code, "premium"))
+      .limit(1);
+
+    const criacao = await criarPromocao({
+      planId: premiumParaPromo.id,
+      billingPeriod: "monthly",
+      amountCents: 6990,
+      startsOn: "2099-01-01" as never,
+      endsOn: "2099-01-31" as never,
+      createdByUserId: null,
+    });
+
+    check(
+      "A promoção é criada pelo mesmo caminho do painel",
+      criacao.ok,
+      criacao.ok ? "criada" : criacao.problems.join(" "),
+    );
+
+    try {
+      const naPromocao = await startSubscriptionCheckout({
+        userId,
+        planCode: "premium",
+        billingPeriod: "monthly",
+        now: new Date("2099-01-15T15:00:00Z"),
+      });
+
+      const [linhaDaPromo] = await db
+        .select({
+          externo: subscriptions.externalSubscriptionId,
+          promotionId: subscriptions.promotionId,
+        })
+        .from(subscriptions)
+        .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "pending")))
+        .orderBy(desc(subscriptions.createdAt))
+        .limit(1);
+
+      if (naPromocao.ok && linhaDaPromo?.externo) {
+        const remotaDaPromo = await getPreapproval(linhaDaPromo.externo);
+
+        check(
+          "Na promoção, o Mercado Pago recebe o preço promocional, e a assinatura guarda de onde veio",
+          remotaDaPromo.auto_recurring?.transaction_amount === 69.9 && Boolean(linhaDaPromo.promotionId),
+          `R$ ${remotaDaPromo.auto_recurring?.transaction_amount} · promoção ${linhaDaPromo.promotionId ? "registrada" : "SEM registro"}`,
+        );
+
+        await cancelPreapproval(linhaDaPromo.externo);
+      } else {
+        check("Na promoção, o Mercado Pago recebe o preço promocional", false, naPromocao.ok ? "sem linha" : naPromocao.message);
+      }
+
+      const hojeSemPromo = await precoVigente(premiumParaPromo.id, "monthly");
+      check(
+        "Hoje, fora da promoção, o preço continua o normal",
+        hojeSemPromo?.amountCents === 8990 && hojeSemPromo.promotionId === null,
+        `R$ ${(hojeSemPromo?.amountCents ?? 0) / 100}`,
+      );
+    } finally {
+      await db
+        .delete(planPromotions)
+        .where(and(eq(planPromotions.planId, premiumParaPromo.id), eq(planPromotions.startsOn, "2099-01-01")));
+    }
   } finally {
     await limpar(userId);
     console.log("\nDados de teste removidos.");
