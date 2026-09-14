@@ -50,19 +50,26 @@ export function GameFrame({ src, title }: { src: string; title: string }) {
     /*
       Com a caixa cobrindo a tela, a página de trás não pode rolar junto.
 
-      ⚠️ A RAIZ TAMBÉM, e não só o `body`. A tela cheia do navegador mede 100%
-      da largura SEM a barra de rolagem da página, que mora no `html`: o jogo
-      ficava 15 px mais estreito, com uma faixa da página aparecendo à direita.
+      ⚠️ E O ESPAÇO DA BARRA DE ROLAGEM SAI JUNTO. O `globals.css` põe
+      `scrollbar-gutter: stable` na raiz, que reserva 15 px à direita mesmo com
+      a rolagem desligada; a tela cheia do navegador mede 100% sem esse espaço,
+      e o jogo ficava com uma faixa escura da página no canto direito.
     */
     const raiz = document.documentElement;
-    const anteriores = [raiz.style.overflow, document.body.style.overflow] as const;
+    const anteriores = {
+      overflow: raiz.style.overflow,
+      gutter: raiz.style.scrollbarGutter,
+      body: document.body.style.overflow,
+    };
     raiz.style.overflow = "hidden";
+    raiz.style.scrollbarGutter = "auto";
     document.body.style.overflow = "hidden";
 
     return () => {
       window.removeEventListener("keydown", aoTeclar);
-      raiz.style.overflow = anteriores[0];
-      document.body.style.overflow = anteriores[1];
+      raiz.style.overflow = anteriores.overflow;
+      raiz.style.scrollbarGutter = anteriores.gutter;
+      document.body.style.overflow = anteriores.body;
     };
   }, [cheia]);
 
