@@ -97,10 +97,52 @@ const APELIDOS_DE_ARQUIVO: Record<string, string> = {
   reuniao: "Liberdade de reunião",
   associacao: "Liberdade de associação",
   "voto obrigatorio": "Direitos políticos",
+
+  /*
+    Os renomeados de 10/09/2026. Casados em 14/09 olhando o vídeo, e não só o
+    nome: "Cargos Privativos" é Presidente e Vice como cargos de brasileiro nato
+    (nacionalidade, art. 12), "Forma de Estado" é Federação, República e
+    Democracia (art. 1º), "2 cargos" é a acumulação do art. 37.
+
+    ⚠️ SEM ESTAS LINHAS, RODAR O IMPORTADOR DE NOVO DESFAZ O CASAMENTO. Ele grava
+    `canonicalTopicId` nulo em quem não casa, e o vídeo volta a valer só pela
+    disciplina. "Principio da Legalidade" fica de fora de propósito: o vídeo não
+    diz se é o art. 5º ou o art. 37.
+  */
+  "2 cargos": "Administração Pública na Constituição",
+  "concurso publico": "Administração Pública na Constituição",
+  "cargos privativos": "Direitos e garantias fundamentais",
+  desapropriacao: "Direitos e garantias fundamentais",
+  "direito de peticao": "Direitos e garantias fundamentais",
+  "direito de silencio": "Direitos e garantias fundamentais",
+  "lei penal": "Direitos e garantias fundamentais",
+  "plebiscito e referendo": "Direitos e garantias fundamentais",
+  preso: "Direitos e garantias fundamentais",
+  "prisao por divida": "Direitos e garantias fundamentais",
+  propriedade: "Direitos e garantias fundamentais",
+  "provas ilicitas": "Direitos e garantias fundamentais",
+  voto: "Direitos e garantias fundamentais",
+  "forma de estado": "Princípios fundamentais",
+  "fundamentos da republica": "Princípios fundamentais",
+  "principios relacoes internacionais": "Princípios fundamentais",
+  "cargo em comissao e funcao de confianca": "Cargo, emprego e função pública",
+  concurso: "Agentes públicos",
+  etp: "Estudo Técnico Preliminar",
+  tr: "Termo de referência",
+  "juros simples": "Juros simples e compostos",
 };
 
 /** A mesma normalização do casador — acento, caixa e pontuação fora. */
 const chave = taxonomyKey;
+
+/*
+  ⚠️ AS CHAVES DOS APELIDOS PASSAM PELA MESMA NORMALIZAÇÃO. Escritas à mão, elas
+  guardam o "de", o "da" e o número que o casador tira: "direito de peticao"
+  nunca era encontrado, e oito vídeos ficavam só com a disciplina sem aviso.
+*/
+const APELIDOS = new Map(
+  Object.entries(APELIDOS_DE_ARQUIVO).map(([apelido, assunto]) => [chave(apelido), assunto]),
+);
 
 /**
  * Separa "CF - Habeas Corpus(1).mp4" em disciplina, assunto e ordem.
@@ -221,7 +263,7 @@ for (const caminho of arquivos) {
     arquivo, o nome inteiro, e só então o nome sem o número da série.
   */
   const candidatos = [
-    APELIDOS_DE_ARQUIVO[chave(assunto)],
+    APELIDOS.get(chave(assunto)),
     assunto,
     assuntoSemSerie !== assunto ? assuntoSemSerie : null,
   ].filter((valor): valor is string => Boolean(valor));
