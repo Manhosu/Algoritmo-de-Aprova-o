@@ -99,6 +99,13 @@
       "when": 1789176062348,
       "tag": "0013_thick_scorpion",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789400703641,
+      "tag": "0014_ordinary_jigsaw",
+      "breakpoints": true
     }
   ]
 }

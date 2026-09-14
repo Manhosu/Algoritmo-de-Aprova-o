@@ -41,7 +41,9 @@ export function TrailSection({ trilha }: { trilha: Trail }) {
               {trilha.subjectName}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {trilha.masteredCount} de {trilha.topics.length} dominados
+              {trilha.studiedCount} de {trilha.topics.length}{" "}
+              {trilha.topics.length === 1 ? "estudado" : "estudados"} | {trilha.masteredCount}{" "}
+              {trilha.masteredCount === 1 ? "dominado" : "dominados"}
             </p>
 
             <div

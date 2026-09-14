@@ -34,8 +34,8 @@ export type FileUploadFieldProps = {
   name: string;
   label: string;
   hint?: string;
-  /** `loja` só aceita imagem. */
-  folder?: "acervo" | "loja";
+  /** `loja` e `jogos` só aceitam imagem. */
+  folder?: "acervo" | "loja" | "jogos";
   /** Caminho já gravado, quando o material está sendo editado. */
   defaultValue?: string | null;
   /** Avisa o formulário do tipo de material que combina com o arquivo. */
@@ -177,7 +177,7 @@ export function FileUploadField({
       <input
         ref={inputRef}
         type="file"
-        accept={folder === "loja" ? "image/png,image/jpeg" : accept}
+        accept={folder === "acervo" ? accept : "image/png,image/jpeg"}
         className="sr-only"
         onChange={(evento) => {
           const arquivo = evento.target.files?.[0];

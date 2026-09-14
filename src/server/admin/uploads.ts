@@ -46,8 +46,8 @@ export type PrepareUploadInput = {
   /** O que o navegador declarou. Não é prova de nada; é ponto de partida. */
   mimeType: string | null;
   sizeBytes: number;
-  /** `loja` separa a imagem do item da loja do material de estudo. */
-  folder?: "acervo" | "loja";
+  /** `loja` e `jogos` separam a imagem do cartão do material de estudo. */
+  folder?: "acervo" | "loja" | "jogos";
 };
 
 export type PrepareUploadResult =
@@ -62,8 +62,10 @@ export async function prepareContentUpload(
 
   if (recusa || !tipo) return { ok: false, message: recusa ?? "Arquivo inválido." };
 
-  if (input.folder === "loja" && !tipo.startsWith("image/")) {
-    return { ok: false, message: "A imagem do item precisa ser PNG ou JPG." };
+  const pastaDeImagem = input.folder === "loja" || input.folder === "jogos";
+
+  if (pastaDeImagem && !tipo.startsWith("image/")) {
+    return { ok: false, message: "A imagem precisa ser PNG ou JPG." };
   }
 
   /*
@@ -74,7 +76,7 @@ export async function prepareContentUpload(
     aleatório encerra as duas conversas de uma vez, e o nome original continua
     visível no título do material, que é onde ele serve para alguma coisa.
   */
-  const id = input.folder === "loja" ? `loja/${randomUUID()}` : randomUUID();
+  const id = pastaDeImagem ? `${input.folder}/${randomUUID()}` : randomUUID();
 
   const { uploadUrl, storagePath } = await createContentUploadUrl({
     contentItemId: id,

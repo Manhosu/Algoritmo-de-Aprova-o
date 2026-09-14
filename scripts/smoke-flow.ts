@@ -303,6 +303,15 @@ async function main() {
       "nenhum isCorrect no payload",
     );
 
+    /* Jogos (14/09/2026): o botão do menu leva a uma página, e não a um 404. */
+    res = await fetch(`${BASE}/jogos`, { headers: { cookie } });
+    html = await res.text();
+    record(
+      "Jogos renderiza para o aluno logado",
+      res.ok && html.includes("Aprenda jogando") && html.includes('href="/jogos"'),
+      `${res.status}`,
+    );
+
     /*
      * ⚠️ ANTES DE ATIVAR: as telas que dependem do plano precisam MANDAR o
      * aluno para o passo que falta, e não só dizer que estão vazias.
@@ -952,6 +961,18 @@ async function main() {
       faltando.length === 0
         ? "script-src, frame-src e connect-src em /planos e na página de entrada"
         : `faltando: ${faltando.join(", ")}`,
+    );
+
+    /* --- 7e. os jogos do Lovable abrem no quadro ---------------------------- *
+     *
+     * Sem `*.lovable.app` no `frame-src`, o quadro do jogo fica em branco e o
+     * navegador não mostra erro nenhum para o aluno. A checagem olha a página de
+     * entrada pelo mesmo motivo da 7d: o CSP é o do documento onde ele entrou.
+     */
+    record(
+      "O CSP libera os jogos do Lovable no quadro",
+      diretivaDe(csp, "frame-src").includes("https://*.lovable.app"),
+      diretivaDe(csp, "frame-src").trim() || "sem frame-src",
     );
 
     /* --- 8. logout revoga a sessão no banco -------------------------------- */

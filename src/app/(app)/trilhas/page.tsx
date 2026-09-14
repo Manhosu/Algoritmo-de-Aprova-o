@@ -111,8 +111,9 @@ export default async function TrilhasPage() {
           <Surface className="flex items-center gap-4 p-5">
             <div className="min-w-0 flex-1">
               <p className="text-sm text-pretty text-muted-foreground">
-                {total.mastered} de {total.topics}{" "}
-                {total.topics === 1 ? "assunto dominado" : "assuntos dominados"}
+                {total.studied} de {total.topics}{" "}
+                {total.topics === 1 ? "assunto estudado" : "assuntos estudados"} |{" "}
+                {total.mastered} {total.mastered === 1 ? "dominado" : "dominados"}
               </p>
               <div
                 className="mt-2 h-2 overflow-hidden rounded-full bg-background"

@@ -56,3 +56,6 @@ export * from "./analytics";
 
 /* Texto do site editável pela cliente, versionado --------------------------*/
 export * from "./site-content";
+
+/* Jogos criados no Lovable e publicados pelo painel ------------------------*/
+export * from "./games";

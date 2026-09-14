@@ -157,7 +157,12 @@ export function proxy(request: NextRequest) {
      * PDF e imagem; Flash e Java não existem mais para relaxar aqui.
      */
     `object-src 'self'${armazenamento}`,
-    `frame-src 'self'${mercadoPago}`,
+    /*
+     * Os jogos da cliente moram no Lovable e abrem num quadro dentro de /jogos.
+     * O painel só aceita link `*.lovable.app` (`validarLinkDoJogo`) justamente
+     * porque é o único endereço de quadro liberado aqui.
+     */
+    `frame-src 'self'${mercadoPago} https://*.lovable.app`,
     `frame-ancestors 'none'`,
     `form-action 'self'`,
     `base-uri 'self'`,

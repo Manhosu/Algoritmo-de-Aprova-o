@@ -65,6 +65,7 @@ export const PRIVATE_ROUTE_PREFIXES = [
   "/trilhas",
   "/ranking",
   "/loja",
+  "/jogos",
 ] as const;
 
 /** Prefixo da área administrativa. Exige `role = "admin"`. */

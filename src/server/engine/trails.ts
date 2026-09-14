@@ -62,6 +62,11 @@ export type Trail = {
   topics: TrailTopic[];
   /** Assuntos com algum progresso, sobre o total. */
   startedCount: number;
+  /**
+   * Assuntos estudados: "studied" e "mastered". Quem dominou também estudou;
+   * contar só "studied" faria o número CAIR quando o aluno domina um assunto.
+   */
+  studiedCount: number;
   masteredCount: number;
   /**
    * 0–100, calculado por `computeCoverage` — a MESMA função do card de
@@ -73,6 +78,11 @@ export type Trail = {
    */
   progressPercent: number;
 };
+
+/** "Estudado", no contador da trilha: quem dominou o assunto também o estudou. */
+function estudado(topico: TrailTopic): boolean {
+  return topico.status === "studied" || topico.status === "mastered";
+}
 
 export async function getTrails(preparationId: string): Promise<Trail[]> {
   const linhas = await db
@@ -153,6 +163,7 @@ export async function getTrails(preparationId: string): Promise<Trail[]> {
         subjectName: linha.subjectName,
         topics: [],
         startedCount: 0,
+        studiedCount: 0,
         masteredCount: 0,
         progressPercent: 0,
       };
@@ -179,6 +190,7 @@ export async function getTrails(preparationId: string): Promise<Trail[]> {
 
   for (const trilha of porDisciplina.values()) {
     trilha.startedCount = trilha.topics.filter((t) => t.status !== "not_started").length;
+    trilha.studiedCount = trilha.topics.filter(estudado).length;
     trilha.masteredCount = trilha.topics.filter((t) => t.status === "mastered").length;
     trilha.progressPercent = computeCoverage(
       trilha.topics.map((t) => ({
@@ -201,6 +213,7 @@ export async function getTrails(preparationId: string): Promise<Trail[]> {
  */
 export function summarize(trails: Trail[]): {
   topics: number;
+  studied: number;
   mastered: number;
   percent: number;
 } {
@@ -208,6 +221,7 @@ export function summarize(trails: Trail[]): {
 
   return {
     topics: todos.length,
+    studied: todos.filter(estudado).length,
     mastered: todos.filter((t) => t.status === "mastered").length,
     percent: computeCoverage(
       todos.map((t) => ({

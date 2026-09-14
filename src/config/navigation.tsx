@@ -2,6 +2,7 @@ import {
   BookOpen,
   CircleHelp,
   Compass,
+  Gamepad2,
   Home,
   RefreshCw,
   Route,
@@ -60,6 +61,8 @@ export const SIDEBAR_ITEMS: NavItem[] = [
   { href: "/questoes", label: "Questões", icon: <CircleHelp /> },
   { href: "/revisoes", label: "Revisões", icon: <RefreshCw /> },
   { href: "/estudos", label: "Estudos", icon: <BookOpen /> },
+  /* Pedido da cliente em 14/09/2026: os jogos que ela cria no Lovable. */
+  { href: "/jogos", label: "Jogos", icon: <Gamepad2 /> },
   { href: "/entenda-o-algoritmo", label: "Entenda o Algoritmo", icon: <Sparkles /> },
 ];
 

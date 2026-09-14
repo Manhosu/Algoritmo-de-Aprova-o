@@ -96,8 +96,8 @@ export function LibraryFilterMenus({ type, subjectId, subjects, hrefFor }: Libra
           <option value="">Todas as disciplinas</option>
           {subjects.map((materia) => (
             <option key={materia.id} value={materia.id}>
-              {/* A contagem no rótulo evita escolher uma disciplina vazia. */}
-              {materia.name} ({materia.count})
+              {/* Sem a contagem entre parênteses: pedido da cliente em 14/09/2026. */}
+              {materia.name}
             </option>
           ))}
         </select>

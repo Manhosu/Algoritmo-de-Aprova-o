@@ -25,7 +25,7 @@ export async function prepareUploadAction(input: {
   fileName: string;
   mimeType: string | null;
   sizeBytes: number;
-  folder?: "acervo" | "loja";
+  folder?: "acervo" | "loja" | "jogos";
 }): Promise<PrepareUploadResult> {
   await requireAdmin();
 
@@ -33,7 +33,7 @@ export async function prepareUploadAction(input: {
     fileName: String(input.fileName ?? "").slice(0, 260),
     mimeType: input.mimeType ? String(input.mimeType).slice(0, 120) : null,
     sizeBytes: Number(input.sizeBytes) || 0,
-    folder: input.folder === "loja" ? "loja" : "acervo",
+    folder: input.folder === "loja" || input.folder === "jogos" ? input.folder : "acervo",
   });
 }
 
