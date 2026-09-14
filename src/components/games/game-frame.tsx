@@ -47,13 +47,22 @@ export function GameFrame({ src, title }: { src: string; title: string }) {
     };
     window.addEventListener("keydown", aoTeclar);
 
-    /* Com a caixa cobrindo a tela, a página de trás não pode rolar junto. */
-    const anterior = document.body.style.overflow;
+    /*
+      Com a caixa cobrindo a tela, a página de trás não pode rolar junto.
+
+      ⚠️ A RAIZ TAMBÉM, e não só o `body`. A tela cheia do navegador mede 100%
+      da largura SEM a barra de rolagem da página, que mora no `html`: o jogo
+      ficava 15 px mais estreito, com uma faixa da página aparecendo à direita.
+    */
+    const raiz = document.documentElement;
+    const anteriores = [raiz.style.overflow, document.body.style.overflow] as const;
+    raiz.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
 
     return () => {
       window.removeEventListener("keydown", aoTeclar);
-      document.body.style.overflow = anterior;
+      raiz.style.overflow = anteriores[0];
+      document.body.style.overflow = anteriores[1];
     };
   }, [cheia]);
 
