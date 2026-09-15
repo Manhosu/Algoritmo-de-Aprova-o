@@ -111,8 +111,8 @@ const PERGUNTAS: Array<{ pergunta: string; resposta: React.ReactNode }> = [
     resposta: (
       <>
         XP vem de estudar, responder questões, acertar, manter a sequência e
-        fazer revisões. Moedas vêm de concluir a Tarefa do Dia, fazer revisões e
-        manter dias seguidos de estudo, e são trocadas na{" "}
+        fazer revisões. Moedas vêm de concluir a Tarefa do Dia, concluir estudos,
+        fazer revisões e manter dias seguidos de estudo, e são trocadas na{" "}
         <Link href="/loja" className="text-primary underline-offset-4 hover:underline">
           Loja
         </Link>
@@ -124,8 +124,16 @@ const PERGUNTAS: Array<{ pergunta: string; resposta: React.ReactNode }> = [
     pergunta: "O ranking mostra o meu nome para outras pessoas?",
     resposta: (
       <>
-        Não. Você se vê como &ldquo;Você&rdquo; e os demais aparecem só pelo
-        nível, pela sequência e pelo XP. Ninguém consegue descobrir quem é quem.
+        Mostra o seu primeiro nome, junto com o nível, a sequência e o XP. O
+        sobrenome nunca aparece. Se preferir ficar de fora, desligue &ldquo;Aparecer
+        com meu nome no Ranking&rdquo; em{" "}
+        <Link
+          href="/configuracoes"
+          className="text-primary underline-offset-4 hover:underline"
+        >
+          Configurações
+        </Link>
+        : você passa a aparecer como &ldquo;Aluno&rdquo;.
       </>
     ),
   },

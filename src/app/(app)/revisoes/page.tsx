@@ -7,7 +7,9 @@ import { PendingStep } from "@/components/shared/pending-step";
 import { EmptyState, Metric, Surface } from "@/components/shared/surface";
 import { LOGIN_ROUTE } from "@/config/routes";
 import { nextStep } from "@/modules/onboarding/next-step";
+import { textoDoCiclo } from "@/modules/review/cycle-text";
 import { getStudentContext } from "@/server/auth/current-user";
+import { getActiveConfig } from "@/server/engine/config";
 import { getReviewsToday } from "@/server/engine/review";
 
 export const metadata: Metadata = { title: "Revisões" };
@@ -39,10 +41,18 @@ export default async function ReviewsPage() {
     );
   }
 
-  const reviews = await getReviewsToday({
-    userId: context.user.id,
-    preparationId: context.currentPreparation?.id ?? null,
-  });
+  /*
+    O ciclo vem da configuração ativa, a mesma que o motor usa para agendar
+    (pedido da cliente em 15/09/2026). Escrito à mão, o texto continuava
+    dizendo "7, 30, 60 e 90 dias" depois que ela mudasse a periodicidade.
+  */
+  const [reviews, ciclo] = await Promise.all([
+    getReviewsToday({
+      userId: context.user.id,
+      preparationId: context.currentPreparation?.id ?? null,
+    }),
+    getActiveConfig("review_intervals"),
+  ]);
 
   const late = reviews.due.filter((review) => review.isLate).length;
 
@@ -51,8 +61,7 @@ export default async function ReviewsPage() {
       <header>
         <h1 className="text-xl font-bold text-foreground">Revisões</h1>
         <p className="mt-1 text-sm text-pretty text-muted-foreground">
-          O ciclo é 24 horas, 7, 30, 60 e 90 dias depois de cada estudo. O intervalo
-          seguinte conta a partir do dia em que você revisa de verdade.
+          {textoDoCiclo(ciclo.value)}
         </p>
       </header>
 

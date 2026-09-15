@@ -115,11 +115,6 @@ export default async function RankingPage({ searchParams }: Params) {
         </>
       )}
 
-      <p className="text-pretty text-xs text-muted-foreground">
-        Os outros alunos aparecem sem nome. O ranking existe para você se
-        comparar, não para saber quem é quem.
-      </p>
-
       {/*
         ⚠️ As conquistas ficam ANTES do resto da lista, não no fim da página.
 

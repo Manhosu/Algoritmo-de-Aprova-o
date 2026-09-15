@@ -1,7 +1,16 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { FunnelBlock, MetricGrid } from "@/components/admin/funnel";
+import { cn } from "@/lib/utils";
 import { findDropOff } from "@/modules/admin/funnel";
+import {
+  formatarDuracao,
+  JANELA_ONLINE_MIN,
+  lerPeriodo,
+  PERIODOS_DAS_VISITAS,
+} from "@/modules/analytics/visits";
+import { lerVisitas } from "@/server/analytics/visits";
 import { requireAdmin } from "@/server/auth/guards";
 import { countRecentSignups, getAdminOverview } from "@/server/admin/overview";
 
@@ -19,12 +28,21 @@ export const metadata: Metadata = { title: "Visão geral" };
  */
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await requireAdmin();
-  const [dados, novosNaSemana] = await Promise.all([
+  const periodo = lerPeriodo((await searchParams).visitas);
+
+  const [dados, novosNaSemana, visitas] = await Promise.all([
     getAdminOverview(),
     countRecentSignups(7),
+    lerVisitas(periodo),
   ]);
+
+  const tempoMedio = formatarDuracao(visitas.mediaSegundos);
 
   const quedas = findDropOff(dados.activation);
   const maiorQueda = quedas[0];
@@ -56,6 +74,58 @@ export default async function AdminPage() {
           { rotulo: "Materiais", valor: dados.operation.contentItems },
         ]}
       />
+
+      {/*
+        VISITANTES (pedido da cliente em 15/09/2026). A nota embaixo dos números
+        é parte do recurso: sem ela, "recorrentes" pareceria baixo demais para
+        quem não sabe que visitante sem login não é reconhecido de um dia para o
+        outro.
+      */}
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold text-foreground">Visitantes</h2>
+          <nav aria-label="Período dos visitantes" className="flex gap-1">
+            {PERIODOS_DAS_VISITAS.map((opcao) => (
+              <Link
+                key={opcao.valor}
+                href={`/admin?visitas=${opcao.valor}`}
+                aria-current={opcao.valor === periodo ? "page" : undefined}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-sm transition-colors",
+                  opcao.valor === periodo
+                    ? "bg-primary/15 font-medium text-primary"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {opcao.rotulo}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        <MetricGrid
+          itens={[
+            { rotulo: "Visitas", valor: visitas.visitas },
+            { rotulo: "Visitantes únicos", valor: visitas.unicos },
+            { rotulo: "Visitantes recorrentes", valor: visitas.recorrentes },
+            { rotulo: "Online agora", valor: visitas.onlineAgora },
+            {
+              rotulo: "Tempo médio por visita",
+              valor: tempoMedio.valor,
+              sufixo: tempoMedio.sufixo,
+            },
+          ]}
+        />
+
+        <p className="text-xs text-pretty text-muted-foreground">
+          Recorrente é quem já tinha entrado em outro dia. Aluno logado é
+          reconhecido em qualquer dia; quem navega sem login conta uma vez por
+          dia, porque o site não guarda nada no aparelho dele. Online agora é quem
+          usou o site nos últimos {JANELA_ONLINE_MIN} minutos. O tempo conta só com
+          a aba aberta na tela. A contagem começou em 15/09/2026, e o seu acesso
+          de administradora fica de fora.
+        </p>
+      </section>
 
       {maiorQueda ? (
         <p className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-pretty text-foreground">

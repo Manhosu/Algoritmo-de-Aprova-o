@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { VisitTracker } from "@/components/analytics/visit-tracker";
 import { ThemeProvider } from "@/components/theme-provider";
 import { APP_NAME, APP_TAGLINE } from "@/config/app";
 import { env } from "@/config/env";
@@ -87,7 +88,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           espalhar o efeito por cada página à mão.
         */}
         <body className="atmosphere flex min-h-full flex-col">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          {/* Os visitantes do painel (pedido de 15/09/2026). Não guarda nada no aparelho. */}
+          <VisitTracker />
+        </ThemeProvider>
       </body>
     </html>
   );

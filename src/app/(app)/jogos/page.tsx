@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { EmptyState, Surface } from "@/components/shared/surface";
 import { LOGIN_ROUTE } from "@/config/routes";
+import { cn } from "@/lib/utils";
 import { getStudentContext } from "@/server/auth/current-user";
 import { listarJogosDoAluno } from "@/server/games/service";
 
@@ -50,12 +51,28 @@ export default async function JogosPage() {
           {jogos.map((jogo) => {
             const conteudo = (
               <>
-                <span className="flex aspect-video w-full items-center justify-center overflow-hidden bg-background">
+                <span className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-background">
                   {jogo.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={jogo.imageUrl} alt="" className="size-full object-cover" />
+                    <img
+                      src={jogo.imageUrl}
+                      alt=""
+                      className={cn("size-full object-cover", !jogo.liberado && "opacity-60")}
+                    />
                   ) : (
                     <Gamepad2 className="size-10 text-primary" aria-hidden />
+                  )}
+
+                  {/*
+                    Pedido da cliente em 15/09/2026: "maior destaque para o aviso
+                    que o jogo só está disponível no Plano Premium". O selo fica
+                    sobre a imagem, que é onde o olho bate primeiro no cartão.
+                  */}
+                  {jogo.liberado ? null : (
+                    <span className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-bold tracking-wide text-primary-foreground uppercase shadow-lg">
+                      <Lock className="size-3.5" aria-hidden />
+                      {jogo.planoMinimo}
+                    </span>
                   )}
                 </span>
 
@@ -69,9 +86,12 @@ export default async function JogosPage() {
                   {jogo.liberado ? (
                     <span className="mt-1 text-sm font-medium text-primary">Jogar</span>
                   ) : (
-                    <span className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Lock className="size-3.5" aria-hidden />
+                    <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">
+                      <Lock className="size-4 shrink-0" aria-hidden />
                       Disponível no plano {jogo.planoMinimo}
+                      <span className="ml-auto text-xs font-medium underline-offset-4 group-hover:underline">
+                        Ver planos
+                      </span>
                     </span>
                   )}
                 </span>
@@ -82,7 +102,10 @@ export default async function JogosPage() {
               <li key={jogo.id}>
                 <Link
                   href={jogo.liberado ? `/jogos/${jogo.id}` : "/planos"}
-                  className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className={cn(
+                    "group flex h-full flex-col overflow-hidden rounded-2xl border bg-card transition-colors hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                    jogo.liberado ? "border-border" : "border-primary/30",
+                  )}
                 >
                   {conteudo}
                 </Link>

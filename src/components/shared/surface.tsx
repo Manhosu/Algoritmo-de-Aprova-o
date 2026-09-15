@@ -145,32 +145,31 @@ export function LabeledBar({ label, percent, className }: LabeledBarProps) {
   const clamped = Math.max(0, Math.min(100, percent));
 
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div className={cn("flex flex-col gap-1.5", className)}>
       {/*
-        ⚠️ O NOME QUEBRA LINHA, e não é cortado (pedido da cliente em 11/09/2026:
-        "quebrar em outra linha os textos do card Desempenho por Disciplina").
+        ⚠️ O NOME FICA EM CIMA DA BARRA, e quebra linha em vez de ser cortado.
 
-        Com `truncate`, "RACIOCÍNIO LÓGICO APLICADO À MATEMÁTICA" deixava de ter
-        largura mínima: o card, que é item de grade, crescia até caber a frase
-        numa linha só e empurrava a Home para fora da tela — o "espaço lateral"
-        e a barra de baixo escondida que ela relatou. Quebrando, a largura
-        mínima volta a ser a palavra mais longa.
+        Pedido da cliente em 15/09/2026: "o nome da disciplina aparecer em cima
+        do gráfico e não ao lado (pois está ficando muito apertadinho)". Lado a
+        lado, "RACIOCÍNIO LÓGICO APLICADO À MATEMÁTICA" dividia a linha com a
+        barra e o número e virava uma coluna de sílabas.
+
+        E continua sem `truncate` (pedido de 11/09/2026): cortado, o nome deixa
+        de ter largura mínima, o card cresce até caber a frase numa linha só e
+        empurra a Home para fora da tela.
       */}
-      <span className="min-w-0 flex-1 text-sm text-pretty break-words text-foreground">
-        {label}
-      </span>
-      <span
-        className="hidden h-1.5 w-28 shrink-0 overflow-hidden rounded-full bg-secondary sm:block lg:w-36"
-        aria-hidden
-      >
-        <span
-          className="block h-full rounded-full bg-primary transition-[width] duration-500"
-          style={{ width: `${clamped}%` }}
-        />
-      </span>
-      <span className="text-metric w-11 shrink-0 text-right text-sm text-foreground">
-        {Math.round(clamped)}%
-      </span>
+      <span className="text-sm text-pretty break-words text-foreground">{label}</span>
+      <div className="flex items-center gap-3">
+        <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary" aria-hidden>
+          <span
+            className="block h-full rounded-full bg-primary transition-[width] duration-500"
+            style={{ width: `${clamped}%` }}
+          />
+        </span>
+        <span className="text-metric w-11 shrink-0 text-right text-sm text-foreground">
+          {Math.round(clamped)}%
+        </span>
+      </div>
     </div>
   );
 }

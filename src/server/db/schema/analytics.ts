@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   check,
   date,
   index,
@@ -223,6 +224,42 @@ export const jobRuns = pgTable(
     createdAt: createdAt(),
   },
   (table) => [index("job_runs_name_idx").on(table.jobName, table.startedAt)],
+);
+
+/**
+ * VISITAS AO SITE (pedido da cliente em 15/09/2026) — uma linha por visita.
+ *
+ * Alimenta o bloco "Visitantes" do painel: visitas, únicos, recorrentes, online
+ * agora e tempo médio. As regras moram em `modules/analytics/visits`.
+ *
+ * ⚠️ NENHUM DADO PESSOAL. `visitorKey` é um hash: da conta, para quem entrou
+ * logado; do dia + IP truncado + navegador, para quem não entrou. Nem o IP nem o
+ * id da conta ficam gravados, e a exclusão de conta não precisa tocar aqui.
+ */
+export const siteVisits = pgTable(
+  "site_visits",
+  {
+    id: bigint({ mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    visitorKey: varchar({ length: 64 }).notNull(),
+    /** Entrou logado. Só esses têm identidade estável entre os dias. */
+    authenticated: boolean().notNull().default(false),
+
+    startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /** Tempo com a aba visível, somado batida a batida. */
+    durationSeconds: integer().notNull().default(0),
+    pageCount: integer().notNull().default(1),
+
+    entryPath: varchar({ length: 300 }),
+    deviceType: deviceTypeEnum().notNull().default("unknown"),
+  },
+  (table) => [
+    /** A batida procura a visita aberta deste visitante. */
+    index("site_visits_visitor_idx").on(table.visitorKey, table.lastSeenAt),
+    index("site_visits_started_idx").on(table.startedAt),
+    /** "Online agora". */
+    index("site_visits_last_seen_idx").on(table.lastSeenAt),
+  ],
 );
 
 export const userFunnelProgressRelations = relations(userFunnelProgress, ({ one }) => ({
