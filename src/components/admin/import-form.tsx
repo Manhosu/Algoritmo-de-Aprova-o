@@ -162,6 +162,22 @@ function Relatorio({ report }: { report: NonNullable<ImportState["report"]> }) {
         </p>
       ) : null}
 
+      {/*
+        ⚠️ IMPORTAÇÃO QUE NÃO GRAVOU NADA PRECISA GRITAR.
+
+        Em 17/09/2026 uma planilha de 200 questões não entrou (a disciplina não
+        existia no catálogo) e o relatório parecia o de sempre: a cliente só
+        descobriu dias depois, ao filtrar o Banco e não achar as questões.
+      */}
+      {!conferencia && !report.alreadyImported && report.written === 0 ? (
+        <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-pretty text-foreground">
+          <strong>Nenhuma questão entrou no acervo.</strong>{" "}
+          {report.duplicates > 0
+            ? "Todas as linhas já existiam no banco de questões."
+            : "Confira os avisos abaixo: eles dizem o que barrou cada linha."}
+        </p>
+      ) : null}
+
       {report.answerBalanceWarning ? (
         /*
           O aviso de gabarito desequilibrado NÃO bloqueia: é a §8 do padrão
@@ -187,6 +203,14 @@ function Relatorio({ report }: { report: NonNullable<ImportState["report"]> }) {
           titulo="Assuntos novos criados"
           ajuda="Não existiam no catálogo e foram criados dentro da disciplina que a planilha indicou. Confira os nomes: eles vão aparecer nos filtros e nas trilhas."
           itens={report.createdTopics}
+        />
+      ) : null}
+
+      {report.createdSubjects.length > 0 ? (
+        <Bloco
+          titulo="Disciplinas novas criadas"
+          ajuda="Não existiam no catálogo e foram criadas com o nome da planilha. Confira a grafia: é por esse nome que o edital do aluno vai casar com estas questões."
+          itens={report.createdSubjects}
         />
       ) : null}
 

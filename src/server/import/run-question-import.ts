@@ -2,10 +2,12 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
+import { casarBanca } from "@/modules/import/exam-board";
 import { questionContentHash } from "@/modules/questions/content-hash";
 import { taxonomyKey } from "@/modules/taxonomy/normalize";
 import { db } from "@/server/db";
 import {
+  canonicalSubjects,
   canonicalTopics,
   examBoards,
   questionImportBatches,
@@ -51,6 +53,8 @@ export type ImportReport = {
   unmatched: Array<{ label: string; count: number }>;
   /** Assuntos criados no catálogo por esta importação. */
   createdTopics: Array<{ label: string; count: number }>;
+  /** Disciplinas criadas no catálogo por esta importação. */
+  createdSubjects: Array<{ label: string; count: number }>;
   /** Bancas que a planilha citou e que não existem no cadastro. */
   unknownBoards: Array<{ label: string; count: number }>;
   /**
@@ -85,19 +89,92 @@ export async function runQuestionImport(input: {
   const prontas: Preparada[] = [];
   const foraDoCatalogo = new Map<string, number>();
   const remapeadas = new Map<string, number>();
+  const disciplinasCriadas = new Map<string, number>();
+  const assuntosCriados = new Map<string, number>();
 
   /** Questões cujo assunto ainda não existe: o assunto é criado abaixo. */
   const criados: Array<{ questao: ParsedQuestion; subjectId: string }> = [];
+
+  /** Questões cuja DISCIPLINA não existe: a disciplina é criada abaixo. */
+  const semDisciplina: ParsedQuestion[] = [];
 
   for (const questao of resultado.questions) {
     const disciplina = matchSubject(questao.subjectName, catalogo);
 
     if (!disciplina.canonicalId) {
-      conta(foraDoCatalogo, `(disciplina) ${questao.subjectName}`);
+      /*
+        ⚠️ DISCIPLINA NOVA É CRIADA, e não descartada. Mesma regra do assunto,
+        pelo mesmo motivo, e o custo apareceu do mesmo jeito.
+
+        Em 17/09/2026 a cliente importou "CEBRASPE - PENAL MILITAR.xlsx" com 200
+        questões. "Direito Penal Militar" não existia no catálogo, então as 200
+        linhas foram descartadas aqui. O lote ficou gravado como concluído, com
+        zero importadas, zero puladas e zero com erro: a tela de Questões dizia
+        que tudo correu bem e o acervo não tinha ganhado nada.
+      */
+      semDisciplina.push(questao);
       continue;
     }
 
-    const assunto = matchTopic(questao.topicName, disciplina.canonicalId, catalogo);
+    classificar(questao, disciplina.canonicalId);
+  }
+
+  /*
+    As disciplinas novas entram depois do laço, uma por nome, e as questões delas
+    voltam para a mesma classificação de assunto das outras.
+  */
+  if (semDisciplina.length > 0) {
+    const porNomeDaDisciplina = new Map<string, ParsedQuestion[]>();
+
+    for (const questao of semDisciplina) {
+      const chave = taxonomyKey(questao.subjectName);
+      porNomeDaDisciplina.set(chave, [
+        ...(porNomeDaDisciplina.get(chave) ?? []),
+        questao,
+      ]);
+    }
+
+    for (const [chave, questoes] of porNomeDaDisciplina) {
+      const nomeDaDisciplina = questoes[0].subjectName;
+
+      /* Na conferência nada é criado, mas ela precisa ver o que SERIA criado. */
+      if (input.dryRun) {
+        for (const questao of questoes) {
+          conta(disciplinasCriadas, nomeDaDisciplina);
+          conta(assuntosCriados, `${nomeDaDisciplina} › ${questao.topicName}`);
+        }
+        continue;
+      }
+
+      const base = chave.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 160);
+      const sufixo = Math.random().toString(36).slice(2, 8);
+
+      const [nova] = await db
+        .insert(canonicalSubjects)
+        .values({
+          name: nomeDaDisciplina.slice(0, 160),
+          slug: `${base}-${sufixo}`,
+          normalizedName: chave.slice(0, 180),
+        })
+        .returning({ id: canonicalSubjects.id });
+
+      /* O catálogo em memória passa a conhecê-la: os assuntos nascem dentro dela. */
+      catalogo.subjects.push({
+        id: nova.id,
+        name: nomeDaDisciplina,
+        normalizedName: chave,
+        subjectId: null,
+      });
+
+      for (const questao of questoes) {
+        conta(disciplinasCriadas, nomeDaDisciplina);
+        classificar(questao, nova.id);
+      }
+    }
+  }
+
+  function classificar(questao: ParsedQuestion, subjectId: string): void {
+    const assunto = matchTopic(questao.topicName, subjectId, catalogo);
 
     if (assunto.canonicalId) {
       /**
@@ -121,10 +198,10 @@ export async function runQuestionImport(input: {
 
       prontas.push({
         questao,
-        subjectId: dona ?? disciplina.canonicalId,
+        subjectId: dona ?? subjectId,
         topicId: assunto.canonicalId,
       });
-      continue;
+      return;
     }
 
     /*
@@ -151,7 +228,7 @@ export async function runQuestionImport(input: {
 
       conta(remapeadas, `${questao.subjectName} › ${questao.topicName} → ${dona}`);
       prontas.push({ questao, subjectId: global.subjectId, topicId: global.id });
-      continue;
+      return;
     }
 
     /*
@@ -170,7 +247,7 @@ export async function runQuestionImport(input: {
       a ela seria trocar um problema por outro, e o nome vem digitado à mão numa
       planilha.
     */
-    criados.push({ questao, subjectId: disciplina.canonicalId });
+    criados.push({ questao, subjectId });
   }
 
   /*
@@ -178,8 +255,6 @@ export async function runQuestionImport(input: {
     Criar dentro do laço faria uma ida ao banco por questão, e uma planilha com
     setenta linhas do mesmo assunto novo criaria a mesma linha setenta vezes.
   */
-  const assuntosCriados = new Map<string, number>();
-
   if (criados.length > 0 && !input.dryRun) {
     const porChave = new Map<string, { nome: string; subjectId: string }>();
 
@@ -251,6 +326,7 @@ export async function runQuestionImport(input: {
     remapped: ordenar(remapeadas),
     unmatched: ordenar(foraDoCatalogo),
     createdTopics: ordenar(assuntosCriados),
+    createdSubjects: ordenar(disciplinasCriadas),
     unknownBoards: [],
     multiTopic: multiAssunto,
     answerBalanceWarning: resultado.answerBalanceWarning ?? null,
@@ -270,10 +346,21 @@ export async function runQuestionImport(input: {
   */
   const jaImportado = await db.query.questionImportBatches.findFirst({
     where: (t, { eq: e }) => e(t.fileName, input.fileName),
-    columns: { id: true },
+    columns: { id: true, importedRows: true },
+    orderBy: (t, { desc }) => desc(t.createdAt),
   });
 
-  if (jaImportado) return { ...base, alreadyImported: true };
+  /*
+    ⚠️ LOTE QUE NÃO GRAVOU NADA NÃO BLOQUEIA O REENVIO.
+
+    A trava é contra o clique duplo. Quando a importação anterior terminou com
+    ZERO questões — a disciplina não existia no catálogo, por exemplo — corrigir
+    a causa e reenviar o mesmo arquivo é exatamente o que se espera fazer. A
+    trava respondia "já foi importada" e o acervo continuava sem as questões.
+  */
+  if (jaImportado && jaImportado.importedRows > 0) {
+    return { ...base, alreadyImported: true };
+  }
 
   const [lote] = await db
     .insert(questionImportBatches)
@@ -297,21 +384,15 @@ export async function runQuestionImport(input: {
    * disse "36 importadas", e o filtro por VUNESP no Banco mostrava 2 — as duas
    * do seed. As 36 estavam lá, sob a banca errada.
    *
-   * O casamento é por nome curto ou por nome completo, sem acento e sem caixa:
-   * ela escreve "Vunesp", "VUNESP" e "Fundação Carlos Chagas" na mesma coluna.
-   * Banca desconhecida cai em Autoral E É RELATADA — inventar uma banca a
-   * partir de um nome digitado encheria o cadastro de duplicatas.
+   * O casamento mora em `modules/import/exam-board`: nome curto, nome completo,
+   * apelido ("CESPE" é a Cebraspe) e o nome aparecendo dentro do texto
+   * ("CEBRASPE - 2026"). Banca desconhecida cai em Autoral E É RELATADA —
+   * inventar uma banca a partir de um nome digitado encheria o cadastro de
+   * duplicatas.
    */
   const bancas = await db
     .select({ id: examBoards.id, slug: examBoards.slug, shortName: examBoards.shortName, name: examBoards.name })
     .from(examBoards);
-
-  const porNome = new Map<string, string>();
-  for (const banca of bancas) {
-    porNome.set(taxonomyKey(banca.shortName), banca.id);
-    porNome.set(taxonomyKey(banca.name), banca.id);
-    porNome.set(taxonomyKey(banca.slug), banca.id);
-  }
 
   const autoral = bancas.find((b) => b.slug === "autoral");
   const bancasDesconhecidas = new Map<string, number>();
@@ -370,15 +451,15 @@ export async function runQuestionImport(input: {
   for (const { questao, subjectId, topicId } of prontas) {
     const contentHash = questionContentHash(questao.statement);
 
-    const bancaId = porNome.get(taxonomyKey(questao.examBoardName ?? ""));
-    if (!bancaId && questao.examBoardName) {
+    const banca = casarBanca(questao.examBoardName, bancas);
+    if (!banca && questao.examBoardName) {
       conta(bancasDesconhecidas, questao.examBoardName);
     }
 
     const [linha] = await db
       .insert(questions)
       .values({
-        examBoardId: bancaId ?? autoral?.id ?? null,
+        examBoardId: banca?.id ?? autoral?.id ?? null,
         canonicalSubjectId: subjectId,
         canonicalTopicId: topicId,
         difficulty: questao.difficulty,

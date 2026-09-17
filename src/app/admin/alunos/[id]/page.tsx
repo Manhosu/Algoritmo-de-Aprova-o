@@ -101,6 +101,15 @@ export default async function AlunoPage({
         </p>
       </header>
 
+      {perfil.preparation ? (
+        <Link
+          href={`/admin/alunos/${id}/conteudo`}
+          className="self-start rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          Editar o conteúdo do edital
+        </Link>
+      ) : null}
+
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="font-semibold text-foreground">Cadastro</h2>
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">

@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, count, eq, inArray, isNull, sql } from "drizzle-orm";
 
+import type { ContentEdit } from "@/modules/preparations/content-edits";
 import { normalizeText } from "@/modules/taxonomy/normalize";
 import type { QueueInput } from "@/modules/taxonomy/matcher";
 import { db } from "@/server/db";
@@ -124,9 +125,21 @@ function detectPositionMismatch(
 export async function getPlanContent(
   preparationId: string,
   userId: string,
+  /**
+   * ⚠️ `asAdmin` IGNORA A POSSE da preparação, e só o painel passa isso.
+   *
+   * Pedido da cliente em 17/09/2026: "notei que uma parte não foi para o
+   * cronograma e a pessoa não corrigiu na conferência. Seria possível alguma
+   * forma de edição interna do cronograma pelo meu painel administrativo?".
+   *
+   * Quem chama com `asAdmin` já passou por `requireAdmin` na rota. O padrão
+   * continua sendo a checagem de dono: esquecer a flag falha fechado.
+   */
+  options: { asAdmin?: boolean } = {},
 ): Promise<PlanContent | null> {
   const preparation = await db.query.preparations.findFirst({
-    where: (t, { and: a, eq: e }) => a(e(t.id, preparationId), e(t.userId, userId)),
+    where: (t, { and: a, eq: e }) =>
+      options.asAdmin ? e(t.id, preparationId) : a(e(t.id, preparationId), e(t.userId, userId)),
     columns: { id: true, status: true, targetPosition: true },
   });
 
@@ -261,14 +274,11 @@ export async function getPlanContent(
  * ESCRITA
  * ========================================================================== */
 
-export type ContentEdit = {
-  /** `id` existente, ou `null` para item novo criado pelo aluno. */
-  id: string | null;
-  subjectId: string;
-  displayName: string;
-  weight: number | null;
-  isActive: boolean;
-};
+/*
+  A forma e a validação moram em `modules/preparations/content-edits`, porque a
+  conferência do aluno e a correção pelo painel gravam a mesma lista.
+*/
+export type { ContentEdit } from "@/modules/preparations/content-edits";
 
 export type SaveContentResult =
   | { ok: true; remapped: number; removed: number; added: number }
@@ -288,12 +298,18 @@ export type SaveContentResult =
  */
 export async function savePlanContent(input: {
   preparationId: string;
+  /** O dono da preparação, ou o admin que está corrigindo por ela. */
   userId: string;
   topics: ContentEdit[];
   confirm: boolean;
+  /** Ver a nota em `getPlanContent`: só o painel passa isto. */
+  asAdmin?: boolean;
 }): Promise<SaveContentResult> {
   const preparation = await db.query.preparations.findFirst({
-    where: (t, { and: a, eq: e }) => a(e(t.id, input.preparationId), e(t.userId, input.userId)),
+    where: (t, { and: a, eq: e }) =>
+      input.asAdmin
+        ? e(t.id, input.preparationId)
+        : a(e(t.id, input.preparationId), e(t.userId, input.userId)),
     columns: { id: true, status: true },
   });
 
