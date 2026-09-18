@@ -2,6 +2,7 @@ import { ArrowLeft, Lock } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { after } from "next/server";
 
 import { GameFrame } from "@/components/games/game-frame";
 import { Surface } from "@/components/shared/surface";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { LOGIN_ROUTE } from "@/config/routes";
 import { getStudentContext } from "@/server/auth/current-user";
 import { obterJogoParaJogar } from "@/server/games/service";
+import { recordEvent } from "@/server/preparations/service";
 
 export const metadata: Metadata = { title: "Jogo" };
 
@@ -23,6 +25,18 @@ export default async function JogoPage({ params }: { params: Promise<{ id: strin
   const resultado = await obterJogoParaJogar(context.user.id, id);
 
   if (!resultado.ok && resultado.motivo === "nao_encontrado") notFound();
+
+  /*
+    A abertura vai para o log de Atividades do painel (pedido de 18/09/2026).
+
+    Em `after()`, depois de a página sair: gravar o evento não pode atrasar o
+    jogo. A conta de administração fica de fora, para os testes da cliente não
+    virarem atividade de aluno.
+  */
+  if (resultado.ok && context.user.role !== "admin") {
+    const { id: gameId, title } = resultado.jogo;
+    after(() => recordEvent(context.user.id, "game_opened", { gameId, title }));
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 py-4">

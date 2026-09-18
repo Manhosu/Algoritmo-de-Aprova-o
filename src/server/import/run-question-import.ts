@@ -55,6 +55,8 @@ export type ImportReport = {
   createdTopics: Array<{ label: string; count: number }>;
   /** Disciplinas criadas no catálogo por esta importação. */
   createdSubjects: Array<{ label: string; count: number }>;
+  /** Bancas criadas no cadastro por esta importação. */
+  createdBoards: Array<{ label: string; count: number }>;
   /** Bancas que a planilha citou e que não existem no cadastro. */
   unknownBoards: Array<{ label: string; count: number }>;
   /**
@@ -68,6 +70,15 @@ export type ImportReport = {
   answerBalanceWarning: string | null;
   /** Preenchido quando a planilha já tinha sido importada antes. */
   alreadyImported: boolean;
+  /**
+   * Conferência (sem gravar)?
+   *
+   * ⚠️ A TELA ADIVINHAVA ISTO, e errava no pior caso: ela tratava "gravou zero e
+   * não achou repetida" como conferência. A importação de 200 questões que não
+   * entrou nenhuma exibia "Nada foi gravado. Se estiver de acordo, clique em
+   * Importar" — a cliente clicou em Importar e recebeu a mesma tela.
+   */
+  dryRun: boolean;
 };
 
 type Preparada = {
@@ -316,6 +327,35 @@ export async function runQuestionImport(input: {
   */
   const multiAssunto = prontas.filter((p) => p.questao.topicNames.length > 1).length;
 
+  /*
+    ⚠️ BANCA NOVA É CRIADA (pedido da cliente em 18/09/2026: "e se surgirem
+    Bancas Novas? O sistema precisa criar novas bancas também").
+
+    Antes, a banca que não casava caía em Autoral. Com o casamento tolerante de
+    `modules/import/exam-board` ("CESPE" já é a Cebraspe, "CEBRASPE - 2026"
+    também), o que sobra sem casar é banca que o cadastro realmente não tem.
+
+    Lidas AQUI, antes da conferência, para "Conferir sem gravar" também mostrar
+    quais seriam criadas. Uma por nome normalizado: "Instituto X" e "INSTITUTO X"
+    na mesma planilha viram uma banca só.
+  */
+  const bancas = await db
+    .select({ id: examBoards.id, slug: examBoards.slug, shortName: examBoards.shortName, name: examBoards.name })
+    .from(examBoards);
+
+  const bancasACriar = new Map<string, string>();
+  const bancasNovas = new Map<string, number>();
+
+  for (const questao of resultado.questions) {
+    const nome = questao.examBoardName?.trim();
+    if (!nome || casarBanca(nome, bancas)) continue;
+
+    const chave = taxonomyKey(nome);
+    if (!chave) continue;
+    if (!bancasACriar.has(chave)) bancasACriar.set(chave, nome);
+    conta(bancasNovas, bancasACriar.get(chave)!);
+  }
+
   const base: ImportReport = {
     fileName: input.fileName,
     parsed: resultado.questions.length,
@@ -327,10 +367,12 @@ export async function runQuestionImport(input: {
     unmatched: ordenar(foraDoCatalogo),
     createdTopics: ordenar(assuntosCriados),
     createdSubjects: ordenar(disciplinasCriadas),
+    createdBoards: ordenar(bancasNovas),
     unknownBoards: [],
     multiTopic: multiAssunto,
     answerBalanceWarning: resultado.answerBalanceWarning ?? null,
     alreadyImported: false,
+    dryRun: Boolean(input.dryRun),
   };
 
   if (input.dryRun) return base;
@@ -386,13 +428,30 @@ export async function runQuestionImport(input: {
    *
    * O casamento mora em `modules/import/exam-board`: nome curto, nome completo,
    * apelido ("CESPE" é a Cebraspe) e o nome aparecendo dentro do texto
-   * ("CEBRASPE - 2026"). Banca desconhecida cai em Autoral E É RELATADA —
-   * inventar uma banca a partir de um nome digitado encheria o cadastro de
-   * duplicatas.
+   * ("CEBRASPE - 2026"). O que não casa vira banca nova, criada aqui e
+   * relatada na tela (ver a nota antes do relatório).
    */
-  const bancas = await db
-    .select({ id: examBoards.id, slug: examBoards.slug, shortName: examBoards.shortName, name: examBoards.name })
-    .from(examBoards);
+  for (const [chave, nome] of bancasACriar) {
+    const base = chave.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50);
+    const sufixo = Math.random().toString(36).slice(2, 8);
+
+    const [nova] = await db
+      .insert(examBoards)
+      .values({
+        name: nome.slice(0, 160),
+        shortName: nome.slice(0, 40),
+        slug: `${base}-${sufixo}`,
+      })
+      .returning({
+        id: examBoards.id,
+        slug: examBoards.slug,
+        shortName: examBoards.shortName,
+        name: examBoards.name,
+      });
+
+    /* O casador passa a conhecê-la: as outras linhas com o mesmo nome caem nela. */
+    bancas.push(nova);
+  }
 
   const autoral = bancas.find((b) => b.slug === "autoral");
   const bancasDesconhecidas = new Map<string, number>();

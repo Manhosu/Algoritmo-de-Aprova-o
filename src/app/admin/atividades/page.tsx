@@ -17,6 +17,7 @@ const ROTULO_AREA: Record<ActivityArea, string> = {
   loja: "Loja",
   conquistas: "Conquistas",
   preparacao: "Preparação",
+  jogos: "Jogos",
 };
 
 const CLASSE_CAMPO =

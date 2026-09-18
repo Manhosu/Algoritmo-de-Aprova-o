@@ -110,7 +110,8 @@ export function ImportForm({ colunas }: { colunas: readonly string[] }) {
 }
 
 function Relatorio({ report }: { report: NonNullable<ImportState["report"]> }) {
-  const conferencia = report.written === 0 && report.duplicates === 0;
+  /* Vem do servidor: adivinhar por "gravou zero" mentia justamente quando nada entrava. */
+  const conferencia = report.dryRun;
 
   return (
     <div
@@ -211,6 +212,14 @@ function Relatorio({ report }: { report: NonNullable<ImportState["report"]> }) {
           titulo="Disciplinas novas criadas"
           ajuda="Não existiam no catálogo e foram criadas com o nome da planilha. Confira a grafia: é por esse nome que o edital do aluno vai casar com estas questões."
           itens={report.createdSubjects}
+        />
+      ) : null}
+
+      {report.createdBoards.length > 0 ? (
+        <Bloco
+          titulo="Bancas novas criadas"
+          ajuda="Não existiam no cadastro e foram criadas com o nome da planilha. Confira a grafia: é esse nome que aparece no filtro de banca do Banco de questões."
+          itens={report.createdBoards}
         />
       ) : null}
 

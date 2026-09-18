@@ -42,7 +42,9 @@ export type ActivityArea =
   | "revisoes"
   | "loja"
   | "conquistas"
-  | "preparacao";
+  | "preparacao"
+  /** Pedido da cliente em 18/09/2026: saber quem abriu cada jogo. */
+  | "jogos";
 
 export type ActivityRow = {
   occurredAt: Date;
@@ -186,6 +188,18 @@ export async function listActivity(input: {
 
       union all
 
+      -- Jogo aberto (gravado pela página do jogo, ver jogos/[id]/page.tsx)
+      select ae.occurred_at, ae.user_id, 'jogos',
+             'Abriu um jogo',
+             null,
+             ae.properties->>'title',
+             null
+        from analytics_events ae
+       where ae.user_id is not null
+         and ae.name = 'game_opened'
+
+      union all
+
       -- Marcos da preparação, que já eram registrados
       select ae.occurred_at, ae.user_id, 'preparacao',
              case ae.name
@@ -201,6 +215,8 @@ export async function listActivity(input: {
              null, null, null
         from analytics_events ae
        where ae.user_id is not null
+         /* O jogo tem ramo próprio; sem isto ele apareceria duas vezes, uma delas como "preparação". */
+         and ae.name <> 'game_opened'
     )
     select a.occurred_at,
            a.user_id,

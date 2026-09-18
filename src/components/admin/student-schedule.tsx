@@ -12,7 +12,15 @@ import type { ScheduleView } from "@/server/engine/schedule";
  * gráfico de minutos: o nome do assunto é o que vira tarefa de produção.
  */
 export function StudentSchedule({ cronograma }: { cronograma: ScheduleView }) {
-  const proximas = cronograma.weeks.slice(0, 6);
+  /*
+    ⚠️ TODAS AS SEMANAS, e não as seis primeiras.
+
+    O corte em seis fez a cliente concluir que faltava conteúdo no plano de um
+    aluno (18/09/2026): o edital dele ocupava dez semanas, e a tela mostrava seis
+    com uma nota discreta embaixo. Para quem usa esta tela para saber o que
+    produzir, uma semana escondida é um assunto que parece não existir.
+  */
+  const semanas = cronograma.weeks;
 
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5">
@@ -37,13 +45,13 @@ export function StudentSchedule({ cronograma }: { cronograma: ScheduleView }) {
         </p>
       ) : null}
 
-      {proximas.length === 0 ? (
+      {semanas.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           Nenhuma semana projetada — o aluno não informou disponibilidade.
         </p>
       ) : (
         <ol className="flex flex-col gap-3">
-          {proximas.map((semana) => (
+          {semanas.map((semana) => (
             <li key={semana.startDate} className="rounded-lg border border-border p-3">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="text-metric text-sm text-foreground">
@@ -75,10 +83,9 @@ export function StudentSchedule({ cronograma }: { cronograma: ScheduleView }) {
         </ol>
       )}
 
-      {cronograma.weeks.length > proximas.length ? (
+      {semanas.length > 0 ? (
         <p className="text-xs text-muted-foreground">
-          Mostrando as próximas {proximas.length} de {cronograma.weeks.length} semanas
-          projetadas.
+          {semanas.length} {semanas.length === 1 ? "semana projetada" : "semanas projetadas"}.
         </p>
       ) : null}
     </section>
